@@ -2,6 +2,9 @@ xserver-xorg-video-nouveau (1:0.0.10~git+20080602+e034616-1) experimental; urgen
 
   * First upload to Debian experimental based on Christopher James Halse
     Rogers's packages for Ubuntu (Closes: #418889)
+  * debian/control:
+    - Set Maintainer to Debian X Strike Force, add Matthew Johnson and myself
+      to Uploaders.
   * Update debian/xsfbs/xsfbs.{mk,sh}
   * Update debian/copyright.
 

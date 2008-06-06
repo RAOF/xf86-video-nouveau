@@ -1,0 +1,1253 @@
+xserver-xorg-video-nouveau (1:0.0.10~git20080521-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * c21594c... NV50: Be consistent with rules-ng.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 21 May 2008 17:58:14 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080519-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 19 May 2008 09:06:43 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080516-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 16 May 2008 12:08:43 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080511-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 9c1d87f... NV50: Some misc things.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sun, 11 May 2008 16:53:10 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080509-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 5f08db9... Cosmetic g80 laptop dcb parsing enhancement
+  * 6a460ea... randr12: some reordering, tidying &c
+  * 7455bc8... Enable RandR 1.2 code-path by default
+  * 98a751e... Don't call call_lvds_script with a null dcbent pointer
+  * 77b24bc... randr12: tidy up some nv50 remnants in the pre nv50 code
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 09 May 2008 06:58:34 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080507-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 8997f83... NV50: Some misc fixes.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 07 May 2008 20:04:31 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080506-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * ae574ec... nv50_exa.c had no license statement.
+  * a7af057... NV50: Rework the modesetting code into a different model.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 06 May 2008 10:19:29 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080505-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 05 May 2008 07:54:42 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080503-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 5e1b570... xv: nv10 double-buffered overlay mode was getting set on
+    nv04
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sat, 03 May 2008 18:03:10 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080501-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 8553602... Use the actual number of BIT table entries
+  * 78588c7... randr12, xv: manual overlay clipping for randr12 (see
+    #12825)
+  * 6f7d00a... randr12: remove unneeded separate dcb_entry and "or"
+    members
+  * 52e58c7... Pass DCB entry structs in bios functions, rather than
+    index
+  * 0c1da69... Pass output field, rather than dcb indices, for tmds
+    access functions
+  * 2333bc9... Add an index field to dcb entries, and carry pointer to
+    dcb entry in output struct
+  * 21f062c... randr12, xv: oops, transform_in_use doesn't exist on
+    xserver 1.3
+  * ee78dc0... randr12: C51 I2C
+  * 9b70dfa... randr12: only set cr59 to 1 for tmds (fixes nv34 issue)
+  * c8cec9b... randr12, xv: no overlay when the crtc is transformed
+  * 3233ebb... randr12: fix spread spectrum setting for lvds and turn it
+    off during dpms off
+  * 467f83a... randr12: make nv50 code depend on Architecture
+  * 8b16572... CR27 appears to contain the chip revision
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 01 May 2008 18:27:52 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080429-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 29 Apr 2008 11:03:34 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080428-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 28 Apr 2008 09:51:41 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080424-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 24 Apr 2008 19:29:54 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080423-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 23 Apr 2008 07:08:36 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080422-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 22 Apr 2008 08:27:56 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080421-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 21 Apr 2008 09:13:55 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080419-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sat, 19 Apr 2008 12:23:19 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080418-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 18 Apr 2008 08:41:34 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080417-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 17 Apr 2008 08:54:14 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080416-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 16 Apr 2008 06:58:15 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080414-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 14 Apr 2008 07:36:41 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080413-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 61e4161... NV50: Another few regs.
+  * 5328370... NV50: Some more regs.
+  * e5511a5... NV50: I now know what UNK8A8 is, so update the value
+    register as well.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sun, 13 Apr 2008 15:57:44 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080412-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 2c90276... NV50: Re-implement output status caching.
+  * d7681e8... randr12: separate pll and arbitration stages of
+    calc_state_ext, and call from mode_set directly
+  * 0bf08d7... state->config is not used
+  * 08b8bd8... randr12: unite pre nv40 and nv40 pll restore
+  * 5b44308... Use the correct reference clock when reading (V)PLLs
+  * 0f533b8... Various PLL code improvements
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sat, 12 Apr 2008 12:47:15 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080411-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 4e1caa6... NV50: Some misc stuff.
+  * 0991281... nv50: fix distcheck since header removal
+  * 4af376f... MCP67 does not do the second stage gain tests
+  * dbca8b6... PLL stuff
+  * 39b2e0b... If no PLL coefficients compatible with the constraints
+    exist, don't brick the hardware
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 11 Apr 2008 08:26:46 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080408-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 0b54450... NV50: Scaling works fine on VGA connectors, so support
+    that as well.
+  * 891e72f... NV50: Deobfuscate some more commands.
+  * 13c701f... Make some CARD32 die.
+  * a3a0710... NV50: Give a few registers an UNK label.
+  * be72a7c... randr12: NV04/05/06 can't accelerate rotation, so it's
+    better to disable it.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 08 Apr 2008 07:27:18 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080407-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 9cf76c9... NV50: Some more stuff.
+  * c725e33... NV50: minor rename to avoid confusion
+  * fcda539... NV50: Deobfuscate another register (partially).
+  * fa93541... NV50: Fix another deadlock in the clock setting code.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 07 Apr 2008 08:14:12 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080406-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * c001fea... Forgot a few things.
+  * 17a8e17... NV50: rename randr-1.2 functions to be
+    nv50_something_function
+  * a71ef4d... NV50: Some more cleanup.
+  * aeab563... NV50: Some reordering.
+  * b899ab7... Some minor corrections.
+  * b0ef158... NV50: Document dvi hotplug detection.
+  * be54b92... NV50: Remove some questionable guesses.
+  * c06f202... nvbios: Drop a N2/M2 requirement on NV5x hardware, as it
+    prevents getting a mode on 1024x768'ish and lower.
+  * 5ce26b9... nvbios: Add some valid register ranges for nv50.
+  * ce86484... NV50: Switch to common pll calculator function.
+  * 821ad3d... randr12: delete stuff commented out a week ago that no
+    one's complained about
+  * e90e534... NV50: Minor comment updates.
+  * 0855098... NV50: Some more stuff.
+  * ef4339a... NV50: Some more registers.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sun, 06 Apr 2008 12:15:38 +1000
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080404-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 3183df1... NV50: Update my knowledge of interrupts.
+  * 04fd80d... Small declaration reordering
+  * 92934e4... Move some variable declarations in the bios parser
+  * 9273840... randr12: some fixes to dithering property
+  * 52c880c... randr12: better analogue clock limits (taken from pNv-
+    >{Min,Max}VClockFreqKHz)
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 04 Apr 2008 08:06:15 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080403-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 29714e7... NV50: Some minor changes to the display supervisor
+    (mostly comment).
+  * 9ac32d3... Some bios parser PLL writing improvements
+  * 4a192ea... NV50: Add my name to some files.
+  * db6220b... randr12: since the crtc function records are now mutable,
+    unify pre nv50 templates
+  * b9762ba... randr12: don't provide rotation functions in NoAccel case
+  * a24ab3d... Revert "randr12: Fail rotation in NoAccel case."
+  * 33d4c2f... Add quirks for Apple *book backlight
+  * 8a3f051... NV50: Some more things.
+  * b33317e... randr12: Fail rotation in NoAccel case.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 03 Apr 2008 07:39:02 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080402-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * d017dfa... NV30/35 setPLL bios support
+  * 32f550a... NV50: Fix a minor cursor issue.
+  * 27e819d... NV50: Add some debugging statements to important
+    functions.
+  * 9985793... NV50: Some i2c stuff.
+  * 9199307... Use new PLL reading code
+  * a3f82d9... Unified PLL reading
+  * 350fb20... randr12: get_clock_from_crtc only necessary for TMDS
+  * f741bf7... Better PLL limits for some nv3x
+  * 94ca195... randr12: deal with nv30 and nv35 PLLs individually
+  * 626d8d6... Init global gamma on all crtc's, even if they are
+    currently not in use.
+  * f54cea5... NV50: Some clock related cleanups + minor changes.
+  * 7393d8f... NV50: Some misc cleanup.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 02 Apr 2008 18:12:56 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080331-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 9edf6d6... randr12: different handling for sel_clk for pre and post
+    nv40
+  * 84ab4be... Minor tidyup to output merging
+  * 1fe1d81... Kill a useless register offset.
+  * 75680d7... NV50: remove unneeded function
+  * 263ec94... NV50: Some minor cursor cleanups.
+  * 86722ad... NV50: Deobfuscate some of the modesetting, a few things
+    were hidden away in innocent looking variables.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 31 Mar 2008 17:25:29 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080330-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 633a8f4... randr12: make sel_clk behaviour match comment (which
+    seems to be correct)
+  * 7a8bbb7... Fix Apple backlight code, broken in pci-rework conversion
+  * 4d0974c... Consistency fix
+  * acd0078... It seems wise to NVSync for all hardware on NVLeaveVT.
+  * ea27bc3... NV50: Better safe than sorry.
+  * d4ca83e... randr12: shrink pitch alignment stuff and move
+  * 43ff98c... randr12: tidy-up 3/3 - TMDS04 twiddling
+  * 9491ee3... randr12: tidy-up 2/3 - DPMS CR57/58 twiddling
+  * 2e001c1... randr12: tidy-up 1/3 - FP_DEBUG_0 twiddling
+  * ec9fa3c... randr12: allow doublescan and low clock modes
+  * 048f310... Minor fix to lvds script caching commit
+  * 3feaa48... NV50: Implement per CRTC gamma correction.
+  * 77af887... randr12: correct SEL_CLK register beheaviour for outputs
+    with or=2
+  * cb5d4cd... Cache running of LVDS scripts, rather than blocking
+    LVDS_RESET
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sun, 30 Mar 2008 08:54:05 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080325-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 25 Mar 2008 08:07:48 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080323-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sun, 23 Mar 2008 09:55:36 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080321-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 6924d1a... NV50: Although not essential, it's nicer to save a
+    register as uint32_t.
+  * 1042c2b... NV50: Some more stuff.
+  * b58e5e9... NV50: Educated guesses at some of the control registers.
+  * ef25cb9... NV50: Forgot some more stuff.
+  * 64b3d1a... NV50: Forgot something.
+  * 81929c1... NV50: More dehexing.
+  * ee1ac06... NV50: Some more dehexing.
+  * ca1b8bb... NV50: Some more register guesses.
+  * aa99fb0... randr12: do DPMS off better
+  * 063b393... Optimizations on LVDS script code
+  * c520364... randr12: unbreak LVDS and primary I2C for < NV50
+  * ebc75dc... NV50: fix i2c for real
+  * c6e3a6f... NV50: Fix a typo and hopefully fix i2c.
+  * a989b4c... NV50: Fix major thinko in "NV50: kill output_resource and
+    use or directly."
+  * cd5aaea... NV50: Handle some things that weren't fixed during
+    rebase.
+  * f73c236... NV50: kill output_resource and use or directly.
+  * de0fc0e... NV50: Mostly resorting regs.
+  * 849bab7... NV50: Some more educated guesses at register names.
+  * 0244dc1... NV50: Another subtle difference.
+  * 5e2d220... NV50: Fix a potentional bug.
+  * cef158c... NV50: Share output properties.
+  * 31e7a74... randr12: Implement dithering output property.
+  * 05f0464... NV50: Merge output creation and i2c init.
+  * 285a13a... NV50: Merge crtc creation.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 21 Mar 2008 17:39:28 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080320-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * c5dac45... randr12 offbyone debug commitnoise
+  * 4cd5e43... randr12: remove NVGetOutputFromCRTC
+  * 27c21c0... randr12: split out fp-only registers
+  * c09d190... randr12: better handling for output types in nv_crtc
+  * 78ded96... randr12: remove duplicated regs
+  * f701376... randr12: fix noscale scaling mode
+  * a9c01ef... Misc startup info mostly duplicated the state storage
+    stuff
+  * a02f82e... randr12: make output parsing consistent
+  * f04c44e... G80 I2C parsing
+  * 718e424... randr12: make nv_crtc_calc_state_ext definition smaller
+  * 772bf76... randr12: merge common PLL paths
+  * 1326e01... randr12: make plls belong to their CRTCs
+  * 97b0748... Use PMC defines
+  * ee11c6a... randr12: Let an unneeded quirk die.
+  * 8851d9f... randr12: sel_clk values are really an FP thing, so move
+    calculation to nv_output
+  * 63527f9... randr12: tidy up output restore
+  * 769436b... randr12: common tmds access functions
+  * c455ca0... Improve bios' handling of ramdac_580
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 20 Mar 2008 08:28:35 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080314-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * bd5ad7c... NV50: Accept G9X cards.
+  * 0318b31... NV50: Add back output_resource.
+  * a439756... NV50: Unbreak "NV50: Kill the connection status caching
+    (which was broken btw)."
+  * 63ffb8d... NV50: Merge the two output private structs.
+  * b4c3bee... NV50: rename scale to scaling_mode
+  * b0d2f93... NV50: Rename nativeMode
+  * e5b8efa... NV50: Rename or to output_resource.
+  * 19ca2db... NV50: kill set_pclk
+  * eef3a66... NV50: Remove the remnants of cached_status.
+  * dc0bb59... NV50: kill partner entry
+  * f664637... NV50: fix warning
+  * cb50cd3... NV50: Kill the connection status caching (which was
+    broken btw).
+  * 6e2af71... NV50: change i2c to pDDCBus
+  * d07b306... NV50: Switch to other scaling defines.
+  * 4ddb92b... NV50: Switch to the same output type as the rest of the
+    code.
+  * e605fbf... randr12: nothing uses output_resource. kill it
+  * 53925cf... randr12: fix the setting of NV_RAMDAC_OUTPUT
+  * 493c794... Simplify TMDS writes a little
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 14 Mar 2008 09:12:59 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080313-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 4cf1bd9... randr12: don't allow scripts to break overlay
+  * 95f2b84... Fix video overlays to treat double-scan correctly when
+    using randr12
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 13 Mar 2008 08:17:11 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080311-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 460cb26... Correct RAMIN offset
+  * e8a5d46... randr12: changing tmds2 for dvi-d seemingly unnecessary
+  * 30ddbe9... randr12: unbreak sel_clk changes
+  * 03f3872... randr12: allow spread spectrum bits to be updated on pre
+    nv40
+  * 323b7ef... randr12: quirk for 17" powerbook, and better sel_clk
+    handling
+  * 58f9079... nv_type.h mandates XF86DRI being declared
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 11 Mar 2008 21:10:14 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080310-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 0dbffc8... Fix up a bunch of prototypes, remove unused wrappers
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 10 Mar 2008 09:32:32 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080309-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * e5ded02... Move setting of alphaCursor to nv_setup, and restyle
+    useful portions of nv_setup
+  * 0b8629a... Kill NVFBLayout
+  * 29cfb08... Warning fixes
+  * b87059f... Drop the NV*VGA defines and adjust users
+  * a636b02... randr12: Disable a quirk that has adverse sideeffects on
+    NV36M.
+  * f422886... Merge CRTC private structs.
+  * b3d0d0c... Death to some unnecesary stuff.
+  * 03a7a1d... Various minor tidyups
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sun, 09 Mar 2008 14:49:00 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080308-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 624148c... NV50: Convert back to absolute registers.
+  * 10bdffb... PLL limit table v0x11
+  * 2e1af24... Make bios init code work on 6600 by changing pll setting
+    stuff a bit
+  * 5fd2dd7... It seems libpciaccess release became version 0.10 not
+    version 0.10.0
+  * 3e4db03... randr12: Forgot to clean up when switching output
+    resources.
+  * 8a5c6e8... Do not access beyond source pixmap in NVAccelUploadIFC
+  * 7afb739... Oops.
+  * 0da8c84... randr12: workaround for xserver randr bug, where the
+    hwcursor always gets displayed after a mode change
+  * c424144... Fix my nv10 cursor.
+  * 633047c... randr12: A major rework of output resource conflict
+    handling.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sat, 08 Mar 2008 09:37:48 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080307-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * c523096... randr12: Readd some useful information about how an
+    output is routed.
+  * 97ac866... randr12: Kill almost all usage of ErrorF + some misc
+    cleanup.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 07 Mar 2008 09:03:44 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080306-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * ea8fba2... randr12: don't reset panel unnecessarily for mere
+    backlight control
+  * 22ec355... randr12: remove switchable_crtc stuff
+  * 3b0a1a1... randr12: if no ddc, return XF86OutputStatusUnknown, for
+    !twoHeads and nv11
+  * 424500c... randr12: do not change CR43 from its initial value
+  * a764d3c... Give some defines more consistent names.
+  * 234ce16... Use the BMP structure's I2C info, instead of DCB 1.2's,
+    as marcheu's bios is broken
+  * bb5429f... Add another DCB 1.4 entry
+  * 5998ba0... Don't zero out i2c_read and i2c_write
+  * 2d74bcb... Put braces around a bitmask.
+  * c7ab8e8... Add an LVDS output setup quirk for Powerbooks
+  * fd9b37b... randr12: Only change vpll value when needed.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 06 Mar 2008 11:16:08 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080303-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 89882b4... randr12: Keep the gamma values when setting a new mode,
+    instead of always resetting to default.
+  * e8c363b... Improve link_head_and_output
+  * 4a16414... nv30: Remove fix that is useless now, and maybe broken in
+    some cases
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 03 Mar 2008 14:18:58 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080229-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 5cb1648... Less magical way of setting dual link on EDID equipped
+    panels
+  * 1127974... NV40EXA: Support extend/repeat type pad.
+  * 6980d0e... Add default dual link transition frequency
+  * 27e2e55... Deal with pre-nv40 laptops with EDID
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 29 Feb 2008 15:24:57 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080225-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 41992eb... Revert dummy commit
+  * 073d852... Dummy commit
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 25 Feb 2008 10:10:47 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080221-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 5db7920... Use some of nv_hw's functions in nv_bios.c
+  * fa8891e... Unbreak console restore again, and use a less ambiguous
+    function name for head locking
+  * 38d42a7... randr12: rename NV*VGA functions for api consistency
+  * c77a547... xv: don't crash on init
+  * cf963a1... randr12: Only NV11 needs byteswapping + NV11 uses
+    premultiplied cursors i think.
+  * 87f1676... NV30/40TEX: Create two adapters, one with fancy
+    filtering, the default without.
+  * 7ee1bb4... randr12: make more hw funcs generic
+  * 11de8d7... Use fp strapping to determine whether straps are used for
+    flat panel modes
+  * c1ac6b9... Rehabilitate bios opcode 6d
+  * afb4230... Spruce up NV04 bios parsing a little
+  * dfabaab... More DCB v1.5 entries
+  * 2a4373d... Treat 0x4 and 0x8 bits in LVDS DCB v2.0 configuration as
+    meaning the same thing
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 21 Feb 2008 11:48:39 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080219-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * daa557c... Fix PPC DFS/UTS by using PCIgart.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 19 Feb 2008 10:21:36 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080218-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 18 Feb 2008 09:10:19 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080217-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * f8f4692... dri: fix broken display in some cases
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sun, 17 Feb 2008 09:31:24 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080215-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * a293f32... Fix bios pll setting regression
+  * 7121fe9... Use a loop to read RAMIN bios image, rather than memcpy
+  * 3ad7c35... randr12: reorder some variable declarations in nv_crtc
+    and nv_output
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 15 Feb 2008 08:37:31 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080213-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 13 Feb 2008 09:47:23 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080212-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 12 Feb 2008 21:44:19 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080211-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 11 Feb 2008 08:17:55 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080209-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sat, 09 Feb 2008 10:23:02 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080208-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 6cb8fb6... Ordering mechanism for BIT table parsing, and (hopefully)
+    automagic laptop detection
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 08 Feb 2008 10:26:50 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080207-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 4f69023... Replace a const with its name.
+  * 75c5912... Fix bad debugging in NVWritePVIO().
+  * 50da8b8... Fix UV swapping on PPC.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 07 Feb 2008 18:57:03 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080206-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 4ff11d1... Missed out "DEBUG" part of the name in the define
+  * 181ee3b... Load correct PLL limits for single stage PLL cards with
+    blank PLL tables
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 06 Feb 2008 09:08:23 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080205-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * cbcb107... Once again kill usage of an exa private function.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 05 Feb 2008 08:59:04 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080204-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * f14d27d... Remove include guards & add copyright.
+  * 7522640... Last round of fixes for nv30/40 bicubic Xv.
+  * 78553ab... Fix tearing.
+  * 7240f86... Understood and fixed some NV30 FP_CONTROL bits.
+  * bb2a7bd... Fixes to nv30/nv40 textured video.
+  * c10d30d... Misc textured video fixes.
+  * cfdfd5a... Of course, add the nv30 video texture file.
+  * 970a8e4... nv30 video texture. Doesn't work with bicubic yet, only
+    bilinear.
+  * c1eba82... Remove (void)ing that's not necessary any more.
+  * 7356ad9... Remove unneeded stuff.
+  * e06dfd2... Separate the shaders from the rest of the code.
+  * a69c507... Macros for the PME range.
+  * 47c8ed4... Add PME range.
+  * 63f47c9... Small cleanups.
+  * c98e9fa... nv40 video texture: first pass at bicubic video.
+  * 10967a4... Update to newer nouveau_class.h
+  * 82728b3... Update to latest nouveau_class.h
+  * 9d9a5ac... Don't FIRE_RING() when in NoAccel mode.
+  * 11c1ee1... Some minor reindenting.
+  * 0db3472... exa: those limits were a bit conservative on some hw.
+  * eb72e67... exa: more accurate coordinate limits
+  * 8645d2d... Fix NVExaPixmapMap() for NOUVEAU_EXA_PIXMAPS case.
+  * dd81efd... Fix undefined symbol.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 04 Feb 2008 09:07:47 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080203-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 2a1116c... Remove a few leftovers to actually make the last commits
+    work.
+  * 714bea6... Kill NVShowHideCursor and use a wrapper.
+  * 741acde... Remove nvRead/WriteVGA in favor of nvRead/WriteCurVGA
+    wrappers.
+  * d429cab... Kill NVLockUnlock and make it redirect to
+    NVLockUnlockHead.
+  * dc2aee0... More wrapper death.
+  * a57fd67... Let some wrappers die.
+  * b9a4eb6... Undo last commit and move it to drm.
+  * 288b565... NV40: Fix longstanding issue with nouveau crashing after
+    using blob.
+  * 0ec1b10... Don't allocate the whole AGP gart as a scratch buffer,
+    since we still need to allocate the fifo afterwards.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sun, 03 Feb 2008 09:41:50 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080202-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 5b79b0a... Don't use functions that are not supposed to be used in
+    randr12 mode.
+  * cedb604... Remove usage of "illegal" wrappers in code that also used
+    for randr12 mode.
+  * 1a52478... randr12: Remove a hack, confirmed on 7600GS that it is
+    unneeded.
+  * b6972e7... randr12: Some minor fixes.
+  * 988dce0... NV10 EXA: limit regcomb state re-emission, fix logic for
+    A8 + A8 yielding a 3% perf improvement :p
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sat, 02 Feb 2008 10:33:49 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080201-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * a84852c... (hopefully) Fix build on powerpc.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 01 Feb 2008 09:01:37 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080131-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * e8a975e... Xv: NV30 overlay can not scale down by more than 0.5x
+  * adc2689... Fail gracefully for too-big resolutions / colour depths
+  * 09c9d7c... randr12: Misc change.
+  * 6a46bf5... Check if the framebuffer can fit into the offscreen
+    memory.
+  * 9607d78... Xv: NV04 overlay can not scale down at all, as confirmed
+    by DirectFB
+  * 7edfb47... PBUS define additions
+  * 6e09059... PCRTC define additions
+  * e517993... Missed these in the ->absolute conversion
+  * ee0d557... Xv: detection of composite for the overlay
+  * 3a5f92d... Make bios port io use PVIO as appropriate, and have harsh
+    validity checks
+  * 92c0d96... Make PLL setting quieter
+  * f58d174... Move some regs from nv_bios.c to nvreg.h
+  * d0022c3... Tighten bios reg checks a little
+  * b1b1d76... randr12: make nv4x plls less special
+  * 8f05d66... Don't attempt to parse BIT D and L tables on non-mobile
+    cards
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 31 Jan 2008 08:19:50 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080130-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 8e834ec... Add some mobile pci-ids, and reorder numerically
+  * 0b586ae... randr12: Remove excessive writing of VTOwner.
+  * c522ebb... Make sure nv04 has some defaults (as the bios parsing is
+    non-existant)
+  * 62b6c5f... Use absolute regs in the DDX
+  * f5c9f99... Reorganise pll limit retrieval
+  * 26ff67f... NV30EXA: Always init texture origin, please report if
+    your viewport setup needs to be different.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 30 Jan 2008 07:58:07 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080129-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 38df9a9... Forgot to be paranoid.
+  * 2ea0314... Small improvement to nouveau_dma_wait, at least makes it
+    show up in profiling in a clear way.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 29 Jan 2008 09:31:33 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080128-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * dd483e2... randr12: 2nd attempt on nv11 console restore
+  * 5b0fa02... Use NV_{WR,RD}08 to avoid double logging io
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 28 Jan 2008 09:17:40 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080127-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * a099bbf... randr12: remove unused PLL code
+  * 0eb428e... randr12: attempt to fix brokenness of head setting /
+    getting on nv11
+  * eea2fd4... randr12: don't do load detection on nv11
+  * a2c0fac... Assume 18 bit laptop panels by default, add a message
+    that may trigger on 24 bit panels
+  * ec548d2... Detect mobile BMP biosen
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sun, 27 Jan 2008 10:14:02 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080126-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 9f932eb... NV30EXA: Fix viewport setup + switch to triangle based
+    composite.
+  * afca5f2... randr12: fix / annotate a couple of ddc thinkos
+  * 3e6ea79... Implement opcodes 0x66, 0x67, and 0x68
+  * cdae2e2... randr12: Rework native modes for TMDS.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sat, 26 Jan 2008 10:26:39 +1100
+
+xserver-xorg-video-nouveau (1:0.0.10~git20080125-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 4663605... oops
+  * e067a0e... Use proper version.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 25 Jan 2008 08:40:44 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20080124-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+  * New git changelog:
+  * 324c19a... Fix C51 refclk
+  * 178b8bb... randr12: calculate (and set, for nv40) sel_clk before
+    calculating plls
+  * 8067bd0... Fix big bug in commit "Mostly log message changes".
+  * c5329a4... Redo sel_clk setting and update its documentation
+  * f07ab92... Fail on LVDS DCB entry parsing issues
+  * 12efa8c... Mostly log message changes
+  * 0faa15d... not an appropriate place for this type of thing..
+  * 9e982df... randr12: Increase cvt mode to 72 Hz.
+  * 71435dd... NV40EXA: Use the same approach as the texture adapter for
+    rendering.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 24 Jan 2008 09:20:52 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20080123-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 23 Jan 2008 20:37:18 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20080122-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 22 Jan 2008 18:01:19 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20080121-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 21 Jan 2008 10:16:57 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20080119-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sat, 19 Jan 2008 10:10:02 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20080118-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 18 Jan 2008 08:54:25 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20080117-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 17 Jan 2008 18:13:15 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20080116-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 16 Jan 2008 09:28:05 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20080115-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 15 Jan 2008 09:22:40 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20080113-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sun, 13 Jan 2008 10:04:15 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20080111-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 11 Jan 2008 12:28:19 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20080110-0~ppa1) hardy; urgency=low
+
+  * New git snapshot
+  * src/nv_output.c:
+    + Remove previous patch.  LVDS is now enabled upstream
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 10 Jan 2008 14:33:45 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20080108-0~ppa1) hardy; urgency=low
+
+  * New git snapshot
+  * src/nv_output.c
+    + Enable LVDS with the RandR12 codepath:
+      WARNING!  EXPERIMENTAL!
+      If your screen "blooms" or "bleeds" (i.e. has a developing white/
+      psychedelic pattern) then KILL X IMMEDIATELY, and if the effect continues
+      reset power
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 08 Jan 2008 20:12:47 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20080106-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sun, 06 Jan 2008 21:15:45 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20080103-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 03 Jan 2008 15:59:07 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20080102-0~ppa1) hardy; urgency=low
+
+  * New git snapshot
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 02 Jan 2008 16:13:41 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20071214-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 14 Dec 2007 16:45:18 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20071212-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 12 Dec 2007 13:19:49 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20071202-0~ppa1) hardy; urgency=low
+
+  * "AUTOMATED: New git snapshot"
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sun, 02 Dec 2007 17:48:08 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20071128-0~ppa1) hardy; urgency=low
+
+  * New git snapshot
+  * Finish up the remaining x-x-v-nouveau-trunk => x-x-v-nouveau renames
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 28 Nov 2007 19:58:21 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20071127-0~ppa1) hardy; urgency=low
+
+  * New git snapshot
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 27 Nov 2007 21:25:20 +1100
+
+xserver-xorg-video-nouveau (1.2.0~git20071125-0~ppa1) hardy; urgency=low
+
+  * New git snapshot
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sun, 25 Nov 2007 16:15:04 +1100
+
+Xserver-xorg-video-nouveau (1.2.0~git20071123-0~ppa1) hardy; urgency=low
+
+  * New git snapshot
+  * Add get-orig-source rule
+  * Drop -trunk from package name - there are no more interesting branches
+  * Drop autoreconf from rules - we do that on tarball generation now
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 23 Nov 2007 13:38:28 +1100
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20071119-0~ppa1) hardy; urgency=low
+
+  * New git snapshot cbd70303a949f387d42497cb4ea52186ed938b9c
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 19 Nov 2007 08:50:59 +1100
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20071115-0~ppa1) hardy; urgency=low
+
+  * New git snapshot 3cdc4b274f371f1f524d140fddd79dad2987b06c
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 15 Nov 2007 22:37:04 +1100
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20071113-0~ppa1) hardy; urgency=low
+
+  * New git snapshot e93a5d3abe6d637e00bd9c998e9735c9766eecfb
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 13 Nov 2007 09:01:23 +1100
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20071112-0~0ppa1) hardy; urgency=low
+
+  * New git snapshot f22691661f8b72cedb8aa4fc96b41fcff4171e12
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 12 Nov 2007 08:42:30 +1100
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20071110-0~0ppa1) hardy; urgency=low
+
+  * New git snapshot 77dc99b2621523e20a956a8eaa01a100c992c458
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sat, 10 Nov 2007 16:13:20 +1100
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20071023-0~ppa1) gutsy; urgency=low
+
+  * New git snapshot 0fb93b45378c9d0fbee9bb96bd60d7a995c667b9
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 23 Oct 2007 09:18:45 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20071018-0~ppa1) gutsy; urgency=low
+
+  * New git snapshot 8320f4f61ca72ee0101c1d552ea3ef28e573d21d
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 18 Oct 2007 17:33:07 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20071016-0~ppa1) gutsy; urgency=low
+
+  * New git snapshot b36fbf174849b04928efda2909c461b6c1688cdc
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 16 Oct 2007 11:12:24 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20071015-0~ppa1) gutsy; urgency=low
+
+  * New git snapshot 8425d93f7f932281a1b9b420e676acba2a2b5ecd
+  * debian/rules:
+    - Install changelogs
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 15 Oct 2007 11:18:10 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20071014-0~0ppa1) gutsy; urgency=low
+
+  * New git snapshot 212a4cd8884ff9276f64bdd0a0115782d146e36a
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sun, 14 Oct 2007 11:34:43 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20071011-0~ppa1) gutsy; urgency=low
+
+  * New git snapshot 879e653867552f6bb595160670c8325bcb5a0d3b
+  * Add xutils-dev to fix FTBFS
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 11 Oct 2007 18:36:44 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20071009~0ppa1) gutsy; urgency=low
+
+  * New git snapshot 43d5f747103721b3e0ccf4fe73494729ed34986c
+  * Fix debian/rules to only run autoreconf once
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 09 Oct 2007 08:34:59 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20070919-0ppa1) gutsy; urgency=low
+
+  * New git snapshot bf3cceeb9c72c16a1cf601c8bd0dedd8c676e3cd
+
+ -- Christopher James Halse Rogers (RAOF) <chalserogers@gmail.com>  Wed, 19 Sep 2007 21:59:07 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20070916-0ppa2) gutsy; urgency=low
+
+  * Add automake build-dep to fix FTBFS.
+
+ -- Christopher James Halse Rogers (RAOF) <chalserogers@gmail.com>  Sun, 16 Sep 2007 17:13:06 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20070916-0ppa1) gutsy; urgency=low
+
+  * New git snapshot 02d5443d650e628256ebed1f331ad32b0f642a38
+  * Regenerate the autotools magic on build.  Should prevent problems such as
+    the removal of nv_xaa.c from happening again.
+
+ -- Christopher James Halse Rogers (RAOF) <chalserogers@gmail.com>  Sun, 16 Sep 2007 17:02:52 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20070910-0ppa1) gutsy; urgency=low
+
+  * New git snapshot dedb80d1237ebacf7531938d627328a20453d5d0
+
+ -- Christopher James Halse Rogers (RAOF) <chalserogers@gmail.com>  Mon, 10 Sep 2007 12:47:45 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20070904-0ppa1) gutsy; urgency=low
+
+  * New git snapshot 54ca35e7379fdb375c0d7be2f8c3ad1513be2a59
+
+ -- Christopher James Halse Rogers (RAOF) <chalserogers@gmail.com>  Tue, 04 Sep 2007 09:49:11 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20070831-0ppa1) gutsy; urgency=low
+
+  * New git snapshot b680a9652508e0d0e660fd924937870cd4ad3530
+
+ -- Christopher James Halse Rogers (RAOF) <chalserogers@gmail.com>  Fri, 31 Aug 2007 08:38:22 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20070825-0ppa1) gutsy; urgency=low
+
+  * New git snapshot 30d2b3f0dd4a9b6be5d3ad7a38993e5b84baf90a
+
+ -- Christopher James Halse Rogers (RAOF) <chalserogers@gmail.com>  Sat, 25 Aug 2007 14:02:45 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20070822-0ppa1) gutsy; urgency=low
+
+  * New git snapshot 4fc38aeb54da1cba9d5e231a5151e6429af0ea7e
+
+ -- Christopher James Halse Rogers (RAOF) <chalserogers@gmail.com>  Wed, 22 Aug 2007 20:23:13 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20070817-0ppa1) gutsy; urgency=low
+
+  * New git snapshot 1f83dbfa6ef774276e0da3dc4f74cbabe55f76fa
+
+ -- Christopher James Halse Rogers (RAOF) <chalserogers@gmail.com>  Fri, 17 Aug 2007 09:01:42 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20070815-0ppa1) gutsy; urgency=low
+
+  * New git snapshot ffa62dc9f573448c8a832324973513f7ba985b33
+
+ -- Christopher James Halse Rogers (RAOF) <chalserogers@gmail.com>  Wed, 15 Aug 2007 19:14:01 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20070812-0ppa1) gutsy; urgency=low
+
+  * Also ship .git directory in source tarball.  Required for useful debug info
+
+ -- Christopher James Halse Rogers (RAOF) <chalserogers@gmail.com>  Sun, 12 Aug 2007 12:58:38 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20070811~2-0ppa1) gutsy; urgency=low
+
+  * New snapshot b3e4da61e8c846d8d3f01b015cb7155da4e266e9 to fix segfault on 
+    startup
+  * Build-depend on git, so useful debug information is retained
+
+ -- Christopher James Halse Rogers (RAOF) <chalserogers@gmail.com>  Sat, 11 Aug 2007 20:56:16 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20070811-0ppa1) gutsy; urgency=low
+
+  * New git snapshot a7d29fd932fe14ca5b82cda64341704164fb7e09
+  * Conflict with nvidia-glx* - sadly, we don't quite work with those drivers
+    installed
+
+ -- Christopher James Halse Rogers (RAOF) <chalserogers@gmail.com>  Sat, 11 Aug 2007 15:00:19 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20070810-0ppa1) gutsy; urgency=low
+
+  * New git snapshot (9cc11cbc9ce10b99f72d7c08584bf61d179cdbda)
+  * Stop conflicting with xserver-xorg-video-nv
+  * Bump libdrm build-dep
+
+ -- Christopher James Halse Rogers (RAOF) <chalserogers@gmail.com>  Fri, 10 Aug 2007 09:02:43 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20070808-0ppa4) gutsy; urgency=low
+
+  * And x11proto-gl-dev #includes files from mesa-common-dev, but doesn't
+    depend on it.
+
+ -- Christopher James Halse Rogers (RAOF) <chalserogers@gmail.com>  Thu, 09 Aug 2007 16:08:19 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20070808-0ppa3) gutsy; urgency=low
+
+  * Add x11proto-gl-dev to build-depends.  Why doesn't it check for that in
+    configure?!
+
+ -- Christopher James Halse Rogers (RAOF) <chalserogers@gmail.com>  Thu, 09 Aug 2007 15:02:18 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20070808-0ppa2) gutsy; urgency=low
+
+  * Add x11proto-xf86dri-dev to build depends.  Fix FTBFS
+
+ -- Christopher James Halse Rogers (RAOF) <chalserogers@gmail.com>  Thu, 09 Aug 2007 14:20:34 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20070808-0ppa1) gutsy; urgency=low
+
+  * New git snapshot  (22e965038bbc64c7b5118fc9a03ecf5f467d1665)
+
+ -- Christopher James Halse Rogers (RAOF) <chalserogers@gmail.com>  Wed, 08 Aug 2007 21:00:38 +1000
+
+xserver-xorg-video-nouveau-trunk (1.2.0~git20070807-0ppa1) gutsy; urgency=low
+
+  * Initial release (packaging based on xserver-xorg-video-nv)
+
+ -- Christopher James Halse Rogers (RAOF) <chalserogers@gmail.com>  Tue, 07 Aug 2007 09:04:13 +1000

@@ -1,0 +1,31 @@
+Source: xserver-xorg-video-nouveau
+Section: x11
+Priority: optional
+Maintainer: Christopher James Halse Rogers (RAOF) <chalserogers@gmail.com>
+Build-Depends: debhelper (>= 5.0.0), pkg-config, xserver-xorg-dev (>= 2:1.2.99.902), x11proto-video-dev, x11proto-core-dev, x11proto-fonts-dev, x11proto-randr-dev (>= 1.2), x11proto-render-dev, x11proto-xext-dev, libdrm-dev (>= 2.3.1~git20070831), x11proto-xf86dri-dev, x11proto-gl-dev, mesa-common-dev, git-core, automake, libtool, xutils-dev, xserver-xorg-dev
+Standards-Version: 3.7.2.2
+
+Package: xserver-xorg-video-nouveau
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${xserver:Depends}, linux-nouveau-modules
+Provides: ${xviddriver:Provides}
+Replaces: xserver-xorg (<< 6.8.2-35), nvidia-glx
+Conflicts: nvidia-glx
+Description: X.Org X server -- Nouveau display driver
+ This driver for the X.Org X server (see xserver-xorg for a further description)
+ provides support for NVIDIA Riva, TNT, GeForce, and Quadro cards.
+ .
+ Note that these drivers are INCOMPLETE, and are only really useful for testing
+ at this point.  People needing a stable driver should use the "nv" driver
+ instead.
+ .
+ Although the nouveau drivers provide some 3d support, these packages do not
+ include the necessary files.  Users requiring 3d support should use the binary
+ "nvidia" driver.
+ .
+ More information about X.Org can be found at:
+ <URL:http://www.X.org>
+ <URL:http://xorg.freedesktop.org>
+ <URL:http://lists.freedesktop.org/mailman/listinfo/xorg>
+ .
+ This package is built from the X.org xf86-video-nouveau driver module.

@@ -6,6 +6,8 @@ Uploaders: Chris Lamb <chris@chris-lamb.co.uk>, Matthew Johnson <mjj29@debian.or
 Build-Depends: debhelper (>= 5), pkg-config, xserver-xorg-dev (>= 2:1.2.99.902), x11proto-video-dev, x11proto-core-dev, x11proto-fonts-dev, x11proto-randr-dev (>= 1.2), x11proto-render-dev, x11proto-xext-dev, libdrm-dev (= 2.3.1~git+20080602+ac4da86-1), x11proto-xf86dri-dev, x11proto-gl-dev, mesa-common-dev, git-core, automake, libtool, xutils-dev, xserver-xorg-dev
 Standards-Version: 3.7.3
 Homepage: http://nouveau.freedesktop.org/wiki/
+Vcs-Git: git://git.debian.org/git/pkg-xorg/driver/xserver-xorg-video-nouveau
+Vcs-Browser: http://git.debian.org/?=pkg-xorg/driver/xserver-xorg-video-nouveau.git
 
 Package: xserver-xorg-video-nouveau
 Architecture: any

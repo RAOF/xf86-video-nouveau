@@ -1,3 +1,9 @@
+xserver-xorg-video-nouveau (1:0.0.10~git+20080602+e034616-2) UNRELEASED; urgency=low
+
+  * Add Vcs-Git and Vcs-Browser fields to debian/control
+
+ -- Chris Lamb <chris@chris-lamb.co.uk>  Fri, 06 Jun 2008 05:55:22 +0100
+
 xserver-xorg-video-nouveau (1:0.0.10~git+20080602+e034616-1) experimental; urgency=low
 
   * First upload to Debian experimental based on Christopher James Halse

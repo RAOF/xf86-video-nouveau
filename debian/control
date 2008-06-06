@@ -13,7 +13,7 @@ Depends: ${shlibs:Depends}, ${misc:Depends}, ${xserver:Depends}, linux-nouveau-m
 Provides: ${xviddriver:Provides}
 Replaces: xserver-xorg (<< 6.8.2-35), nvidia-glx
 Conflicts: nvidia-glx
-Description: X.Org X server -- Nouveau display driver
+Description: X.Org X server -- Nouveau display driver (experimental)
  This driver for the X.Org X server (see xserver-xorg for a further description)
  provides support for NVIDIA Riva, TNT, GeForce, and Quadro cards.
  .

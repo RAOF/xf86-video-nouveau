@@ -18,11 +18,11 @@ Description: X.Org X server -- Nouveau display driver (experimental)
  provides support for NVIDIA Riva, TNT, GeForce, and Quadro cards.
  .
  Note that these drivers are INCOMPLETE, and are only really useful for testing
- at this point.  People needing a stable driver should use the "nv" driver
+ at this point. People needing a stable driver should use the "nv" driver
  instead.
  .
- Although the nouveau drivers provide some 3d support, these packages do not
- include the necessary files.  Users requiring 3d support should use the binary
+ Although the nouveau drivers provide some 3D support, these packages do not
+ include the necessary files. Users requiring 3D support should use the non-free
  "nvidia" driver.
  .
  More information about X.Org can be found at:

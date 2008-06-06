@@ -7,6 +7,8 @@ xserver-xorg-video-nouveau (1:0.0.10~git+20080602+e034616-1) experimental; urgen
       to Uploaders.
     - Bump Standards-Version to 3.7.3
     - Add Homepage: field
+  * debian/rules:
+    - Misc. cosmetic changes
   * Update debian/xsfbs/xsfbs.{mk,sh}
   * Update debian/copyright.
 

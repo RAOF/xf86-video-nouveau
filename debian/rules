@@ -1,11 +1,4 @@
 #!/usr/bin/make -f
-# debian/rules for the Debian xserver-xorg-driver-nv package.
-# Copyright © 2004 Scott James Remnant <scott@netsplit.com>
-# Copyright © 2005 Daniel Stone <daniel@fooishbar.org>
-# Copyright © 2005 David Nusinow <dnusinow@debian.org>
-
-# Uncomment this to turn on verbose mode.
-#export DH_VERBOSE=1
 
 -include debian/xsfbs/xsfbs.mk
 
@@ -22,6 +15,7 @@ endif
 DEB_HOST_ARCH      ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
 DEB_HOST_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
 DEB_BUILD_GNU_TYPE ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
+
 ifeq ($(DEB_BUILD_GNU_TYPE), $(DEB_HOST_GNU_TYPE))
 	confflags += --build=$(DEB_HOST_GNU_TYPE)
 else
@@ -31,25 +25,31 @@ endif
 # kbd_drv.a isn't phenomenally useful; kbd_drv.so more so
 confflags += --disable-static
 
+get-orig-source:
+	git clone git://anongit.freedesktop.org/git/nouveau/xf86-video-nouveau && \
+	cd xf86-video-nouveau && autoreconf -v --install && \
+	REVISION=$$(git show --pretty=format:"%h" HEAD | head -n1) && cd .. && \
+	PREFIX=xserver-xorg-video-nouveau_0.0.10~git+$$(date +%Y%m%d)+$$REVISION && \
+	tar czf $$PREFIX.orig.tar.gz --exclude=autom4te.cache xf86-video-nouveau && \
+	rm -rf xf86-video-nouveau
+
 build: build-stamp
 build-stamp:
 	dh_testdir
-
 	test -d obj-$(DEB_BUILD_GNU_TYPE) || mkdir obj-$(DEB_BUILD_GNU_TYPE)
 	cd obj-$(DEB_BUILD_GNU_TYPE) && \
 	../configure --prefix=/usr --mandir=\$${prefix}/share/man \
 	             --infodir=\$${prefix}/share/info $(confflags) \
-	             CFLAGS="$(CFLAGS)" 
+	             CFLAGS="$(CFLAGS)"
 	cd obj-$(DEB_BUILD_GNU_TYPE) && $(MAKE)
-
-	touch build-stamp
+	touch $@
 
 clean:
 	dh_testdir
 	dh_testroot
 	rm -f build-stamp
 
-	-$(MAKE) distclean
+	[ ! -f Makefile ] || $(MAKE) distclean
 
 	rm -f config.cache config.log config.status
 	rm -f */config.cache */config.log */config.status
@@ -67,11 +67,9 @@ install: build
 
 	cd obj-$(DEB_BUILD_GNU_TYPE) && $(MAKE) DESTDIR=$(CURDIR)/debian/tmp install
 
-# Build architecture-dependent files here.
 binary-arch: build install serverabi
 	dh_testdir
 	dh_testroot
-
 	dh_installdocs
 	dh_installchangelogs
 	dh_install --sourcedir=debian/tmp --list-missing
@@ -85,19 +83,7 @@ binary-arch: build install serverabi
 	dh_md5sums
 	dh_builddeb
 
-# Build architecture-independent files here.
 binary-indep: build install
-# Nothing to do
-
-SOURCE_DIR=xserver-xorg-video-nouveau-0.0.10~git$(shell date +%Y%m%d)
-get-orig-source:
-# We don't want to make dist - that doesn't ship the kernel modules
-	git clone git://anongit.freedesktop.org/git/nouveau/xf86-video-nouveau \
-			$(SOURCE_DIR) && \
-	autoreconf -v --install $(SOURCE_DIR) && \
-	tar czvf xserver-xorg-video-nouveau_0.0.10~git$(shell date +%Y%m%d).orig.tar.gz --exclude=autom4te.cache $(SOURCE_DIR) && \
-	rm -rf $(SOURCE_DIR)
-
 
 binary: binary-indep binary-arch
 .PHONY: build clean binary-indep binary-arch binary install get-orig-source

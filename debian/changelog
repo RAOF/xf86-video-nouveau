@@ -3,6 +3,7 @@ xserver-xorg-video-nouveau (1:0.0.10~git+20080602+e034616-1) experimental; urgen
   * First upload to Debian experimental based on Christopher James Halse
     Rogers's packages for Ubuntu (Closes: #418889)
   * Update debian/xsfbs/xsfbs.{mk,sh}
+  * Update debian/copyright.
 
  -- Chris Lamb <chris@chris-lamb.co.uk>  Mon, 26 May 2008 04:56:08 +0100
 

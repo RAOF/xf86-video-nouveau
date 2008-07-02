@@ -1,7 +1,25 @@
 xserver-xorg-video-nouveau (1:0.0.10~git+20080602+e034616-2) UNRELEASED; urgency=low
 
-  * Re-upload latest snapshot with fixed copyright in various upstream files
+  * Re-upload latest snapshot fixed copyright in various upstream files
     after REJECT. (Closes: #418889)
+     - 48c2116f... NV50_KMS: no int10 please
+     - 11102af2... Backport console font save/restore from nouveau_ms
+     - ca2c55df... randr12: fix mode detection for when screen size changes
+     - 9c6eb667... NV04-NV4E: Save and restore FB_START
+     - 82fe9a21... NV50_KMS: switch to output dpms
+     - 13ce1f4c... Properly close drm when exiting + misc cleanup.
+     - 7cb0eed6... Fixup and add some license statements.
+     - 27c7c884... change hack to work with latest drm changes..
+     - 99a4b686... NV50: unbreak kms and implement a basic off mode/dpms
+     - 1a23dbd1... nv50: stub out NV50SorSetClockMode for LVDS, it doesn't work there
+     - 2ccc80bd... nv50: bring in int10-constole-restore hack from nv driver
+     - 73b4fcc2... fix non-kms build/run
+     - 75d8947d... NV50: Some basic code to get kernel modesetting going.
+     - df52dc46... No need for G80+ LVDS conf bits reports
+     - 1813559a... More DCB 1.5 TV variants (#16252 and #16342)
+     - 29c4a58b... Be a little more discerning about the BIT bios signature
+     - e8c79072... LVDS_INIT should not always use head A
+     - fc137f23... NV50: lvds is probably still broken, but it's a step in the right direction
   * Add Vcs-Git and Vcs-Browser fields to debian/control
 
  -- Chris Lamb <chris@chris-lamb.co.uk>  Fri, 06 Jun 2008 05:55:22 +0100

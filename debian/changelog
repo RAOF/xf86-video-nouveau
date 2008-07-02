@@ -11,7 +11,8 @@ xserver-xorg-video-nouveau (1:0.0.10~git+20080702+48c2116-1) experimental; urgen
      - 7cb0eed6... Fixup and add some license statements.
      - 27c7c884... change hack to work with latest drm changes..
      - 99a4b686... NV50: unbreak kms and implement a basic off mode/dpms
-     - 1a23dbd1... nv50: stub out NV50SorSetClockMode for LVDS, it doesn't work there
+     - 1a23dbd1... nv50: stub out NV50SorSetClockMode for LVDS, it doesn't work
+       there
      - 2ccc80bd... nv50: bring in int10-constole-restore hack from nv driver
      - 73b4fcc2... fix non-kms build/run
      - 75d8947d... NV50: Some basic code to get kernel modesetting going.
@@ -19,8 +20,8 @@ xserver-xorg-video-nouveau (1:0.0.10~git+20080702+48c2116-1) experimental; urgen
      - 1813559a... More DCB 1.5 TV variants (#16252 and #16342)
      - 29c4a58b... Be a little more discerning about the BIT bios signature
      - e8c79072... LVDS_INIT should not always use head A
-     - fc137f23... NV50: lvds is probably still broken, but it's a step in the right
-       direction
+     - fc137f23... NV50: lvds is probably still broken, but it's a step in the
+       right direction
   * Add Vcs-Git and Vcs-Browser fields to debian/control
   * Bump Standards-Version to 3.8.0 (no changes).
 

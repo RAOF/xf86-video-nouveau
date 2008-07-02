@@ -27,4 +27,4 @@ Description: X.Org X server -- Nouveau display driver (experimental)
  include the necessary files. Users requiring 3D support should use the non-free
  "nvidia" driver.
  .
- This package is built from the FreeDesktop.org xf86-video-nouveau driver module.
+ This package is built from the FreeDesktop.org xf86-video-nouveau driver.

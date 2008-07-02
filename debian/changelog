@@ -1,4 +1,4 @@
-xserver-xorg-video-nouveau (1:0.0.10~git+20080602+e034616-2) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:0.0.10~git+20080702+48c2116-1) experimental; urgency=low
 
   * Re-upload latest snapshot fixed copyright in various upstream files
     after REJECT. (Closes: #418889)
@@ -24,7 +24,7 @@ xserver-xorg-video-nouveau (1:0.0.10~git+20080602+e034616-2) UNRELEASED; urgency
   * Add Vcs-Git and Vcs-Browser fields to debian/control
   * Bump Standards-Version to 3.8.0 (no changes).
 
- -- Chris Lamb <chris@chris-lamb.co.uk>  Fri, 06 Jun 2008 05:55:22 +0100
+ -- Chris Lamb <chris@chris-lamb.co.uk>  Thu, 03 Jul 2008 00:35:47 +0100
 
 xserver-xorg-video-nouveau (1:0.0.10~git+20080602+e034616-1) experimental; urgency=low
 

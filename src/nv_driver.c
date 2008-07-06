@@ -736,8 +736,11 @@ NVEnterVT(int scrnIndex, int flags)
 			NVAdjustFrame(scrnIndex, pScrn->frameX0, pScrn->frameY0, 0);
 		}
 	} else {
-		if (!xf86SetDesiredModes(pScrn))
-				return FALSE;
+		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "NVEnterVT is called.\n");
+		if (!xf86SetDesiredModes(pScrn)) {
+			xf86DrvMsg(pScrn->scrnIndex, X_WARNING, "xf86SetDesiredModes failed\n");
+			return FALSE;
+		}
 	}
 
 	if (pNv->overlayAdaptor && pNv->Architecture != NV_ARCH_04)
@@ -821,7 +824,7 @@ NVCloseScreen(int scrnIndex, ScreenPtr pScreen)
 		pScrn->vtSema = FALSE;
 #ifdef XF86DRM_MODE
 		if (pNv->kms_enable) {
-			int dummy = 0; /* TODO */
+			NVSync(pScrn);
 		} else
 #endif
 		if (pNv->Architecture == NV_ARCH_50) {
@@ -924,6 +927,34 @@ Bool NVI2CInit(ScrnInfoPtr pScrn)
 		"Couldn't load i2c and ddc modules.  DDC probing can't be done\n");
 	return false;
 }
+
+#ifdef XF86DRM_MODE
+static bool nouveau_kernel_modesetting_enabled(ScrnInfoPtr pScrn)
+{
+#if XSERVER_LIBPCIACCESS
+	struct pci_device *PciInfo;
+#else
+	pciVideoPtr PciInfo;
+#endif
+	EntityInfoPtr pEnt;
+	char *busIdString;
+	int ret;
+
+	pEnt = xf86GetEntityInfo(pScrn->entityList[0]);
+	PciInfo = xf86GetPciInfoForEntity(pEnt->index);
+
+	busIdString = DRICreatePCIBusID(PciInfo);
+
+	ret = drmCheckModesettingSupported(busIdString);
+	xfree(busIdString);
+	if (ret)
+		return FALSE;
+
+	return TRUE;
+}
+#else
+#define nouveau_kernel_modesetting_enabled(x) FALSE
+#endif
 
 static Bool NVPreInitDRI(ScrnInfoPtr pScrn)
 {
@@ -1208,8 +1239,12 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 	pNv->kms_enable = false;
 #ifdef XF86DRM_MODE
 	if (pNv->Architecture == NV_ARCH_50) {
-		if (xf86ReturnOptValBool(pNv->Options, OPTION_KMS, FALSE)) {
-			pNv->kms_enable = true;
+		Bool val;
+		/* use default */
+		pNv->kms_enable = nouveau_kernel_modesetting_enabled(pScrn);
+		/* allow override */
+		if (xf86GetOptValBool(pNv->Options, OPTION_KMS, &val)) {
+			pNv->kms_enable = val;
 		}
 	}
 #endif /* XF86DRM_MODE */
@@ -1646,7 +1681,7 @@ NVMapMem(ScrnInfoPtr pScrn)
 	}
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
 		"Allocated %dMiB VRAM for framebuffer + offscreen pixmaps, at offset 0x%X\n",
-		(unsigned int)(pNv->FB->size >> 20), pNv->FB->offset);
+		(uint32_t)(pNv->FB->size >> 20), (uint32_t) pNv->FB->offset);
 #ifdef XF86DRM_MODE
 	if (pNv->kms_enable)
 		drmmode_set_fb(pScrn, pNv->drmmode, pScrn->virtualX, pScrn->virtualY, pScrn->displayWidth*(pScrn->bitsPerPixel >> 3), pNv->FB);
@@ -2511,16 +2546,14 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	 * Initialize colormap layer.
 	 * Must follow initialization of the default colormap 
 	 */
-	if (!pNv->kms_enable) {
-		if (!pNv->randr12_enable) {
-			if(!xf86HandleColormaps(pScreen, 256, 8, NVDACLoadPalette,
-					NULL, CMAP_RELOAD_ON_MODE_SWITCH | CMAP_PALETTED_TRUECOLOR))
+	if (!pNv->randr12_enable && !pNv->kms_enable) {
+		if(!xf86HandleColormaps(pScreen, 256, 8, NVDACLoadPalette,
+				NULL, CMAP_RELOAD_ON_MODE_SWITCH | CMAP_PALETTED_TRUECOLOR))
 			return FALSE;
-		} else {
-			if (!xf86HandleColormaps(pScreen, 256, 8, NVLoadPalette,
-					NULL, CMAP_PALETTED_TRUECOLOR))
-				return FALSE;
-		}
+	} else {
+		if (!xf86HandleColormaps(pScreen, 256, 8, NVLoadPalette,
+				NULL, CMAP_PALETTED_TRUECOLOR))
+			return FALSE;
 	}
 
 	if(pNv->ShadowFB) {

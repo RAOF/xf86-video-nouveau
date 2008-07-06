@@ -65,9 +65,7 @@ static int8_t f32tosb8(float v)
 }
 
 /*
- * Implements the filtering as described in
- * "Fast Third-Order Texture Filtering"
- * Sigg & Hardwiger in GPU Gems 2
+ * 512 means 2048 bytes of VRAM
  */
 #define TABLE_SIZE 512
 static void compute_filter_table(int8_t *t) {
@@ -88,36 +86,37 @@ static void compute_filter_table(int8_t *t) {
 	}
 }
 
-static uint64_t NV40_LoadFilterTable(ScrnInfoPtr pScrn)
+static struct nouveau_bo *table_mem = NULL;
+static void
+NV30_LoadFilterTable(ScrnInfoPtr pScrn)
 {
 	NVPtr pNv = NVPTR(pScrn);
-	static struct nouveau_bo *table_mem = NULL;
 
 	if (!table_mem) {
 		if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_GART,
 				0, TABLE_SIZE*sizeof(float)*4, &table_mem)) {
 			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 				"Couldn't alloc filter table!\n");
-			return 0;
+			return;
 		}
 
 		if (nouveau_bo_map(table_mem, NOUVEAU_BO_RDWR)) {
 			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 				   "Couldn't map filter table!\n");
+			return;
 		}
 
 		int8_t *t=table_mem->map;
 		compute_filter_table(t);
 	}
-	return table_mem->offset;
 }
 
-#define SWIZZLE(ts0x,ts0y,ts0z,ts0w,ts1x,ts1y,ts1z,ts1w)				\
-	(										\
-	NV40TCL_TEX_SWIZZLE_S0_X_##ts0x | NV40TCL_TEX_SWIZZLE_S0_Y_##ts0y	|	\
-	NV40TCL_TEX_SWIZZLE_S0_Z_##ts0z | NV40TCL_TEX_SWIZZLE_S0_W_##ts0w	|	\
-	NV40TCL_TEX_SWIZZLE_S1_X_##ts1x | NV40TCL_TEX_SWIZZLE_S1_Y_##ts1y 	|	\
-	NV40TCL_TEX_SWIZZLE_S1_Z_##ts1z | NV40TCL_TEX_SWIZZLE_S1_W_##ts1w		\
+#define SWIZZLE(ts0x,ts0y,ts0z,ts0w,ts1x,ts1y,ts1z,ts1w)			\
+	(									\
+	NV34TCL_TX_SWIZZLE_S0_X_##ts0x | NV34TCL_TX_SWIZZLE_S0_Y_##ts0y	|	\
+	NV34TCL_TX_SWIZZLE_S0_Z_##ts0z | NV34TCL_TX_SWIZZLE_S0_W_##ts0w	|	\
+	NV34TCL_TX_SWIZZLE_S1_X_##ts1x | NV34TCL_TX_SWIZZLE_S1_Y_##ts1y |	\
+	NV34TCL_TX_SWIZZLE_S1_Z_##ts1z | NV34TCL_TX_SWIZZLE_S1_W_##ts1w		\
 	)
 
 /*
@@ -126,7 +125,8 @@ static uint64_t NV40_LoadFilterTable(ScrnInfoPtr pScrn)
  * Texture 2 : UV data
  */
 static Bool
-NV40VideoTexture(ScrnInfoPtr pScrn, int offset, uint16_t width, uint16_t height, uint16_t src_pitch, int unit)
+NV30VideoTexture(ScrnInfoPtr pScrn, struct nouveau_bo *src, int offset,
+		 uint16_t width, uint16_t height, uint16_t src_pitch, int unit)
 {
 	NVPtr pNv = NVPTR(pScrn);
 
@@ -135,15 +135,15 @@ NV40VideoTexture(ScrnInfoPtr pScrn, int offset, uint16_t width, uint16_t height,
 
 	switch(unit) {
 		case 0:
-		card_fmt = NV40TCL_TEX_FORMAT_FORMAT_A8R8G8B8;
+		card_fmt = NV34TCL_TX_FORMAT_FORMAT_A8R8G8B8;
 		card_swz = SWIZZLE(S1, S1, S1, S1, X, Y, Z, W);
 		break;
 		case 1:
-		card_fmt = NV40TCL_TEX_FORMAT_FORMAT_L8;
+		card_fmt = NV34TCL_TX_FORMAT_FORMAT_A8_RECT2;
 		card_swz = SWIZZLE(S1, S1, S1, S1, X, X, X, X);
 		break;
 		case 2:
-		card_fmt = NV40TCL_TEX_FORMAT_FORMAT_A8L8;
+		card_fmt = NV34TCL_TX_FORMAT_FORMAT_L8A8_RECT;
 #if X_BYTE_ORDER == X_BIG_ENDIAN
 		card_swz = SWIZZLE(S1, S1, S1, S1, Z, W, X, Y); /* x = V, y = U */
 #else
@@ -152,67 +152,70 @@ NV40VideoTexture(ScrnInfoPtr pScrn, int offset, uint16_t width, uint16_t height,
 		break;
 	}
 
-	BEGIN_RING(Nv3D, NV40TCL_TEX_OFFSET(unit), 8);
-	/* We get an absolute offset, which needs to be corrected. */
-	OUT_RELOCl(pNv->FB, (uint32_t)(offset - pNv->FB->offset), NOUVEAU_BO_VRAM | NOUVEAU_BO_RD);
+	BEGIN_RING(Nv3D, NV34TCL_TX_OFFSET(unit), 8);
+	OUT_RELOCl(src, offset, NOUVEAU_BO_VRAM | NOUVEAU_BO_RD);
 	if (unit==0) {
-		OUT_RELOCd(pNv->FB, card_fmt | 
-				NV40TCL_TEX_FORMAT_DIMS_1D | NV40TCL_TEX_FORMAT_NO_BORDER |
-				(0x8000) | (1 << NV40TCL_TEX_FORMAT_MIPMAP_COUNT_SHIFT),
+		OUT_RELOCd(pNv->FB, NV34TCL_TX_FORMAT_DIMS_1D |
+				(card_fmt) | 
+				(1 << NV34TCL_TX_FORMAT_MIPMAP_LEVELS_SHIFT) |
+				(log2i(width)  << NV34TCL_TX_FORMAT_BASE_SIZE_U_SHIFT) |
+				(log2i(height) << NV34TCL_TX_FORMAT_BASE_SIZE_V_SHIFT) |
+				8 /* no idea */,
 				NOUVEAU_BO_VRAM | NOUVEAU_BO_RD,
-				NV40TCL_TEX_FORMAT_DMA0, 0);
-		OUT_RING(NV40TCL_TEX_WRAP_S_REPEAT |
-				NV40TCL_TEX_WRAP_T_CLAMP_TO_EDGE |
-				NV40TCL_TEX_WRAP_R_CLAMP_TO_EDGE);
+				NV34TCL_TX_FORMAT_DMA0, 0);
+		OUT_RING(NV34TCL_TX_WRAP_S_REPEAT |
+				NV34TCL_TX_WRAP_T_CLAMP_TO_EDGE |
+				NV34TCL_TX_WRAP_R_CLAMP_TO_EDGE);
 	} else {
-		OUT_RELOCd(pNv->FB, card_fmt | NV40TCL_TEX_FORMAT_LINEAR | NV40TCL_TEX_FORMAT_RECT |
-				NV40TCL_TEX_FORMAT_DIMS_2D | NV40TCL_TEX_FORMAT_NO_BORDER |
-				(0x8000) | (1 << NV40TCL_TEX_FORMAT_MIPMAP_COUNT_SHIFT),
+		OUT_RELOCd(pNv->FB, NV34TCL_TX_FORMAT_DIMS_2D |
+				(card_fmt) | 
+				(1 << NV34TCL_TX_FORMAT_MIPMAP_LEVELS_SHIFT) |
+				(log2i(width)  << NV34TCL_TX_FORMAT_BASE_SIZE_U_SHIFT) |
+				(log2i(height) << NV34TCL_TX_FORMAT_BASE_SIZE_V_SHIFT) |
+				8 /* no idea */,
 				NOUVEAU_BO_VRAM | NOUVEAU_BO_RD,
-				NV40TCL_TEX_FORMAT_DMA0, 0);
-		OUT_RING(NV40TCL_TEX_WRAP_S_CLAMP_TO_EDGE |
-				NV40TCL_TEX_WRAP_T_CLAMP_TO_EDGE |
-				NV40TCL_TEX_WRAP_R_CLAMP_TO_EDGE);
+				NV34TCL_TX_FORMAT_DMA0, 0);
+		OUT_RING(NV34TCL_TX_WRAP_S_CLAMP_TO_EDGE |
+				NV34TCL_TX_WRAP_T_CLAMP_TO_EDGE |
+				NV34TCL_TX_WRAP_R_CLAMP_TO_EDGE);
 	}
 
-	OUT_RING(NV40TCL_TEX_ENABLE_ENABLE);
-	OUT_RING(card_swz);
+	OUT_RING(NV34TCL_TX_ENABLE_ENABLE);
+	OUT_RING( ( src_pitch << NV34TCL_TX_SWIZZLE_RECT_PITCH_SHIFT ) | 
+			card_swz);
 	if (unit==0)
-		OUT_RING(NV40TCL_TEX_FILTER_SIGNED_ALPHA |
-				NV40TCL_TEX_FILTER_SIGNED_RED |
-				NV40TCL_TEX_FILTER_SIGNED_GREEN |
-				NV40TCL_TEX_FILTER_SIGNED_BLUE |
-				NV40TCL_TEX_FILTER_MIN_LINEAR |
-				NV40TCL_TEX_FILTER_MAG_LINEAR |
-				0x3fd6);
+		OUT_RING(NV34TCL_TX_FILTER_SIGNED_ALPHA |
+				NV34TCL_TX_FILTER_SIGNED_RED |
+				NV34TCL_TX_FILTER_SIGNED_GREEN |
+				NV34TCL_TX_FILTER_SIGNED_BLUE |
+				NV34TCL_TX_FILTER_MINIFY_LINEAR |
+				NV34TCL_TX_FILTER_MAGNIFY_LINEAR |
+				0x2000);
 	else
-		OUT_RING(NV40TCL_TEX_FILTER_MIN_LINEAR |
-				NV40TCL_TEX_FILTER_MAG_LINEAR |
-				0x3fd6);
-	OUT_RING((width << 16) | height);
+		OUT_RING(NV34TCL_TX_FILTER_MINIFY_LINEAR |
+				NV34TCL_TX_FILTER_MAGNIFY_LINEAR |
+				0x2000);
+	OUT_RING((width << NV34TCL_TX_NPOT_SIZE_W_SHIFT) | height);
 	OUT_RING(0); /* border ARGB */
-	BEGIN_RING(Nv3D, NV40TCL_TEX_SIZE1(unit), 1);
-	OUT_RING((1 << NV40TCL_TEX_SIZE1_DEPTH_SHIFT) |
-			(uint16_t) src_pitch);
 
 	return TRUE;
 }
 
 Bool
-NV40GetSurfaceFormat(PixmapPtr pPix, int *fmt_ret)
+NV30GetSurfaceFormat(PixmapPtr ppix, int *fmt_ret)
 {
-	switch (pPix->drawable.bitsPerPixel) {
+	switch (ppix->drawable.bitsPerPixel) {
 		case 32:
-			*fmt_ret = NV40TCL_RT_FORMAT_COLOR_A8R8G8B8;
+			*fmt_ret = NV34TCL_RT_FORMAT_COLOR_A8R8G8B8;
 			break;
 		case 24:
-			*fmt_ret = NV40TCL_RT_FORMAT_COLOR_X8R8G8B8;
+			*fmt_ret = NV34TCL_RT_FORMAT_COLOR_X8R8G8B8;
 			break;
 		case 16:
-			*fmt_ret = NV40TCL_RT_FORMAT_COLOR_R5G6B5;
+			*fmt_ret = NV34TCL_RT_FORMAT_COLOR_R5G6B5;
 			break;
 		case 8:
-			*fmt_ret = NV40TCL_RT_FORMAT_COLOR_B8;
+			*fmt_ret = NV34TCL_RT_FORMAT_COLOR_B8;
 			break;
 		default:
 			return FALSE;
@@ -222,36 +225,35 @@ NV40GetSurfaceFormat(PixmapPtr pPix, int *fmt_ret)
 }
 
 void
-NV40StopTexturedVideo(ScrnInfoPtr pScrn, pointer data, Bool Exit)
+NV30StopTexturedVideo(ScrnInfoPtr pScrn, pointer data, Bool Exit)
 {
 }
 
-/* To support EXA 2.0, 2.1 has this in the header */
-#ifndef exaMoveInPixmap
-extern void exaMoveInPixmap(PixmapPtr pPixmap);
-#endif
-
 #define VERTEX_OUT(sx,sy,dx,dy) do {                                           \
-	BEGIN_RING(Nv3D, NV40TCL_VTX_ATTR_2F_X(8), 4);                         \
+	BEGIN_RING(Nv3D, NV34TCL_VERTEX_ATTR_2F_X(8), 4);                      \
 	OUT_RINGf ((sx)); OUT_RINGf ((sy));                                    \
 	OUT_RINGf ((sx)/2.0); OUT_RINGf ((sy)/2.0);                            \
-	BEGIN_RING(Nv3D, NV40TCL_VTX_ATTR_2I(0), 1);                           \
+	BEGIN_RING(Nv3D, NV34TCL_VERTEX_ATTR_2I(0), 1);                        \
  	OUT_RING  (((dy)<<16)|(dx));                                           \
 } while(0)
 
-int NV40PutTextureImage(ScrnInfoPtr pScrn, int src_offset,
-		int src_offset2, int id,
-		int src_pitch, BoxPtr dstBox,
-		int x1, int y1, int x2, int y2,
-		uint16_t width, uint16_t height,
-		uint16_t src_w, uint16_t src_h,
-		uint16_t drw_w, uint16_t drw_h,
-		RegionPtr clipBoxes,
-		DrawablePtr pDraw,
-		NVPortPrivPtr pPriv)
+int
+NV30PutTextureImage(ScrnInfoPtr pScrn, struct nouveau_bo *src, int src_offset,
+		    int src_offset2, int id, int src_pitch, BoxPtr dstBox,
+		    int x1, int y1, int x2, int y2,
+		    uint16_t width, uint16_t height,
+		    uint16_t src_w, uint16_t src_h,
+		    uint16_t drw_w, uint16_t drw_h,
+		    RegionPtr clipBoxes,
+		    PixmapPtr ppix,
+		    NVPortPrivPtr pPriv)
 {
 	NVPtr pNv = NVPTR(pScrn);
 	Bool redirected = FALSE;
+	float X1, X2, Y1, Y2;
+	BoxPtr pbox;
+	int nbox;
+	int dst_format = 0;
 
 	if (drw_w > 4096 || drw_h > 4096) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
@@ -259,38 +261,12 @@ int NV40PutTextureImage(ScrnInfoPtr pScrn, int src_offset,
 		return BadAlloc;
 	}
 
-	float X1, X2, Y1, Y2;
-	PixmapPtr pPix = NVGetDrawablePixmap(pDraw);
-	BoxPtr pbox;
-	int nbox;
-	int dst_format = 0;
-	uint64_t filter_table_offset=0;
-
-	if (!NV40GetSurfaceFormat(pPix, &dst_format)) {
+	if (!NV30GetSurfaceFormat(ppix, &dst_format)) {
 		ErrorF("No surface format, bad.\n");
 	}
 
-	/* This has to be called always, since it does more than just migration. */
-	exaMoveInPixmap(pPix);
-	ExaOffscreenMarkUsed(pPix);
-
 #ifdef COMPOSITE
-	/* Adjust coordinates if drawing to an offscreen pixmap */
-	if (pPix->screen_x || pPix->screen_y) {
-		REGION_TRANSLATE(pScrn->pScreen, clipBoxes,
-							-pPix->screen_x,
-							-pPix->screen_y);
-		dstBox->x1 -= pPix->screen_x;
-		dstBox->x2 -= pPix->screen_x;
-		dstBox->y1 -= pPix->screen_y;
-		dstBox->y2 -= pPix->screen_y;
-	}
-
-	/* I suspect that pDraw itself is not offscreen, hence not suited for damage tracking. */
-	DamageDamageRegion(&pPix->drawable, clipBoxes);
-
-	/* This is test is unneeded for !COMPOSITE. */
-	if (!NVExaPixmapIsOnscreen(pPix))
+	if (!NVExaPixmapIsOnscreen(ppix))
 		redirected = TRUE;
 #endif
 
@@ -298,37 +274,51 @@ int NV40PutTextureImage(ScrnInfoPtr pScrn, int src_offset,
 	nbox = REGION_NUM_RECTS(clipBoxes);
 
 	/* Disable blending */
-	BEGIN_RING(Nv3D, NV40TCL_BLEND_ENABLE, 1);
+	BEGIN_RING(Nv3D, NV34TCL_BLEND_FUNC_ENABLE, 1);
 	OUT_RING(0);
 
 	/* Setup surface */
-	BEGIN_RING(Nv3D, NV40TCL_RT_FORMAT, 3);
-	OUT_RING  (NV40TCL_RT_FORMAT_TYPE_LINEAR |
-			NV40TCL_RT_FORMAT_ZETA_Z24S8 |
+	BEGIN_RING(Nv3D, NV34TCL_RT_FORMAT, 3);
+	OUT_RING  (NV34TCL_RT_FORMAT_TYPE_LINEAR |
+			NV34TCL_RT_FORMAT_ZETA_Z24S8 |
 			dst_format);
-	OUT_RING  (exaGetPixmapPitch(pPix));
-	OUT_PIXMAPl(pPix, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
+	OUT_RING  ((exaGetPixmapPitch(ppix) << 16) | exaGetPixmapPitch(ppix));
+	OUT_PIXMAPl(ppix, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
 
-	filter_table_offset=NV40_LoadFilterTable(pScrn);
+	if (pNv->NVArch == 0x30) {
+		int x = 0;
+		int y = 0;
+		int w = ppix->drawable.x + ppix->drawable.width;
+		int h = ppix->drawable.y + ppix->drawable.height;
 
-	NV40VideoTexture(pScrn, filter_table_offset, TABLE_SIZE, 1, 0 , 0);
-	NV40VideoTexture(pScrn, src_offset, src_w, src_h, src_pitch, 1);
+		BEGIN_RING(Nv3D, NV34TCL_VIEWPORT_HORIZ, 2);
+		OUT_RING  ((w<<16)|x);
+		OUT_RING  ((h<<16)|y);
+		BEGIN_RING(Nv3D, NV34TCL_VIEWPORT_CLIP_HORIZ(0), 2);
+		OUT_RING  ((w-1+x)<<16);
+		OUT_RING  ((h-1+y)<<16);
+		BEGIN_RING(Nv3D, NV34TCL_VIEWPORT_TX_ORIGIN, 1);
+		OUT_RING((y<<16)|x);
+	}
+
+	NV30_LoadFilterTable(pScrn);
+
+	BEGIN_RING(Nv3D, NV34TCL_TX_UNITS_ENABLE, 1);
+	OUT_RING  (NV34TCL_TX_UNITS_ENABLE_TX0 |
+			NV34TCL_TX_UNITS_ENABLE_TX1);
+
+	NV30VideoTexture(pScrn, table_mem, 0, TABLE_SIZE, 1, 0 , 0);
+	NV30VideoTexture(pScrn, src, src_offset, src_w, src_h, src_pitch, 1);
 	/* We've got NV12 format, which means half width and half height texture of chroma channels. */
-	NV40VideoTexture(pScrn, src_offset2, src_w/2, src_h/2, src_pitch, 2);
+	NV30VideoTexture(pScrn, src, src_offset2, src_w/2, src_h/2, src_pitch, 2);
 
-	NV40_LoadVtxProg(pScrn, &nv40_vp_video);
+	BEGIN_RING(Nv3D, NV34TCL_TX_ENABLE(3), 1);
+	OUT_RING  (0x0);
+
 	if (pPriv->bicubic)
-		NV40_LoadFragProg(pScrn, &nv40_fp_yv12_bicubic);
+		NV30_LoadFragProg(pScrn, &nv30_fp_yv12_bicubic);
 	else
-		NV40_LoadFragProg(pScrn, &nv30_fp_yv12_bilinear);
-
-	/* Appears to be some kind of cache flush, needed here at least
-	 * sometimes.. funky text rendering otherwise :)
-	 */
-	BEGIN_RING(Nv3D, NV40TCL_TEX_CACHE_CTL, 1);
-	OUT_RING  (2);
-	BEGIN_RING(Nv3D, NV40TCL_TEX_CACHE_CTL, 1);
-	OUT_RING  (1);
+		NV30_LoadFragProg(pScrn, &nv30_fp_yv12_bilinear);
 
 	/* Just before rendering we wait for vblank in the non-composited case. */
 	if (pPriv->SyncToVBlank && !redirected) {
@@ -348,8 +338,8 @@ int NV40PutTextureImage(ScrnInfoPtr pScrn, int src_offset,
 	X2 = (float)(x2>>16)+(float)(x2&0xFFFF)/(float)0x10000;
 	Y2 = (float)(y2>>16)+(float)(y2&0xFFFF)/(float)0x10000;
 
-	BEGIN_RING(Nv3D, NV40TCL_BEGIN_END, 1);
-	OUT_RING  (NV40TCL_BEGIN_END_TRIANGLES);
+	BEGIN_RING(Nv3D, NV34TCL_VERTEX_BEGIN_END, 1);
+	OUT_RING  (NV34TCL_VERTEX_BEGIN_END_TRIANGLES);
 
 	while(nbox--) {
 		float tx1=X1+(float)(pbox->x1 - dstBox->x1)*(X2-X1)/(float)(drw_w);
@@ -361,7 +351,7 @@ int NV40PutTextureImage(ScrnInfoPtr pScrn, int src_offset,
 		int sy1=pbox->y1;
 		int sy2=pbox->y2;
 
-		BEGIN_RING(Nv3D, NV40TCL_SCISSOR_HORIZ, 2);
+		BEGIN_RING(Nv3D, NV34TCL_SCISSOR_HORIZ, 2);
 		OUT_RING  ((sx2 << 16) | 0);
 		OUT_RING  ((sy2 << 16) | 0);
 
@@ -372,8 +362,8 @@ int NV40PutTextureImage(ScrnInfoPtr pScrn, int src_offset,
 		pbox++;
 	}
 
-	BEGIN_RING(Nv3D, NV40TCL_BEGIN_END, 1);
-	OUT_RING  (NV40TCL_BEGIN_END_STOP);
+	BEGIN_RING(Nv3D, NV34TCL_VERTEX_BEGIN_END, 1);
+	OUT_RING  (NV34TCL_VERTEX_BEGIN_END_STOP);
 
 	FIRE_RING();
 
@@ -381,7 +371,7 @@ int NV40PutTextureImage(ScrnInfoPtr pScrn, int src_offset,
 }
 
 /**
- * NV40SetTexturePortAttribute
+ * NV30SetTexturePortAttribute
  * sets the attribute "attribute" of port "data" to value "value"
  * supported attributes:
  * Sync to vblank.
@@ -395,7 +385,7 @@ int NV40PutTextureImage(ScrnInfoPtr pScrn, int src_offset,
  * BadValue/BadMatch, if value/attribute are invalid
  */
 int
-NV40SetTexturePortAttribute(ScrnInfoPtr pScrn, Atom attribute,
+NV30SetTexturePortAttribute(ScrnInfoPtr pScrn, Atom attribute,
                        INT32 value, pointer data)
 {
         NVPortPrivPtr pPriv = (NVPortPrivPtr)data;
@@ -415,7 +405,7 @@ NV40SetTexturePortAttribute(ScrnInfoPtr pScrn, Atom attribute,
 }
 
 /**
- * NV40GetTexturePortAttribute
+ * NV30GetTexturePortAttribute
  * reads the value of attribute "attribute" from port "data" into INT32 "*value"
  * Sync to vblank.
  * 
@@ -426,7 +416,7 @@ NV40SetTexturePortAttribute(ScrnInfoPtr pScrn, Atom attribute,
  * @return Success, if queried attribute exists
  */
 int
-NV40GetTexturePortAttribute(ScrnInfoPtr pScrn, Atom attribute,
+NV30GetTexturePortAttribute(ScrnInfoPtr pScrn, Atom attribute,
                        INT32 *value, pointer data)
 {
         NVPortPrivPtr pPriv = (NVPortPrivPtr)data;

@@ -35,7 +35,7 @@
 
 typedef struct {
 	int fd;
-	int fb_id;
+	uint32_t fb_id;
 	drmModeResPtr mode_res;
 	drmModeFBPtr mode_fb;
 	int cpp;
@@ -47,6 +47,8 @@ typedef struct {
 	int index;
 	drmmode_ptr drmmode;
 	drmModeCrtcPtr mode_crtc;
+	struct nouveau_bo *shadow;
+	uint32_t shadow_id;
 } drmmode_crtc_private_rec, *drmmode_crtc_private_ptr;
 
 typedef struct {

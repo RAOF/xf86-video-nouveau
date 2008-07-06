@@ -1,3 +1,27 @@
+xserver-xorg-video-nouveau (1:0.0.10~git+20080706+b1f3169-1) experimental; urgency=low
+
+  * New upstream snapshot:
+    - b1f3169... xv: remove some disturbing abuses of buffer related things
+    - 0ce028b... EXA: add a pixmapIsOffscreen hook.
+    - 86c70df... NV50_KMS: support gamma changes
+    - 6de89c8... NV50: Unaccelerated rotation support.
+    - 788fefa... NV50_KMS: Unaccelerated rotation support.
+    - 2bc1cb8... Revert "EXA: Add PixmapIsOffscreen hook for EXA versions 
+      that allow it."
+    - 5a5aee1... EXA: Add PixmapIsOffscreen hook for EXA versions that allow 
+      it.
+    - b9f2358... xv: remove some defines that are in a header now
+    - 9f53b2a... xv: remove drawable handling from hw-specific PutImage.. 
+      it's common...
+    - a50bba6... xv: misc cleanups
+    - 08e9489... NV50_KMS: minor change
+    - ea7e85b... Fix some compile warnings.
+    - 3298249... xv: reformat source so mere mortals can understand it
+    - a1e8ccd... xv: nv_video.c to nouveau_xv.c
+    - 3e17781... NV50_KMS: autodetect kernel modesetting when active
+
+ -- Chris Lamb <chris@chris-lamb.co.uk>  Sun, 06 Jul 2008 20:26:53 +0100
+
 xserver-xorg-video-nouveau (1:0.0.10~git+20080702+48c2116-1) experimental; urgency=low
 
   * Re-upload latest snapshot fixed copyright in various upstream files

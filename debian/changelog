@@ -1,3 +1,48 @@
+xserver-xorg-video-nouveau (1:0.0.10~git+20080803+30f54f2-1) experimental; urgency=low
+
+  * New upstream snapshot:
+    - 89d7864... nv50: fix mystery typo
+    - c0b67f3... remove use of implicit variables from pushbuf macros
+    - 80278c9... g3dvl: Basic XvMC initialization.
+    - 1f8e27f... NV50: I was proven wrong quicker than i thought, reinstate a 
+      slightly prettier hack.
+    - 41d46f5... NV50: forgot something
+    - 1b90524... NV50: my best guess at the lvds bios table, time will tell 
+      if it's correct for more than a few cases
+    - f3ec6e0... nouveau: fix macro as pointed out my moondrake on irc
+    - 6652e9c... nv50: support YUY2 in textured video adaptor
+    - 3534f40... nv50: remove 32bpp solid fill fallback
+    - 87f7d1f... Revert "NV50EXA: read the notes + cleanup + enabled 32bpp 
+      solid fill"
+    - ba7c239... NV50EXA: serious brain fart of my part, sorry
+    - 0b6249f... NV50EXA: read the notes + cleanup + enabled 32bpp solid fill
+    - edbfbd0... EXA: put NOUVEAU_FALLBACK in a do { } while (0), fixed opera 
+      corruption for me.
+    - 36d1308... NV50_KMS: some basic scaling and dithering output property 
+      support
+    - 022a9ed... nv50: no more sync in composite() :)
+    - 6d8096c... nv50: sync after composite for the moment
+    - c68d880... nv50: punt vertex emission macro out to header
+    - 4ad74cb... exa: missed a reloc delta
+    - 98a9056... nv50: remove acquire/release surface stuff
+    - f0305a2... exa: rename m2mf locals to prevent some confusion
+    - 140c36e... randr12: fix dithering output property endian issue (#16624)
+    - b36802f... Fix for #14858 - freebsd compile. Someone still needs to fix 
+      the kernel part though.
+    - 6f5e90a... nv30: more header name changes...
+    - 4b8427a... nv30: more bustage from header update
+    - 1672a78... nv30: un-change something that somehow changed in an earlier 
+      commit. oops!
+    - dae5958... nv50: exa/xv share some stuff, punt it out to nv50_accel.[ch]
+    - 17fbd81... nv50: Xv support
+    - ec45278... nv50: de-magic things before someone accuses me of being an 
+      NVIDIA employee
+    - ad56c5e... nv50: exa composite
+    - 33fad27... nv50: tile offscreen pixmaps
+    - 5c1deac... exa: pass window coords to m2mf-based UTS/DFS
+
+ -- Chris Lamb <chris@chris-lamb.co.uk>  Sun, 03 Aug 2008 17:34:24 +0100
+
 xserver-xorg-video-nouveau (1:0.0.10~git+20080706+b1f3169-1) experimental; urgency=low
 
   * New upstream snapshot:

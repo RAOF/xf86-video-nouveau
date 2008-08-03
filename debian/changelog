@@ -40,6 +40,8 @@ xserver-xorg-video-nouveau (1:0.0.10~git+20080803+30f54f2-1) experimental; urgen
     - ad56c5e... nv50: exa composite
     - 33fad27... nv50: tile offscreen pixmaps
     - 5c1deac... exa: pass window coords to m2mf-based UTS/DFS
+  * Update dependency on libdrm-dev. Move to ">=" relation to make package
+    binNMU safe.
 
  -- Chris Lamb <chris@chris-lamb.co.uk>  Sun, 03 Aug 2008 17:34:24 +0100
 

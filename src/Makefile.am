@@ -71,6 +71,7 @@ nouveau_drv_la_SOURCES = \
 			 nv30_xv_tex.c \
 			 nv40_exa.c \
 			 nv40_xv_tex.c \
+			 nv50_accel.c nv50_accel.h \
 			 nv50_cursor.c \
 			 nv50_crtc.c \
 			 nv50_dac.c \
@@ -81,6 +82,8 @@ nouveau_drv_la_SOURCES = \
 			 nv50_randr.c \
 			 nv50_randr.h \
 			 nv50_connector.c \
+			 nv50_xv.c \
+			 nv50_texture.h \
 			 nv50reg.h \
 			 nouveau_crtc.h \
 			 nouveau_output.h \
@@ -88,5 +91,7 @@ nouveau_drv_la_SOURCES = \
 			 nouveau_modeset.h \
 			 drmmode_display.c \
 			 drmmode_display.h \
-			 nv_pcicompat.h
+			 nv_pcicompat.h \
+			 vl_hwmc.c \
+			 vl_hwmc.h
 

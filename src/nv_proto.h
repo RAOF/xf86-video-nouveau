@@ -211,6 +211,9 @@ void NV40StopTexturedVideo(ScrnInfoPtr, pointer, Bool);
 int NV40GetTexturePortAttribute(ScrnInfoPtr, Atom, INT32 *, pointer);
 int NV40SetTexturePortAttribute(ScrnInfoPtr, Atom, INT32, pointer);
 
+/* in nv50_accel.c */
+Bool NVAccelInitNV50TCL(ScrnInfoPtr pScrn);
+
 /* in nv50_exa.c */
 Bool NV50EXAPrepareSolid(PixmapPtr, int, Pixel, Pixel);
 void NV50EXASolid(PixmapPtr, int, int, int, int);
@@ -223,7 +226,7 @@ Bool NV50EXAPrepareComposite(int, PicturePtr, PicturePtr, PicturePtr,
 				  PixmapPtr, PixmapPtr, PixmapPtr);
 void NV50EXAComposite(PixmapPtr, int, int, int, int, int, int, int, int);
 void NV50EXADoneComposite(PixmapPtr);
-Bool NV50EXAUploadSIFC(ScrnInfoPtr pScrn, const char *src, int src_pitch,
+Bool NV50EXAUploadSIFC(const char *src, int src_pitch,
 		       PixmapPtr pdPix, int x, int y, int w, int h, int cpp);
 
 /* in nv50_display.c */
@@ -262,6 +265,15 @@ void NV50ConnectorDestroy(ScrnInfoPtr pScrn);
 void nv50_crtc_init(ScrnInfoPtr pScrn, int crtc_num);
 void nv50_output_create(ScrnInfoPtr pScrn);
 int nv_scaling_mode_lookup(char *name, int size);
+
+/* nv50_xv.c */
+int nv50_xv_image_put(ScrnInfoPtr, struct nouveau_bo *, int, int, int, int,
+		      BoxPtr, int, int, int, int, uint16_t, uint16_t,
+		      uint16_t, uint16_t, uint16_t, uint16_t,
+		      RegionPtr, PixmapPtr, NVPortPrivPtr);
+void nv50_xv_video_stop(ScrnInfoPtr, pointer, Bool);
+int nv50_xv_port_attribute_set(ScrnInfoPtr, Atom, INT32, pointer);
+int nv50_xv_port_attribute_get(ScrnInfoPtr, Atom, INT32 *, pointer);
 
 /* To support EXA 2.0, 2.1 has this in the header */
 #ifndef exaMoveInPixmap

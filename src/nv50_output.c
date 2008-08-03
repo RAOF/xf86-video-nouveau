@@ -155,7 +155,7 @@ NV50OutputInit(ScrnInfoPtr pScrn, int dcb_entry, char *outputname, int bus_count
 
 	/* This needs to be handled in the same way as pre-NV5x on the long run. */
 	if (output->type == OUTPUT_LVDS)
-		output->native_mode = GetLVDSNativeMode(pScrn);
+		pNv->VBIOS.fp.native_mode = GetLVDSNativeMode(pScrn);
 
 	/* Function pointers. */
 	if (output->type == OUTPUT_TMDS || output->type == OUTPUT_LVDS) {

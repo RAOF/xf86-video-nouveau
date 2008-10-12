@@ -112,6 +112,8 @@ xserver-xorg-video-nouveau (1:0.0.10~git+20081012+3b53f6c-1) experimental; urgen
     - 30f54f2... g3dvl: Temporarily disable IDCT.
   * Update maintainer email address.
   * Add dummy debian/watch file to appease lintian.
+  * Rework long description to include a pointer to module-assistant; it seemed
+    to be confusing some users (eg. #494755)
 
  -- Chris Lamb <lamby@debian.org>  Sun, 12 Oct 2008 19:39:14 +0100
 

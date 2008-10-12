@@ -1,3 +1,118 @@
+xserver-xorg-video-nouveau (1:0.0.10~git+20081012+3b53f6c-1) experimental; urgency=low
+
+  * New upstream snapshot:
+    - bf585ad... The fifo channel should be removed along with closing of the 
+      fd, so only clear the client memory.
+    - 8b7e424... git-log is no longer valid for git 1.6, switch to git log.
+    - 933fd80... Some fixes that bring me closer to surviving to the 2nd X 
+      server generation.
+    - daee3c3... randr12: separate cursor pixmap location setting function
+    - caf2e92... Move cursor show/hide funcs to nv_hw, document nv40 bug, and 
+      set curctl2 before applying nv40 fix
+    - f76074c... Use correct refclk for nv_get_clock, and use bool type as 
+      appropriate in arbitration
+    - bd5b807... Tidy arbitration prototypes and split randr12 cursor pixmap 
+      setting from arbitration
+    - 5dc41fd... Merge nv4, nv10 and nForce UpdateArbitrationSettings 
+      functions
+    - 0ffd012... Add PCI slot reading defines, and use them for nForce code
+    - 520a76e... Some tidying of arbitration functions
+    - 3ceb2b6... Reindent arbitration stuff
+    - d7439fc... Wrap usleep when called in bios code
+    - 62cf9f3... randr12: don't use in use (by another vga output) crtc for 
+      load detect (avoids flicker)
+    - f1d0fd0... Better behaviour on allocator fail
+    - 2b67015... randr12: reorder nv_output functions
+    - 9f4eef0... randr12: distinguish detected encoder from active encoder
+    - 549cda1... Reduce includes, everything necessary is in nv_include.h
+    - 30eaa0f... Oops.
+    - 2481e56... Optimizing memory usage for unaccelerated case is not 
+      interesting
+    - 19f0ea6... randr12: rename mon -> edid
+    - 0cb0817... randr12: crtc destroy
+    - 37adca1... Need to increment dcb entry index when fabricating 
+      additional entries
+    - e6b6d8c... Also remove man page entry.
+    - cb1e9c1... NV50: remove {Prepare,Finish}Access since i realise now it's 
+      not so useful
+    - 3e397f5... NV50: The TMDS dual link threshold is meaningless for LVDS
+    - 599d258... randr12: multiple encoders per connector (DVI-I)
+    - 5e8ac84... nv50: 0xa0 family uses class 0x8397 for 3D
+    - 9c36eef... randr12: avoid weirdness when tv-out happens to share 
+      i2c_index with another output
+    - 144b04a... randr12: fix dpms, detect, destroy, save and restore for 
+      multiple encoders per connector
+    - 2b30b89... randr12: re-do detection of dvi-a vs vga
+    - 50bac3f... randr12: unify output funcs for analogue and tmds
+    - 69e30e6... randr12: unified entry path for dpms
+    - a794a0c... randr12: nouveau_output -> nouveau_connector
+    - 0a5119b... randr12: separate encoder struct
+    - 352b8fd... Another DCB 1.4/1.5 TV (#17471)
+    - e8ba4e0... Only use OF bios image on PPC
+    - 54b8a7e... nv50/exa: work around corruption issues (see detailed commit 
+      msg)
+    - f8c0af3... Partly revert ea152819f45b6cf92f6742ed3f9f639cdbbd53f0, 
+      alignment is needed.
+    - ea15281... exa: align offscreenBase to something sensible
+    - 95c19b9... Add 8200 detection.
+    - 6dd8ad4... nv50: solid fill shouldn't use a pattern rop + minor changes
+    - b2b726d... randr12: merge output detection functions
+    - a223e58... randr12: remember the edid from detection for getting modes 
+      later
+    - 16d9e89... randr12: detypedef private structs and use a define to get 
+      to the privates
+    - 3b3f3cd... Remove unused code
+    - 1e2b87c... randr12: make the nouveau experience less green
+    - f89af0e... nv50: micro cleanup
+    - 94bf106... nv50: do ROPs properly this time
+    - 6bd14e4... nv10: composite is an async operation by default, no need to 
+      call exaMarkSync().
+    - 9f11d13... exa: FIRE_RING at the end of composite
+    - 137d099... nv50: move VERTEX_{START,END} to {Prepare,Done}Composite
+    - 34dc05f... nv50: minor tweaks to composite
+    - eca9977... nv50: handle ROPs better
+    - e468df8... nv50: clip SIFC and add {Prepare,Finish}Access hooks.
+    - 0c0c1ab... randr12: don't cache pll values (fixes newrestore removal 
+      regression)
+    - 544fd3c... Remove some of the inaccuracies in the manpage
+    - e3d9cb9... NV_ARCH_04 can have rotated output, it's just not accelerated
+    - 40e920f... Delete ShadowFB rotation
+    - 6352d7d... Bye bye 8 bit depth
+    - 33d52e4... CrtcNumber option is long gone
+    - a9393a8... Micro-tidyups to nv_driver and nouveau_xv
+    - 8ed30d0... randr12: a few line length improvements
+    - 666ab70... Kill some 8 bit code.
+    - bee8450... Fix IFC for 16bpp. Also fix the color accuracy of 16bpp 
+      solid fills.
+    - 609b10f... 0x48 exception does not apply on BIT cards
+    - a9e2d47... randr12: some code simplification, rearrangement and tidying
+    - 5715f95... NewRestore: remove, due to lack of interest
+    - d2e924e... randr12: remove another field member
+    - 55f490c... randr12: fpWidth and fpHeight no more
+    - 4cbbd44... randr12: improve aspect scaling code
+    - 8a36468... randr12: for native scaling, a clock check isn't enough
+    - 8793bb1... Apply minimum front porch only when necessary (#15949)
+    - 83bb26f... NV50: disallow doublescan modes on TMDS/LVDS
+    - 7d5b345... NV50: extra warning message
+    - 743c696... NV50: a half decent attempt at doing something when LVDS has 
+      no DDC
+    - fcbaa10... Forgot something.
+    - 628acdd... NV50: support extended i2c ports (4 and 5)
+    - c845f5a... nv50: fix some of the rendering bugs
+    - 1828820... Redo parsing for panels with EDID, and fix nv3x in the 
+      process (#17138)
+    - c9d4e86... Try harder to load a good vbios image
+    - ae59478... Deal with mobile cards that scribble over the fp strap at 
+      POST
+    - 7766706... Fix a 16bpp issue, also remove old code that mostly worked 
+      around core EXA issues in older xservers.
+    - 6854f81... NV50: Disable messages from hide, show and load cursor, as 
+      they clutter the logs.
+    - 4b24be8... xv: fix thinko from when source was reformatted
+    - 30f54f2... g3dvl: Temporarily disable IDCT.
+
+ -- Chris Lamb <lamby@debian.org>  Sun, 12 Oct 2008 19:39:14 +0100
+
 xserver-xorg-video-nouveau (1:0.0.10~git+20080803+30f54f2-1) experimental; urgency=low
 
   * New upstream snapshot:

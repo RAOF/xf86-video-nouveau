@@ -109,6 +109,7 @@ typedef enum
 	OUTPUT_TMDS = 2,
 	OUTPUT_LVDS = 3,
 	OUTPUT_TV = 1,
+	OUTPUT_ANY = 5,
 } NVOutputType;
 
 /* NV50 */
@@ -156,6 +157,7 @@ typedef struct _nv_crtc_reg
 
 	/* These are former output regs, but are believed to be crtc related */
 	uint32_t general;
+	uint32_t unk_630;
 	uint32_t debug_0;
 	uint32_t debug_1;
 	uint32_t debug_2;
@@ -168,7 +170,6 @@ typedef struct _nv_crtc_reg
 	uint32_t nv10_cursync;
 	uint32_t fp_control;
 	uint32_t dither;
-	bool vpll_changed;
 	uint32_t vpll_a;
 	uint32_t vpll_b;
 } NVCrtcRegRec, *NVCrtcRegPtr;
@@ -194,10 +195,10 @@ typedef struct _riva_hw_state
 	uint32_t fifo;
 	uint32_t pixel;
 	uint32_t horiz;
-	uint32_t arbitration0;
-	uint32_t arbitration1;
-	uint32_t pll;
-	uint32_t pllB;
+	uint8_t arbitration0;
+	uint16_t arbitration1;
+	CARD32 pll;
+	CARD32 pllB;
 	uint32_t vpll;
 	uint32_t vpll2;
 	uint32_t vpllB;
@@ -221,7 +222,7 @@ typedef struct _riva_hw_state
 	NVCrtcRegRec crtc_reg[2];
 } RIVA_HW_STATE, *NVRegPtr;
 
-typedef struct _NVCrtcPrivateRec {
+struct nouveau_crtc {
 	int head;
 	uint8_t last_dpms;
 #if NOUVEAU_EXA_PIXMAPS
@@ -230,7 +231,7 @@ typedef struct _NVCrtcPrivateRec {
 	ExaOffscreenArea *shadow;
 #endif /* NOUVEAU_EXA_PIXMAPS */
 	int fp_users;
-} NVCrtcPrivateRec, *NVCrtcPrivatePtr;
+};
 
 typedef enum {
 	OUTPUT_A = (1 << 0),
@@ -238,18 +239,26 @@ typedef enum {
 	OUTPUT_C = (1 << 2)
 } ValidOutputResource;
 
-typedef struct _NVOutputPrivateRec {
-	uint8_t last_dpms; /* pre-NV50 */
-	I2CBusPtr pDDCBus;
-	NVOutputType type;
+struct nouveau_encoder {
+	uint8_t last_dpms;
 	struct dcb_entry *dcb;
-	uint32_t fpWidth;
-	uint32_t fpHeight;
 	DisplayModePtr native_mode;
 	uint8_t scaling_mode;
 	bool dithering;
 	NVOutputRegRec restore;
-} NVOutputPrivateRec, *NVOutputPrivatePtr;
+};
+
+struct nouveau_connector {
+	xf86MonPtr edid;
+	I2CBusPtr pDDCBus;
+	uint16_t possible_encoders;
+	struct nouveau_encoder *detected_encoder;
+	struct nouveau_encoder *nv_encoder;
+};
+
+#define to_nouveau_connector(x) ((struct nouveau_connector *)(x)->driver_private)
+#define to_nouveau_crtc(x) ((struct nouveau_crtc *)(x)->driver_private)
+#define to_nouveau_encoder(x) ((struct nouveau_connector *)(x)->driver_private)->nv_encoder
 
 /* changing these requires matching changes to reg tables in nv_get_clock */
 #define MAX_PLL_TYPES	4
@@ -303,10 +312,13 @@ typedef struct {
 	uint16_t pll_limit_tbl_ptr;
 	uint16_t ram_restrict_tbl_ptr;
 
+	uint8_t digital_min_front_porch;
+
 	struct {
 		DisplayModePtr native_mode;
 		uint8_t *edid;
 		uint16_t lvdsmanufacturerpointer;
+		uint16_t fpxlatemanufacturertableptr;
 		uint16_t xlated_entry;
 		bool power_off_for_reset;
 		bool reset_after_pclk_change;
@@ -345,16 +357,6 @@ enum LVDS_script {
 	LVDS_PANEL_ON,
 	LVDS_PANEL_OFF
 };
-
-typedef struct {
-	Bool vga_mode;
-	uint8_t depth; /* mode related */
-	uint8_t bpp; /* pitch related */
-	uint16_t x_res;
-	uint16_t y_res;
-	Bool enabled;
-	uint32_t fb_start;
-} NVConsoleMode;
 
 typedef struct _NVRec *NVPtr;
 typedef struct _NVRec {
@@ -421,10 +423,8 @@ typedef struct _NVRec {
     uint8_t cur_head;
     ExaDriverPtr	EXADriverPtr;
     xf86CursorInfoPtr   CursorInfoRec;
-    void		(*PointerMoved)(int index, int x, int y);
     ScreenBlockHandlerProcPtr BlockHandler;
     CloseScreenProcPtr  CloseScreen;
-    int			Rotate;
     /* Cursor */
     CARD32              curFg, curBg;
     CARD32              curImage[256];
@@ -462,16 +462,15 @@ typedef struct _NVRec {
 
     Bool                WaitVSyncPossible;
     Bool                BlendingPossible;
-    Bool                RandRRotation;
     DRIInfoPtr          pDRIInfo;
     drmVersionPtr       pLibDRMVersion;
     drmVersionPtr       pKernelDRMVersion;
 
 	Bool randr12_enable;
 	Bool kms_enable;
-	Bool new_restore;
 
 	I2CBusPtr           pI2CBus[MAX_NUM_DCB_ENTRIES];
+	struct nouveau_encoder *encoders;
 
 #ifdef XF86DRM_MODE
 	void *drmmode; /* for KMS */
@@ -483,8 +482,6 @@ typedef struct _NVRec {
 		unsigned char i2c_read[MAX_NUM_DCB_ENTRIES];
 		unsigned char i2c_write[MAX_NUM_DCB_ENTRIES];
 	} dcb_table;
-
-	NVConsoleMode console_mode[2];
 
 	nouveauCrtcPtr crtc[2];
 	nouveauOutputPtr output; /* this a linked list. */
@@ -525,11 +522,7 @@ typedef struct _NVRec {
 
 #define NVPTR(p) ((NVPtr)((p)->driverPrivate))
 
-#define NVShowHideCursor(pScrn, show) do {							\
-	NVPtr pNv = NVPTR(pScrn);										\
-	nv_crtc_show_hide_cursor(pScrn, pNv->cur_head, show);				\
-} while(0)
-
+#define NVShowHideCursor(pScrn, show) nv_show_cursor(NVPTR(pScrn), NVPTR(pScrn)->cur_head, show)
 #define NVLockUnlock(pScrn, lock) NVLockVgaCrtc(NVPTR(pScrn), NVPTR(pScrn)->cur_head, lock)
 
 #define nvReadCurVGA(pNv, reg) NVReadVgaCrtc(pNv, pNv->cur_head, reg)

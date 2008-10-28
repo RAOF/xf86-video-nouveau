@@ -49,6 +49,7 @@ xserver-xorg-video-nouveau (1:0.0.10~git+20081028+cea05e1-1) experimental; urgen
     - b175bfc... Bios register list is easier to read when sorted numerically
     - e51b49c... randr12: panels with edid have only a constant mode
     - 765494e... Remove unnecessary "Setting owner" message
+  * Bump Build-Depends on libdrm-dev.
 
  -- Chris Lamb <lamby@debian.org>  Tue, 28 Oct 2008 07:44:02 +0000
 

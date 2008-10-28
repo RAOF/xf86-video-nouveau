@@ -323,6 +323,17 @@ NVXvDMANotifierFree(ScrnInfoPtr pScrn, struct nouveau_notifier **ptarget)
 	XvDMANotifierStatus[i] = XV_DMA_NOTIFIER_FREE;
 }
 
+void NVXvDMANotifiersRealFree(void)
+{
+	int i;
+
+	for (i = 0; i < 6; i++)
+		if (XvDMANotifierStatus[i] != XV_DMA_NOTIFIER_NOALLOC) {
+			nouveau_notifier_free(&XvDMANotifiers[i]);
+			XvDMANotifierStatus[i] = XV_DMA_NOTIFIER_NOALLOC;
+		}
+}
+
 static int
 nouveau_xv_bo_realloc(ScrnInfoPtr pScrn, unsigned flags, unsigned size,
 		      struct nouveau_bo **pbo)
@@ -359,7 +370,7 @@ nouveau_xv_bo_realloc(ScrnInfoPtr pScrn, unsigned flags, unsigned size,
  * @param pScrn screen whose port wants to free memory
  * @param pPriv port to free memory of
  */
-static void
+void
 NVFreePortMemory(ScrnInfoPtr pScrn, NVPortPrivPtr pPriv)
 {
 	if(pPriv->video_mem) {

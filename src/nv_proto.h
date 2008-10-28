@@ -8,6 +8,7 @@ Bool NVAccelCommonInit(ScrnInfoPtr pScrn);
 Bool NVAccelGetCtxSurf2DFormatFromPixmap(PixmapPtr pPix, int *fmt_ret);
 Bool NVAccelGetCtxSurf2DFormatFromPicture(PicturePtr pPix, int *fmt_ret);
 PixmapPtr NVGetDrawablePixmap(DrawablePtr pDraw);
+void NVAccelFree(NVPtr pNv);
 
 /* in nv_driver.c */
 Bool   NVI2CInit(ScrnInfoPtr pScrn);
@@ -29,11 +30,13 @@ void   NVDACLoadPalette(ScrnInfoPtr pScrn, int numColors, int *indices,
                         LOCO *colors, VisualPtr pVisual );
 Bool   NVDACi2cInit(ScrnInfoPtr pScrn);
 
-/* in nv_video.c */
+/* in nouveau_xv.c */
 void NVInitVideo(ScreenPtr);
 void NVWaitVSync(ScrnInfoPtr pScrn, int crtc);
 void NVSetPortDefaults (ScrnInfoPtr pScrn, NVPortPrivPtr pPriv);
 unsigned int nv_window_belongs_to_crtc(ScrnInfoPtr, int, int, int, int);
+void NVXvDMANotifiersRealFree(void);
+void NVFreePortMemory(ScrnInfoPtr pScrn, NVPortPrivPtr pPriv);
 
 /* in nv_setup.c */
 void   RivaEnterLeave(ScrnInfoPtr pScrn, Bool enter);
@@ -67,18 +70,17 @@ void NVSetStartAddress(NVPtr,CARD32);
 void NVRefreshArea(ScrnInfoPtr pScrn, int num, BoxPtr pbox);
 
 /* in nv_bios.c */
-unsigned int NVParseBios(ScrnInfoPtr pScrn);
-void call_lvds_script(ScrnInfoPtr pScrn, struct dcb_entry *dcbent, int head, enum LVDS_script script, int pxclk);
-void parse_lvds_manufacturer_table(ScrnInfoPtr pScrn, bios_t *bios, int pxclk);
-void run_tmds_table(ScrnInfoPtr pScrn, struct dcb_entry *dcbent, int head, int pxclk);
+int NVParseBios(ScrnInfoPtr pScrn);
+int call_lvds_script(ScrnInfoPtr pScrn, struct dcb_entry *dcbent, int head, enum LVDS_script script, int pxclk);
+int parse_lvds_manufacturer_table(ScrnInfoPtr pScrn, bios_t *bios, int pxclk);
+int run_tmds_table(ScrnInfoPtr pScrn, struct dcb_entry *dcbent, int head, int pxclk);
 int getMNP_single(ScrnInfoPtr pScrn, struct pll_lims *pll_lim, int clk, int *NM, int *log2P);
 int getMNP_double(ScrnInfoPtr pScrn, struct pll_lims *pll_lim, int clk, int *NM1, int *NM2, int *log2P);
-bool get_pll_limits(ScrnInfoPtr pScrn, uint32_t limit_match, struct pll_lims *pll_lim);
+int get_pll_limits(ScrnInfoPtr pScrn, uint32_t limit_match, struct pll_lims *pll_lim);
 
 /* nv_crtc.c */
 void NVCrtcSetBase(xf86CrtcPtr crtc, int x, int y);
 void nv_crtc_init(ScrnInfoPtr pScrn, int crtc_num);
-void NVCrtcLockUnlock(xf86CrtcPtr crtc, Bool lock);
 
 /* nv_output.c */
 void nv_encoder_restore(ScrnInfoPtr pScrn, struct nouveau_encoder *nv_encoder);
@@ -99,8 +101,8 @@ void NVWriteVgaCrtc(NVPtr pNv, int head, uint8_t index, uint8_t value);
 uint8_t NVReadVgaCrtc(NVPtr pNv, int head, uint8_t index);
 void NVWriteVgaCrtc5758(NVPtr pNv, int head, uint8_t index, uint8_t value);
 uint8_t NVReadVgaCrtc5758(NVPtr pNv, int head, uint8_t index);
-uint8_t NVReadPVIO(NVPtr pNv, int head, uint16_t port);
-void NVWritePVIO(NVPtr pNv, int head, uint16_t port, uint8_t value);
+uint8_t NVReadPRMVIO(NVPtr pNv, int head, uint32_t reg);
+void NVWritePRMVIO(NVPtr pNv, int head, uint32_t reg, uint8_t value);
 void NVWriteVgaSeq(NVPtr pNv, int head, uint8_t index, uint8_t value);
 uint8_t NVReadVgaSeq(NVPtr pNv, int head, uint8_t index);
 void NVWriteVgaGr(NVPtr pNv, int head, uint8_t index, uint8_t value);
@@ -110,9 +112,9 @@ void NVWriteVgaAttr(NVPtr pNv, int head, uint8_t index, uint8_t value);
 uint8_t NVReadVgaAttr(NVPtr pNv, int head, uint8_t index);
 void NVVgaSeqReset(NVPtr pNv, int head, bool start);
 void NVVgaProtect(NVPtr pNv, int head, bool protect);
-void NVSetOwner(ScrnInfoPtr pScrn, int head);
-void NVLockVgaCrtc(NVPtr pNv, int head, bool lock);
-void NVBlankScreen(ScrnInfoPtr pScrn, int head, bool blank);
+void NVSetOwner(NVPtr pNv, int owner);
+void NVLockVgaCrtcs(NVPtr pNv, bool lock);
+void NVBlankScreen(NVPtr pNv, int head, bool blank);
 void nv_fix_nv40_hw_cursor(NVPtr pNv, int head);
 void nv_show_cursor(NVPtr pNv, int head, bool show);
 int nv_decode_pll_highregs(NVPtr pNv, uint32_t pll1, uint32_t pll2, bool force_single, int refclk);

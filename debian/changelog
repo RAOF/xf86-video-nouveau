@@ -1,3 +1,57 @@
+xserver-xorg-video-nouveau (1:0.0.10~git+20081028+cea05e1-1) experimental; urgency=low
+
+  * New upstream snapshot (Closes: #503541)
+    - cea05e1... randr12: make colour-map setting less complex
+    - 0e4b01a... randr12: convenience functions for vga crtc state access
+    - fe9bfd9... Tidy EnterVT, and don't call it from ScreenInit
+    - 3e1ccff... Condense crtc locking
+    - 83b541e... Common function for the bios condition table
+    - 36c6aa4... Allow more time in INIT_CONDITION_TIME (#18234)
+    - bf810b3... More warnings for C51's magical unaligned regs
+    - d481b5e... Rework bios parser error handling
+    - 387f308... RivaTuner dumps call the `how much memory have I got?' reg 
+      NV_PFB_CSTATUS
+    - bb20175... pedantry fix for nv11 locking, and some minor cleanups
+    - 9aecc42... Add a function to lock/unlock all crtcs, use it in nv_bios
+      code
+    - 48581da... Attempt to make the usage of cr44 rational instead of 
+      cargoculted
+    - 1c7bee9... Robust nv11 head setting (from mmiotrace)
+    - cf5162b... randr12: update scrn field on server regen, and emit an error
+      if rotated
+    - 13739cf... randr12: don't change virtualX/virtualY
+    - 98a4dcb... Delete notifiers and grobjs in CloseScreen to avoid channel 
+      member becoming stale on server regeneration
+    - 12fce00... Remove all object with mmaps in CloseScreen, so that 
+      drmClose actually calls the drm release method
+    - 8e3f27a... No reason to call AccelCommonInit twice in ScreenInit, but 
+      calling it in EnterVT helps resume...
+    - f495fa9... nouveau_channel_free should remove mmaps made in 
+      nouveau_channel_alloc
+    - 1cedb8e... Do frag prog allocation and shader upload in TCL init
+    - 9e2c089... Only hackup shaders once
+    - afc6668... cr26 is just another view of 0x3c0
+    - 539f499... Use symbolic define values where known
+    - 791666a... Convert CIO, DIO and VIO use to use defines from nvreg for 
+      index and data reg offsets
+    - a1b7f8d... Rename relevant functions, sizes and offsets to PRM.IO from 
+      P.IO, in keeping with the nvidia scheme
+    - 267c0ee... Name crtc index regs according to rules.xml
+    - 9261c34... SaveGeneration isn't doing a lot
+    - c29c190... Replace a few memsets with initializers
+    - 3b53f6c... Eliminate separate NVRec ctor and dtor
+    - 1b18db2... randr12: remove pointless debug in nv_output and nv_crtc
+    - 240d51d... randr12: deBoolification and eliminate `override' arg to 
+      nv_crtc_load_state_ext
+    - b95c3e2... Make all CR 57/58 access use the proper functions and defines
+    - 9988ae5... Redo bios logging
+    - 0e6a9cc... Improve some nv_bios messages, remove others
+    - b175bfc... Bios register list is easier to read when sorted numerically
+    - e51b49c... randr12: panels with edid have only a constant mode
+    - 765494e... Remove unnecessary "Setting owner" message
+
+ -- Chris Lamb <lamby@debian.org>  Tue, 28 Oct 2008 07:44:02 +0000
+
 xserver-xorg-video-nouveau (1:0.0.10~git+20081012+3b53f6c-1) experimental; urgency=low
 
   * New upstream snapshot:

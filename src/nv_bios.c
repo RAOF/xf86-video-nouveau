@@ -24,7 +24,6 @@
 
 #include "nv_include.h"
 
-
 #if defined(__FreeBSD__) || defined(__NetBSD__)
 #define bswap_16 bswap16
 #define bswap_32 bswap32
@@ -32,6 +31,7 @@
 #include <byteswap.h>
 #endif
 
+typedef struct nouveau_bios bios_t;
 
 /* these defines are made up */
 #define NV_CIO_CRE_44_HEADA 0x0
@@ -1349,6 +1349,145 @@ static bool init_pll2(ScrnInfoPtr pScrn, bios_t *bios, uint16_t offset, init_exe
 	return true;
 }
 
+static int init_dcb_i2c_entry(ScrnInfoPtr pScrn, bios_t *bios, int index);
+
+static int
+create_i2c_device(ScrnInfoPtr pScrn, bios_t *bios, int i2c_index, int address, I2CDevPtr *newdev)
+{
+	NVPtr pNv = NVPTR(pScrn);
+	int ret;
+	I2CDevPtr i2cdev;
+
+	if (i2c_index == 0xff) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "I2C index == 0xff case not implemented\n");
+		return -ENOSYS;
+	}
+
+	if ((ret = init_dcb_i2c_entry(pScrn, bios, i2c_index)))
+		return ret;
+
+	if (!(i2cdev = xf86CreateI2CDevRec())) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "I2C device allocation failed\n");
+		return -ENOMEM;
+	}
+	i2cdev->DevName = "init script device";
+	i2cdev->SlaveAddr = address;
+	i2cdev->pI2CBus = pNv->dcb_table.i2c[i2c_index].chan;
+	if (!xf86I2CDevInit(i2cdev)) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Couldn't add I2C device\n");
+		return -EINVAL;
+	}
+
+	*newdev = i2cdev;
+
+	return 0;
+}
+
+static bool init_i2c_byte(ScrnInfoPtr pScrn, bios_t *bios, uint16_t offset, init_exec_t *iexec)
+{
+	/* INIT_I2C_BYTE   opcode: 0x4C ('L')
+	 *
+	 * offset      (8 bit): opcode
+	 * offset + 1  (8 bit): DCB I2C table entry index
+	 * offset + 2  (8 bit): I2C slave address
+	 * offset + 3  (8 bit): count
+	 * offset + 4  (8 bit): I2C register 1
+	 * offset + 5  (8 bit): mask 1
+	 * offset + 6  (8 bit): data 1
+	 * ...
+	 *
+	 * For each of "count" registers given by "I2C register n" on the device
+	 * addressed by "I2C slave address" on the I2C bus given by
+	 * "DCB I2C table entry index", read the register, AND the result with
+	 * "mask n" and OR it with "data n" before writing it back to the device
+	 */
+
+	uint8_t i2c_index = bios->data[offset + 1];
+	uint8_t i2c_address = bios->data[offset + 2];
+	uint8_t count = bios->data[offset + 3];
+	I2CDevPtr i2cdev;
+	int i;
+
+	if (!iexec->execute)
+		return true;
+
+	BIOSLOG(pScrn, "0x%04X: DCBI2CIndex: 0x%02X, I2CAddress: 0x%02X, Count: 0x%02X\n",
+		offset, i2c_index, i2c_address, count);
+
+	if (create_i2c_device(pScrn, bios, i2c_index, i2c_address, &i2cdev))
+		return false;
+
+	for (i = 0; i < count; i++) {
+		uint8_t i2c_reg = bios->data[offset + 4 + i * 3];
+		uint8_t mask = bios->data[offset + 5 + i * 3];
+		uint8_t data = bios->data[offset + 6 + i * 3];
+		uint8_t value;
+
+		xf86I2CReadByte(i2cdev, i2c_reg, &value);
+
+		BIOSLOG(pScrn, "0x%04X: I2CReg: 0x%02X, Value: 0x%02X, Mask: 0x%02X, Data: 0x%02X\n",
+			offset, i2c_reg, value, mask, data);
+
+		value = (value & mask) | data;
+
+		if (bios->execute)
+			xf86I2CWriteByte(i2cdev, i2c_reg, value);
+	}
+
+	xf86DestroyI2CDevRec(i2cdev, TRUE);
+
+	return true;
+}
+
+static bool init_zm_i2c_byte(ScrnInfoPtr pScrn, bios_t *bios, uint16_t offset, init_exec_t *iexec)
+{
+	/* INIT_ZM_I2C_BYTE   opcode: 0x4D ('M')
+	 *
+	 * offset      (8 bit): opcode
+	 * offset + 1  (8 bit): DCB I2C table entry index
+	 * offset + 2  (8 bit): I2C slave address
+	 * offset + 3  (8 bit): count
+	 * offset + 4  (8 bit): I2C register 1
+	 * offset + 5  (8 bit): data 1
+	 * ...
+	 *
+	 * For each of "count" registers given by "I2C register n" on the device
+	 * addressed by "I2C slave address" on the I2C bus given by
+	 * "DCB I2C table entry index", set the register to "data n"
+	 */
+
+	uint8_t i2c_index = bios->data[offset + 1];
+	uint8_t i2c_address = bios->data[offset + 2];
+	uint8_t count = bios->data[offset + 3];
+	I2CDevPtr i2cdev;
+	int i;
+
+	if (!iexec->execute)
+		return true;
+
+	BIOSLOG(pScrn, "0x%04X: DCBI2CIndex: 0x%02X, I2CAddress: 0x%02X, Count: 0x%02X\n",
+		offset, i2c_index, i2c_address, count);
+
+	if (create_i2c_device(pScrn, bios, i2c_index, i2c_address, &i2cdev))
+		return false;
+
+	for (i = 0; i < count; i++) {
+		uint8_t i2c_reg = bios->data[offset + 4 + i * 3];
+		uint8_t data = bios->data[offset + 5 + i * 3];
+
+		BIOSLOG(pScrn, "0x%04X: I2CReg: 0x%02X, Data: 0x%02X\n",
+			offset, i2c_reg, data);
+
+		if (bios->execute)
+			if (!xf86I2CWriteByte(i2cdev, i2c_reg, data))
+				break;
+	}
+
+	xf86DestroyI2CDevRec(i2cdev, TRUE);
+
+	return true;
+}
+
 static uint32_t get_tmds_index_reg(ScrnInfoPtr pScrn, uint8_t mlv)
 {
 	/* For mlv < 0x80, it is an index into a table of TMDS base addresses
@@ -2559,8 +2698,8 @@ static init_tbl_entry_t itbl_entry[] = {
 	{ "INIT_INDEX_ADDRESS_LATCHED"        , 0x49, 18      , 17      , 2       , init_idx_addr_latched           },
 	{ "INIT_IO_RESTRICT_PLL2"             , 0x4A, 11      , 6       , 4       , init_io_restrict_pll2           },
 	{ "INIT_PLL2"                         , 0x4B, 9       , 0       , 0       , init_pll2                       },
-/*	{ "INIT_I2C_BYTE"                     , 0x4C, x       , x       , x       , init_i2c_byte                   }, */
-/*	{ "INIT_ZM_I2C_BYTE"                  , 0x4D, x       , x       , x       , init_zm_i2c_byte                }, */
+	{ "INIT_I2C_BYTE"                     , 0x4C, 4       , 3       , 3       , init_i2c_byte                   },
+	{ "INIT_ZM_I2C_BYTE"                  , 0x4D, 4       , 3       , 2       , init_zm_i2c_byte                },
 /*	{ "INIT_ZM_I2C"                       , 0x4E, x       , x       , x       , init_zm_i2c                     }, */
 	{ "INIT_TMDS"                         , 0x4F, 5       , 0       , 0       , init_tmds                       },
 	{ "INIT_ZM_TMDS_GROUP"                , 0x50, 3       , 2       , 2       , init_zm_tmds_group              },
@@ -3103,7 +3242,7 @@ static int parse_fp_mode_table(ScrnInfoPtr pScrn, bios_t *bios, struct fppointer
 	return 0;
 }
 
-int parse_lvds_manufacturer_table(ScrnInfoPtr pScrn, bios_t *bios, int pxclk)
+int parse_lvds_manufacturer_table(ScrnInfoPtr pScrn, int pxclk)
 {
 	/* The LVDS table header is (mostly) described in
 	 * parse_lvds_manufacturer_table_header(): the BIT header additionally
@@ -3132,6 +3271,7 @@ int parse_lvds_manufacturer_table(ScrnInfoPtr pScrn, bios_t *bios, int pxclk)
 	 * tests.
 	 */
 
+	bios_t *bios = &NVPTR(pScrn)->VBIOS;
 	unsigned int lvdsmanufacturerindex = 0;
 	struct lvdstableheader lth;
 	uint16_t lvdsofs;
@@ -3558,6 +3698,46 @@ int get_pll_limits(ScrnInfoPtr pScrn, uint32_t limit_match, struct pll_lims *pll
 	return 0;
 }
 
+static int parse_bit_A_tbl_entry(ScrnInfoPtr pScrn, bios_t *bios, bit_entry_t *bitentry)
+{
+	/* Parses the load detect values for g80 cards.
+	 *
+	 * offset + 0 (16 bits): loadval table pointer
+	 */
+
+	uint16_t load_table_ptr;
+	uint8_t version, headerlen, entrylen, num_entries;
+
+	if (bitentry->length != 3) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Do not understand BIT A table\n");
+		return -EINVAL;
+	}
+
+	load_table_ptr = le16_to_cpu(*((uint16_t *)(&bios->data[bitentry->offset])));
+
+	version = bios->data[load_table_ptr];
+
+	if (version != 0x10) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "BIT loadval table version %d.%d not supported\n",
+			version >> 4, version & 0xF);
+		return -EINVAL;
+	}
+
+	headerlen = bios->data[load_table_ptr + 1];
+	entrylen = bios->data[load_table_ptr + 2];
+	num_entries = bios->data[load_table_ptr + 3];
+
+	if (headerlen != 4 || entrylen != 4 || num_entries != 2) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Do not understand BIT loadval table\n");
+		return -EINVAL;
+	}
+
+	/* First entry is normal dac, 2nd tv-out perhaps? */
+	bios->dactestval = le32_to_cpu(*((uint32_t *)&bios->data[load_table_ptr + headerlen])) & 0x3FF;
+
+	return 0;
+}
+
 static int parse_bit_C_tbl_entry(ScrnInfoPtr pScrn, bios_t *bios, bit_entry_t *bitentry)
 {
 	/* offset + 8  (16 bits): PLL limits table pointer
@@ -3700,7 +3880,7 @@ static int parse_bit_lvds_tbl_entry(ScrnInfoPtr pScrn, bios_t *bios, bit_entry_t
 	bios->fp.lvdsmanufacturerpointer = le16_to_cpu(*((uint16_t *)(&bios->data[bitentry->offset])));
 	bios->fp.strapping = get_fp_strap(pScrn, bios);
 
-	return parse_lvds_manufacturer_table(pScrn, bios, 0);
+	return parse_lvds_manufacturer_table(pScrn, 0);
 }
 
 static int parse_bit_M_tbl_entry(ScrnInfoPtr pScrn, bios_t *bios, bit_entry_t *bitentry)
@@ -3789,7 +3969,7 @@ static int parse_bit_structure(ScrnInfoPtr pScrn, bios_t *bios, const uint16_t b
 {
 	int entries = bios->data[bitoffset + 4];
 	/* parse i first, I next (which needs C & M before it), and L before D */
-	char parseorder[] = "iCMILDT";
+	char parseorder[] = "iCMILDTA";
 	bit_entry_t bitentry;
 	int i, j, offset, ret;
 
@@ -3804,6 +3984,9 @@ static int parse_bit_structure(ScrnInfoPtr pScrn, bios_t *bios, const uint16_t b
 				continue;
 
 			switch (bitentry.id[0]) {
+			case 'A':
+				parse_bit_A_tbl_entry(pScrn, bios, &bitentry);
+				break;
 			case 'C':
 				if ((ret = parse_bit_C_tbl_entry(pScrn, bios, &bitentry)))
 					return ret;
@@ -3883,10 +4066,10 @@ static int parse_bmp_structure(ScrnInfoPtr pScrn, bios_t *bios, unsigned int off
 	int ret;
 
 	/* load needed defaults in case we can't parse this info */
-	pNv->dcb_table.i2c_write[0] = NV_CIO_CRE_DDC_WR__INDEX;
-	pNv->dcb_table.i2c_read[0] = NV_CIO_CRE_DDC_STATUS__INDEX;
-	pNv->dcb_table.i2c_write[1] = NV_CIO_CRE_DDC0_WR__INDEX;
-	pNv->dcb_table.i2c_read[1] = NV_CIO_CRE_DDC0_STATUS__INDEX;
+	pNv->dcb_table.i2c[0].write = NV_CIO_CRE_DDC_WR__INDEX;
+	pNv->dcb_table.i2c[0].read = NV_CIO_CRE_DDC_STATUS__INDEX;
+	pNv->dcb_table.i2c[1].write = NV_CIO_CRE_DDC0_WR__INDEX;
+	pNv->dcb_table.i2c[1].read = NV_CIO_CRE_DDC0_STATUS__INDEX;
 	bios->digital_min_front_porch = 0x4b;
 	bios->fmaxvco = 256000;
 	bios->fminvco = 128000;
@@ -3968,10 +4151,10 @@ static int parse_bmp_structure(ScrnInfoPtr pScrn, bios_t *bios, unsigned int off
 	bios->legacy.i2c_indices.crt = bios->data[legacy_i2c_offset];
 	bios->legacy.i2c_indices.tv = bios->data[legacy_i2c_offset + 1];
 	bios->legacy.i2c_indices.panel = bios->data[legacy_i2c_offset + 2];
-	pNv->dcb_table.i2c_write[0] = bios->data[legacy_i2c_offset + 4];
-	pNv->dcb_table.i2c_read[0] = bios->data[legacy_i2c_offset + 5];
-	pNv->dcb_table.i2c_write[1] = bios->data[legacy_i2c_offset + 6];
-	pNv->dcb_table.i2c_read[1] = bios->data[legacy_i2c_offset + 7];
+	pNv->dcb_table.i2c[0].write = bios->data[legacy_i2c_offset + 4];
+	pNv->dcb_table.i2c[0].read = bios->data[legacy_i2c_offset + 5];
+	pNv->dcb_table.i2c[1].write = bios->data[legacy_i2c_offset + 6];
+	pNv->dcb_table.i2c[1].read = bios->data[legacy_i2c_offset + 7];
 
 	if (bmplength > 74) {
 		bios->fmaxvco = le32_to_cpu(*((uint32_t *)&bios->data[offset + 67]));
@@ -4020,9 +4203,12 @@ static int parse_bmp_structure(ScrnInfoPtr pScrn, bios_t *bios, unsigned int off
 		return 0;
 
 	bios->fp.strapping = get_fp_strap(pScrn, bios);
-	if ((ret = parse_lvds_manufacturer_table(pScrn, bios, 0)))
+	if ((ret = parse_lvds_manufacturer_table(pScrn, 0)))
 		return ret;
+#ifndef __powerpc__
 	return parse_fp_mode_table(pScrn, bios, &fpp);
+#endif
+	return 0;
 }
 
 static uint16_t findstr(uint8_t *data, int n, const uint8_t *str, int len)
@@ -4041,14 +4227,14 @@ static uint16_t findstr(uint8_t *data, int n, const uint8_t *str, int len)
 }
 
 static int
-read_dcb_i2c_entry(ScrnInfoPtr pScrn, uint8_t dcb_version, uint16_t i2ctabptr, int index)
+read_dcb_i2c_entry(ScrnInfoPtr pScrn, int dcb_version, uint16_t i2ctabptr, int index)
 {
 	NVPtr pNv = NVPTR(pScrn);
-	bios_t *bios = &pNv->VBIOS;
-	uint8_t *i2ctable = &bios->data[i2ctabptr];
-	uint8_t headerlen = 0;
+	uint8_t *i2ctable = &pNv->VBIOS.data[i2ctabptr];
+	uint8_t dcb_i2c_ver = dcb_version, headerlen = 0;
 	int i2c_entries = MAX_NUM_DCB_ENTRIES;
 	int recordoffset = 0, rdofs = 1, wrofs = 0;
+	uint8_t port_type = 0;
 
 	if (!i2ctabptr)
 		return -EINVAL;
@@ -4058,14 +4244,9 @@ read_dcb_i2c_entry(ScrnInfoPtr pScrn, uint8_t dcb_version, uint16_t i2ctabptr, i
 			xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
 				   "DCB I2C table version mismatch (%02X vs %02X)\n",
 				   i2ctable[0], dcb_version);
+		dcb_i2c_ver = i2ctable[0];
 		headerlen = i2ctable[1];
 		i2c_entries = i2ctable[2];
-
-		/* same address offset used for read and write for C51 and G80 */
-		if (bios->chip_version == 0x51)
-			rdofs = wrofs = 1;
-		if (i2ctable[0] >= 0x40)
-			rdofs = wrofs = 0;
 	}
 	/* it's your own fault if you call this function on a DCB 1.1 BIOS --
 	 * the test below is for DCB 1.2
@@ -4090,25 +4271,60 @@ read_dcb_i2c_entry(ScrnInfoPtr pScrn, uint8_t dcb_version, uint16_t i2ctabptr, i
 		return -EINVAL;
 	}
 
-	if (bios->chip_version == 0x51) {
-		int port_type = i2ctable[headerlen + 4 * index + 3];
+	if (dcb_i2c_ver >= 0x30) {
+		port_type = i2ctable[headerlen + recordoffset + 3 + 4 * index];
 
-		if (port_type != 4)
-			xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
-				   "DCB I2C table has port type %d\n", port_type);
+		/* fixup for chips using same address offset for read and write */
+		if (port_type == 4)	/* seen on C51 */
+			rdofs = wrofs = 1;
+		if (port_type == 5)	/* G80+ */
+			rdofs = wrofs = 0;
 	}
-	if (i2ctable[0] >= 0x40) {
-		int port_type = i2ctable[headerlen + 4 * index + 3];
+	if (dcb_i2c_ver >= 0x40 && port_type != 5)
+		xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
+			   "DCB I2C table has port type %d\n", port_type);
 
-		if (port_type != 5)
-			xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
-				   "DCB I2C table has port type %d\n", port_type);
-	}
-
-	pNv->dcb_table.i2c_read[index] = i2ctable[headerlen + recordoffset + rdofs + 4 * index];
-	pNv->dcb_table.i2c_write[index] = i2ctable[headerlen + recordoffset + wrofs + 4 * index];
+	pNv->dcb_table.i2c[index].port_type = port_type;
+	pNv->dcb_table.i2c[index].read = i2ctable[headerlen + recordoffset + rdofs + 4 * index];
+	pNv->dcb_table.i2c[index].write = i2ctable[headerlen + recordoffset + wrofs + 4 * index];
 
 	return 0;
+}
+
+static int init_dcb_i2c_entry(ScrnInfoPtr pScrn, bios_t *bios, int index)
+{
+	NVPtr pNv = NVPTR(pScrn);
+	uint16_t dcbptr = le16_to_cpu(*(uint16_t *)&bios->data[0x36]);
+	uint8_t dcb_version = bios->data[dcbptr];
+	uint16_t i2ctabptr = le16_to_cpu(*(uint16_t *)&bios->data[dcbptr + ((dcb_version < 0x30) ? 2 : 4)]);
+	int ret;
+	char adaptorname[11];
+
+	if (pNv->dcb_table.i2c[index].chan)
+		return 0;
+
+	if (!dcbptr) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			   "No Display Configuration Block pointer found\n");
+		return -EINVAL;
+	}
+	if (dcb_version < 0x12) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			   "DCB table not version 1.2 or greater\n");
+		return -ENOSYS;
+	}
+	if (!i2ctabptr) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			   "No pointer to DCB I2C port table\n");
+		return -EINVAL;
+	}
+
+	if ((ret = read_dcb_i2c_entry(pScrn, dcb_version, i2ctabptr, index)))
+		return ret;
+
+	snprintf(adaptorname, 11, "DCB-I2C-%d", index);
+
+	return NV_I2CInit(pScrn, &pNv->dcb_table.i2c[index].chan, &pNv->dcb_table.i2c[index], xstrdup(adaptorname));
 }
 
 static bool
@@ -4361,6 +4577,10 @@ static int parse_dcb_table(ScrnInfoPtr pScrn, bios_t *bios)
 		parse_dcb_entry(pScrn, 0, dcb_version, 0, 0, 0);
 		return 0;
 	}
+
+	if (!i2ctabptr)
+		xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
+			   "No pointer to DCB I2C port table\n");
 
 	if (entries >= MAX_NUM_DCB_ENTRIES)
 		entries = MAX_NUM_DCB_ENTRIES;

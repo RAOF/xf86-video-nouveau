@@ -283,6 +283,19 @@ nv50_crtc_shadow_destroy(xf86CrtcPtr crtc, PixmapPtr rotate_pixmap, void *data)
 	pNv->shadow[nv_crtc->crtc->index] = NULL;
 }
 
+#if XF86_CRTC_VERSION >= 2
+static void
+nv50_crtc_set_origin(xf86CrtcPtr crtc, int x, int y)
+{
+	ScrnInfoPtr pScrn = crtc->scrn;
+	NV50CrtcPrivatePtr nv_crtc = crtc->driver_private;
+
+	nv_crtc->crtc->SetFBOffset(nv_crtc->crtc, x, y);
+
+	NV50DisplayCommand(pScrn, NV50_UPDATE_DISPLAY, 0);
+}
+#endif
+
 static void
 nv50_crtc_destroy(xf86CrtcPtr crtc)
 {
@@ -308,6 +321,9 @@ static const xf86CrtcFuncsRec nv50_crtc_funcs = {
 	.hide_cursor = nv50_crtc_hide_cursor,
 	.load_cursor_argb = nv50_crtc_load_cursor_argb,
 	.destroy = nv50_crtc_destroy,
+#if XF86_CRTC_VERSION >= 2
+	.set_origin = nv50_crtc_set_origin,
+#endif
 };
 
 void
@@ -468,10 +484,12 @@ nv50_output_detect(xf86OutputPtr output)
 		}
 	}
 
-	if (ddc_mon || detect_present)
+	if (ddc_mon || detect_present) {
+		free(ddc_mon);
 		return XF86OutputStatusConnected;
-	else
+	} else {
 		return XF86OutputStatusDisconnected;
+	}
 }
 
 static DisplayModePtr
@@ -586,6 +604,35 @@ nv50_output_commit(xf86OutputPtr output)
 	ScrnInfoPtr pScrn = output->scrn;
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "nv50_output_commit is called.\n");
 }
+
+#ifdef RANDR_GET_CRTC_INTERFACE
+static xf86CrtcPtr
+nv50_output_get_crtc(xf86OutputPtr output)
+{
+	ScrnInfoPtr pScrn = output->scrn;
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "nv50_output_get_crtc is called.\n");
+
+	NV50OutputPrivatePtr nv_output = output->driver_private;
+	nouveauCrtcPtr crtc = nv_output->output->GetCurrentCrtc(nv_output->output);
+
+	/* 
+	 * Match the internal crtc to the public crtc.
+	 * Note that GetCurrentCrtc() retrieves hardware state. 
+	 * Otherwise we could have just used output->crtc.
+	 */
+	if (crtc) {
+		int i;
+		xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
+		for (i = 0; i < xf86_config->num_crtc; i++) {
+			NV50CrtcPrivatePtr nv_crtc = xf86_config->crtc[i]->driver_private;
+			if (nv_crtc->crtc == crtc)
+				return xf86_config->crtc[i];
+		}
+	}
+
+	return NULL;
+}
+#endif /* RANDR_GET_CRTC_INTERFACE */
 
 /*
  * Output properties.
@@ -749,6 +796,9 @@ static const xf86OutputFuncsRec nv50_output_funcs = {
 	.destroy = nv50_output_destroy,
 	.prepare = nv50_output_prepare,
 	.commit = nv50_output_commit,
+#ifdef RANDR_GET_CRTC_INTERFACE
+	.get_crtc = nv50_output_get_crtc,
+#endif /*RANDR_GET_CRTC_INTERFACE */
 	.create_resources = nv50_output_create_resources,
 	.set_property = nv50_output_set_property,
 };

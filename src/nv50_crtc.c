@@ -254,9 +254,10 @@ NV50CrtcSetFB(nouveauCrtcPtr crtc, struct nouveau_bo * buffer)
 static void 
 NV50CrtcSetFBOffset(nouveauCrtcPtr crtc, uint32_t x, uint32_t y)
 {
-	/* For the moment the actual hardware settings stays in ModeSet(). */
 	crtc->x = x;
 	crtc->y = y;
+
+	NV50CrtcCommand(crtc, NV50_CRTC0_FB_POS, (crtc->y << 16) | (crtc->x));
 }
 
 static void 
@@ -278,17 +279,24 @@ NV50CrtcBlank(nouveauCrtcPtr crtc, Bool blanked)
 		if (pNv->NVArch != 0x50)
 			NV50CrtcCommand(crtc, NV84_CRTC0_BLANK_UNK2, NV84_CRTC0_BLANK_UNK2_BLANK);
 	} else {
-		NV50CrtcCommand(crtc, NV50_CRTC0_FB_OFFSET, crtc->front_buffer->offset >> 8);
+		/* The bufmgr hands addresses in GPU VM, CRTC wants physical
+		 * addresses.  VRAM is currently mapped at 512MiB in the VM,
+		 * so adjust here before poking the CRTCs.
+		 */
+		uint32_t fb = crtc->front_buffer->offset - 0x20000000;
+		uint32_t clut = crtc->lut->offset - 0x20000000;
+		uint32_t cursor =
+			(crtc->index ? (pNv->Cursor2->offset - 0x20000000) :
+			 	       (pNv->Cursor->offset - 0x20000000));
+
+		NV50CrtcCommand(crtc, NV50_CRTC0_FB_OFFSET, fb >> 8);
 		NV50CrtcCommand(crtc, 0x864, 0);
 		NVWrite(pNv, NV50_DISPLAY_UNK_380, 0);
 		/* RAM is clamped to 256 MiB. */
 		NVWrite(pNv, NV50_DISPLAY_RAM_AMOUNT, pNv->RamAmountKBytes * 1024 - 1);
 		NVWrite(pNv, NV50_DISPLAY_UNK_388, 0x150000);
 		NVWrite(pNv, NV50_DISPLAY_UNK_38C, 0);
-		if (crtc->index == 1)
-			NV50CrtcCommand(crtc, NV50_CRTC0_CURSOR_OFFSET, pNv->Cursor2->offset >> 8);
-		else
-			NV50CrtcCommand(crtc, NV50_CRTC0_CURSOR_OFFSET, pNv->Cursor->offset >> 8);
+		NV50CrtcCommand(crtc, NV50_CRTC0_CURSOR_OFFSET, cursor >> 8);
 		if(pNv->NVArch != 0x50)
 			NV50CrtcCommand(crtc, NV84_CRTC0_BLANK_UNK2, NV84_CRTC0_BLANK_UNK2_UNBLANK);
 
@@ -298,10 +306,7 @@ NV50CrtcBlank(nouveauCrtcPtr crtc, Bool blanked)
 		NV50CrtcCommand(crtc, NV50_CRTC0_CLUT_MODE, 
 			pScrn->depth == 8 ? NV50_CRTC0_CLUT_MODE_OFF : NV50_CRTC0_CLUT_MODE_ON);
 		/* Each CRTC has it's own CLUT. */
-		if (crtc->index == 1)
-			NV50CrtcCommand(crtc, NV50_CRTC0_CLUT_OFFSET, pNv->CLUT1->offset >> 8);
-		else
-			NV50CrtcCommand(crtc, NV50_CRTC0_CLUT_OFFSET, pNv->CLUT0->offset >> 8);
+		NV50CrtcCommand(crtc, NV50_CRTC0_CLUT_OFFSET, clut >> 8);
 		if (pNv->NVArch != 0x50)
 			NV50CrtcCommand(crtc, NV84_CRTC0_BLANK_UNK1, NV84_CRTC0_BLANK_UNK1_UNBLANK);
 		NV50CrtcCommand(crtc, NV50_CRTC0_BLANK_CTRL, NV50_CRTC0_BLANK_CTRL_UNBLANK);
@@ -455,54 +460,49 @@ NV50CrtcGammaSet(nouveauCrtcPtr crtc, uint16_t *red, uint16_t *green, uint16_t *
 {
 	ScrnInfoPtr pScrn = crtc->scrn;
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "NV50CrtcGammaSet is called for %s.\n", crtc->index ? "CRTC1" : "CRTC0");
-
-	NVPtr pNv = NVPTR(pScrn);
 	uint32_t index, i;
-	void * CLUT = NULL;
-
-	/* Each CRTC has it's own CLUT. */
-	if (crtc->index == 1)
-		CLUT = pNv->CLUT1->map;
-	else
-		CLUT = pNv->CLUT0->map;
-
-	volatile struct {
-		unsigned short red, green, blue, unused;
-	} *lut = (void *) CLUT;
 
 	switch (pScrn->depth) {
 	case 15:
 		/* R5G5B5 */
 		for (i = 0; i < 32; i++) {
 			index = NV50_LUT_INDEX(i, 5);
-			lut[index].red = red[i] >> 2;
-			lut[index].green = green[i] >> 2;
-			lut[index].blue = blue[i] >> 2;
+			crtc->lut_values[index].red = red[i] >> 2;
+			crtc->lut_values[index].green = green[i] >> 2;
+			crtc->lut_values[index].blue = blue[i] >> 2;
 		}
 		break;
 	case 16:
 		/* R5G6B5 */
 		for (i = 0; i < 32; i++) {
 			index = NV50_LUT_INDEX(i, 5);
-			lut[index].red = red[i] >> 2;
-			lut[index].blue = blue[i] >> 2;
+			crtc->lut_values[index].red = red[i] >> 2;
+			crtc->lut_values[index].blue = blue[i] >> 2;
 		}
 
 		/* Green has an extra bit. */
 		for (i = 0; i < 64; i++) {
 			index = NV50_LUT_INDEX(i, 6);
-			lut[index].green = green[i] >> 2;
+			crtc->lut_values[index].green = green[i] >> 2;
 		}
 		break;
 	default:
 		/* R8G8B8 */
 		for (i = 0; i < 256; i++) {
-			lut[i].red = red[i] >> 2;
-			lut[i].green = green[i] >> 2;
-			lut[i].blue = blue[i] >> 2;
+			crtc->lut_values[i].red = red[i] >> 2;
+			crtc->lut_values[i].green = green[i] >> 2;
+			crtc->lut_values[i].blue = blue[i] >> 2;
 		}
 		break;
 	}
+
+	crtc->lut_values_valid = true;
+
+	/* This is pre-init, we don't have access to the lut bo now. */
+	if (!crtc->lut)
+		return;
+
+	memcpy(crtc->lut->map, crtc->lut_values, 4*256*sizeof(uint16_t));
 }
 
 void

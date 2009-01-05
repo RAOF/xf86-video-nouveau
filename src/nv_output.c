@@ -147,6 +147,27 @@ update_output_fields(xf86OutputPtr output, struct nouveau_encoder *det_encoder)
 	}
 }
 
+static bool edid_sink_connected(xf86OutputPtr output)
+{
+	struct nouveau_connector *nv_connector = to_nouveau_connector(output);
+	NVPtr pNv = NVPTR(output->scrn);
+	bool waslocked = NVLockVgaCrtcs(pNv, false);
+	bool wastied = nv_heads_tied(pNv);
+
+	if (wastied)
+		NVSetOwner(pNv, 0);	/* necessary? */
+
+	nv_connector->edid = xf86OutputGetEDID(output, nv_connector->pDDCBus);
+	xf86OutputSetEDID(output, nv_connector->edid);
+
+	if (wastied)
+		NVSetOwner(pNv, 0x4);
+	if (waslocked)
+		NVLockVgaCrtcs(pNv, true);
+
+	return !!nv_connector->edid;
+}
+
 static xf86OutputStatus
 nv_output_detect(xf86OutputPtr output)
 {
@@ -156,7 +177,7 @@ nv_output_detect(xf86OutputPtr output)
 	struct nouveau_encoder *det_encoder;
 	xf86OutputStatus ret = XF86OutputStatusDisconnected;
 
-	struct nouveau_encoder *find_encoder_by_type(NVOutputType type)
+	struct nouveau_encoder *find_encoder_by_type(enum nouveau_encoder_type type)
 	{
 		int i;
 		for (i = 0; i < pNv->dcb_table.entries; i++)
@@ -166,9 +187,7 @@ nv_output_detect(xf86OutputPtr output)
 		return NULL;
 	}
 
-	if (nv_connector->pDDCBus &&
-	    (nv_connector->edid = xf86OutputGetEDID(output, nv_connector->pDDCBus),
-	     xf86OutputSetEDID(output, nv_connector->edid), nv_connector->edid)) {
+	if (nv_connector->pDDCBus && edid_sink_connected(output)) {
 		if (MULTIPLE_ENCODERS(nv_connector->possible_encoders)) {
 			if (nv_connector->edid->features.input_type)
 				det_encoder = find_encoder_by_type(OUTPUT_TMDS);
@@ -268,7 +287,7 @@ nv_output_get_edid_modes(xf86OutputPtr output)
 			return NULL;
 
 	if (nv_encoder->dcb->type == OUTPUT_LVDS)
-		parse_lvds_manufacturer_table(pScrn, &NVPTR(pScrn)->VBIOS, nv_encoder->native_mode->Clock);
+		parse_lvds_manufacturer_table(pScrn, nv_encoder->native_mode->Clock);
 
 	return edid_modes;
 }
@@ -906,7 +925,7 @@ nv_add_connector(ScrnInfoPtr pScrn, int i2c_index, int encoders, const xf86Outpu
 	output->driver_private = nv_connector;
 
 	if (i2c_index < 0xf)
-		NV_I2CInit(pScrn, &nv_connector->pDDCBus, pNv->dcb_table.i2c_read[i2c_index], xstrdup(outputname));
+		NV_I2CInit(pScrn, &nv_connector->pDDCBus, &pNv->dcb_table.i2c[i2c_index], xstrdup(outputname));
 	nv_connector->possible_encoders = encoders;
 }
 

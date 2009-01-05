@@ -270,6 +270,14 @@ void NVSetOwner(NVPtr pNv, int owner)
 	}
 }
 
+bool nv_heads_tied(NVPtr pNv)
+{
+	if (pNv->NVArch == 0x11)
+		return !!(nvReadMC(pNv, NV_PBUS_DEBUG_1) & (1 << 28));
+
+	return (NVReadVgaCrtc(pNv, 0, NV_CIO_CRE_44) == 0x4);
+}
+
 static void NVLockVgaCrtc(NVPtr pNv, int head, bool lock)
 {
 	uint8_t cr11;
@@ -285,12 +293,16 @@ static void NVLockVgaCrtc(NVPtr pNv, int head, bool lock)
 	NVWriteVgaCrtc(pNv, head, NV_CIO_CR_VRE_INDEX, cr11);
 }
 
-void NVLockVgaCrtcs(NVPtr pNv, bool lock)
+bool NVLockVgaCrtcs(NVPtr pNv, bool lock)
 {
+	bool waslocked = !NVReadVgaCrtc(pNv, 0, NV_CIO_SR_LOCK_INDEX);
+
 	NVLockVgaCrtc(pNv, 0, lock);
 	/* NV11 has independently lockable crtcs, except when tied */
 	if (pNv->NVArch == 0x11 && !(nvReadMC(pNv, NV_PBUS_DEBUG_1) & (1 << 28)))
 		NVLockVgaCrtc(pNv, 1, lock);
+
+	return waslocked;
 }
 
 void NVBlankScreen(NVPtr pNv, int head, bool blank)
@@ -323,14 +335,13 @@ void nv_fix_nv40_hw_cursor(NVPtr pNv, int head)
 
 void nv_show_cursor(NVPtr pNv, int head, bool show)
 {
-	int curctl1 = NVReadVgaCrtc(pNv, head, NV_CIO_CRE_HCUR_ADDR1_INDEX);
+	uint8_t *curctl1 = &pNv->ModeReg.crtc_reg[head].CRTC[NV_CIO_CRE_HCUR_ADDR1_INDEX];
 
 	if (show)
-		NVWriteVgaCrtc(pNv, head, NV_CIO_CRE_HCUR_ADDR1_INDEX,
-			       curctl1 | NV_CIO_CRE_HCUR_ADDR1_ENABLE);
+		*curctl1 |= NV_CIO_CRE_HCUR_ADDR1_ENABLE;
 	else
-		NVWriteVgaCrtc(pNv, head, NV_CIO_CRE_HCUR_ADDR1_INDEX,
-			       curctl1 & ~NV_CIO_CRE_HCUR_ADDR1_ENABLE);
+		*curctl1 &= ~NV_CIO_CRE_HCUR_ADDR1_ENABLE;
+	NVWriteVgaCrtc(pNv, head, NV_CIO_CRE_HCUR_ADDR1_INDEX, *curctl1);
 
 	if (pNv->Architecture == NV_ARCH_40)
 		nv_fix_nv40_hw_cursor(pNv, head);

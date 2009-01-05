@@ -72,7 +72,7 @@ void NVRefreshArea(ScrnInfoPtr pScrn, int num, BoxPtr pbox);
 /* in nv_bios.c */
 int NVParseBios(ScrnInfoPtr pScrn);
 int call_lvds_script(ScrnInfoPtr pScrn, struct dcb_entry *dcbent, int head, enum LVDS_script script, int pxclk);
-int parse_lvds_manufacturer_table(ScrnInfoPtr pScrn, bios_t *bios, int pxclk);
+int parse_lvds_manufacturer_table(ScrnInfoPtr pScrn, int pxclk);
 int run_tmds_table(ScrnInfoPtr pScrn, struct dcb_entry *dcbent, int head, int pxclk);
 int getMNP_single(ScrnInfoPtr pScrn, struct pll_lims *pll_lim, int clk, int *NM, int *log2P);
 int getMNP_double(ScrnInfoPtr pScrn, struct pll_lims *pll_lim, int clk, int *NM1, int *NM2, int *log2P);
@@ -113,7 +113,8 @@ uint8_t NVReadVgaAttr(NVPtr pNv, int head, uint8_t index);
 void NVVgaSeqReset(NVPtr pNv, int head, bool start);
 void NVVgaProtect(NVPtr pNv, int head, bool protect);
 void NVSetOwner(NVPtr pNv, int owner);
-void NVLockVgaCrtcs(NVPtr pNv, bool lock);
+bool nv_heads_tied(NVPtr pNv);
+bool NVLockVgaCrtcs(NVPtr pNv, bool lock);
 void NVBlankScreen(NVPtr pNv, int head, bool blank);
 void nv_fix_nv40_hw_cursor(NVPtr pNv, int head);
 void nv_show_cursor(NVPtr pNv, int head, bool show);
@@ -124,7 +125,7 @@ uint32_t nv_pitch_align(NVPtr pNv, uint32_t width, int bpp);
 void nv_save_restore_vga_fonts(ScrnInfoPtr pScrn, bool save);
 
 /* in nv_i2c.c */
-Bool NV_I2CInit(ScrnInfoPtr pScrn, I2CBusPtr *bus_ptr, int i2c_reg, char *name);
+int NV_I2CInit(ScrnInfoPtr pScrn, I2CBusPtr *bus_ptr, struct dcb_i2c_entry *dcb_i2c, char *name);
 
 /* in nv04_video_overlay.c */
 void NV04PutOverlayImage(ScrnInfoPtr, struct nouveau_bo *, int, int, int,

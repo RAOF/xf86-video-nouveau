@@ -1,3 +1,30 @@
+xserver-xorg-video-nouveau (1:0.0.10~git+20090105+7dc567d-1) experimental; urgency=low
+
+  * New upstream snapshot
+    - 7dc567d... nv50: correct size/layout of uploaded data
+    - 159c18c... Make CHECK_TIMEOUT() a little more correct.
+    - 5d281a2... nv04-nv4x: support RandR 1.3 panning
+    - 3c4705c... Implement bios opcodes 4C and 4D
+    - 1fd60f2... Group all DCB I2C info for a given bus in a structure
+    - 31c9958... nv50: implement get_crtc
+    - f7a7578... nv50: implement set_origin (mostly used for panning)
+    - 74b2e4e... configure: Avoid compiling drm modesetting code by accident.
+    - d104f14... nv50: Improve lut code.
+    - 20f93a9... randr12: pass cursor visibility changes through mode state 
+      structures
+    - 763e0f8... randr12: allow ddc while crtc is locked
+    - 9d8bd45... Punt all bios structs and defines into a new header
+    - a34a2c0... Do not attempt to parse FP mode tables for Mac laptops 
+      (#18636)
+    - 1aba513... nv50: program physical addresses into CRTCs, not VM 
+      addresses.
+    - 65b956f... randr12: fix stupidity from 539f4990
+    - 1666e85... nv50: use bios provided load detect value
+    - a020a44... bios: support g80 loadval table
+    - 220cbb6... nv50_randr: plug a small memory leak
+
+ -- Chris Lamb <lamby@debian.org>  Mon, 05 Jan 2009 02:43:34 +0000
+
 xserver-xorg-video-nouveau (1:0.0.10~git+20081028+cea05e1-1) experimental; urgency=low
 
   * New upstream snapshot (Closes: #503541)

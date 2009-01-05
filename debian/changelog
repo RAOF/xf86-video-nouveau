@@ -22,6 +22,7 @@ xserver-xorg-video-nouveau (1:0.0.10~git+20090105+7dc567d-1) experimental; urgen
     - 1666e85... nv50: use bios provided load detect value
     - a020a44... bios: support g80 loadval table
     - 220cbb6... nv50_randr: plug a small memory leak
+  * Update Build-Depends on libdrm-dev.
 
  -- Chris Lamb <lamby@debian.org>  Mon, 05 Jan 2009 02:43:34 +0000
 

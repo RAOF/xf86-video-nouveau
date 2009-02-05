@@ -1,3 +1,91 @@
+xserver-xorg-video-nouveau (1:0.0.10~git+20090205+4dfd0b1-1) experimental; urgency=low
+
+  * New upstream snapshot (Closes: #514080)
+    - 4dfd0b1... oops
+    - e02813a... link against libdrm_nouveau (installed with libdrm)
+    - 2c06308... require drm 0.0.12
+    - 29aa134... fix NoAccel from when map/unmap became stricter
+    - 62adc55... Revert "Improve the NoAccel situation, but it's not working 
+      yet."
+    - 285027a... Improve the NoAccel situation, but it's not working yet.
+    - 5e63c78... Revert "nv50: make entire offscreen area tiled, use extra 
+      blits to scanout buffer"
+    - 6c3f8da... nv50: make entire offscreen area tiled, use extra blits to 
+      scanout buffer
+    - 6179102... nv10: use the correct 3d object on NV1A
+    - dfd87ec... xv: Unmap filter table BO after init so it can be validated 
+      (nv30,40)
+    - b8de749... Avoid any risk of parsing oscillation on if_is_24bit
+    - 0a0bb72... Split up parsing the bit structure, complain when necessary 
+      tables are missing
+    - 2d86018... Swap the order of calling parse_fp_mode_table and 
+      parse_lvds_manufacturer_table
+    - 8c6b3a8... Make calling of init bios functions common
+    - 9b32034... Don't read obviously useless bios images, and drop 5x 
+      reading on PROM
+    - 63aa210... Implement bios I2C opcode 4E (untested)
+    - a81f159... Handle I2C device 0xff fallback for I2C bios opcodes
+    - 34e967e... Fix pasta error in bios opcode 4D
+    - 786dd36... Fix nv04+ IFC upload and frag prog upload
+    - 3ab65cf... add vm_vram_base field to nouveau_device instead of 
+      hardcoding 512MiB
+    - d833c81... nv50/xv: previous xv commit was bonged - fix that
+    - 0f741eb... exa: small cleanup
+    - c10c3c9... exa: mass renaming and movement of nv04 solid/copy code to 
+      nv04_exa.c
+    - 81ace5d... exa: remove driver pixmaps path that never worked here anyway
+    - 4b1829e... exa: remove NVCopyROP table..
+    - 410788d... blow up horribly if GPU access to mapped buffer is attempted
+    - 4c9346b... bo_del->bo_ref, closer to ng api
+    - c533f86... exa: same for UTS state
+    - 02677c0... exa: ensure DFS state is updated across flushes
+    - 69d02bc... nv50: remove some redundant init, this stuff is done as 
+      required now
+    - 60aea90... nv50: forgotten buffer access flags during init
+    - 5a382dd... nv10/exa: resubmit state in composite as needed
+    - d4ff8db... nv30/exa: resubmit state in composite as needed
+    - b71ebcb... nv40/exa: resubmit state in composite as necessary
+    - 6ddaddb... exa: rework common pre-nv50 code in the same way nv50 code 
+      just was
+    - f36fa31... nv50/xv: ensure entire frame will fit in pushbuf without 
+      causing a flush
+    - 1b48331... nv50/exa: ensure buffer usage is tracked correctly
+    - 7e64426... remove unconditional FIRE_RING() in DoneComposite() hooks
+    - 34fc446... hack a flush_notify() hook in to match ng
+    - d9da090... Drop GPU resources on LeaveVT, reaquire on EnterVT
+    - 1eb8b87... Enable ShadowFB for DRM-less mode.
+    - 4874638... Allow NoAccel operation without the DRM module present.
+    - f78aeed... if CARD_INIT ioctl fails, report it instead of continuing
+    - cf65b87... Fix stupidity introduced in 
+      25de6b867f319099dac05ba84f170da0f0e6c803
+    - 55e9cdd... Split out a function for finding the panel power sequencer 
+      stuff
+    - 1b3546b... Move the bios flat-panel pointers back into the bios struct
+    - d29c481... Remove a BITism from BMP parsing path, and move old style 
+      BMP init into common path
+    - 3e971f6... randr12: lock independent crtc base registers separately 
+      (#19620)
+    - ffbca72... randr12: code motion and allow ramdac580 setting on nv40
+    - 75a0376... randr12: better selection of nv4x single pll mode and some 
+      notes
+    - 767fcea... randr12: no mmiotrace indication that the blob ever clears 
+      these bits
+    - 985ac72... randr12: no mmiotrace evidence for nv47 using the special 
+      pll bits
+    - 3ef6b41... twoStagePLL is actually a description of cards using two PLL 
+      regs
+    - c7a423a... nv04 blitter: use correct number of dma params for real nv04
+    - 25de6b8... Complain more about weird bios images
+    - 4d72981... randr12: avoid classic macro error
+    - 133c1a5... No need of separate allocation for bios image
+    - 8a25049... Make turning on bios execution logging slightly easier
+    - 54d43c4... nv50: small fix
+    - 5c9f8d3... nv50: Add a fallback for non-repeating XRGB pixmaps.
+    - 0321e67... nv50: don't segfault if preinit fails before display setup 
+      done
+
+ -- Chris Lamb <lamby@debian.org>  Thu, 05 Feb 2009 00:21:35 +0000
+
 xserver-xorg-video-nouveau (1:0.0.10~git+20090105+7dc567d-1) experimental; urgency=low
 
   * New upstream snapshot

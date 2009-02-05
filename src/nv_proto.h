@@ -8,7 +8,7 @@ Bool NVAccelCommonInit(ScrnInfoPtr pScrn);
 Bool NVAccelGetCtxSurf2DFormatFromPixmap(PixmapPtr pPix, int *fmt_ret);
 Bool NVAccelGetCtxSurf2DFormatFromPicture(PicturePtr pPix, int *fmt_ret);
 PixmapPtr NVGetDrawablePixmap(DrawablePtr pDraw);
-void NVAccelFree(NVPtr pNv);
+void NVAccelFree(ScrnInfoPtr pScrn);
 
 /* in nv_driver.c */
 Bool   NVI2CInit(ScrnInfoPtr pScrn);
@@ -32,11 +32,10 @@ Bool   NVDACi2cInit(ScrnInfoPtr pScrn);
 
 /* in nouveau_xv.c */
 void NVInitVideo(ScreenPtr);
+void NVTakedownVideo(ScrnInfoPtr);
 void NVWaitVSync(ScrnInfoPtr pScrn, int crtc);
 void NVSetPortDefaults (ScrnInfoPtr pScrn, NVPortPrivPtr pPriv);
 unsigned int nv_window_belongs_to_crtc(ScrnInfoPtr, int, int, int, int);
-void NVXvDMANotifiersRealFree(void);
-void NVFreePortMemory(ScrnInfoPtr pScrn, NVPortPrivPtr pPriv);
 
 /* in nv_setup.c */
 void   RivaEnterLeave(ScrnInfoPtr pScrn, Bool enter);
@@ -55,10 +54,11 @@ void nv_crtc_load_cursor_argb(xf86CrtcPtr crtc, CARD32 *image);
 /* in nv_dma.c */
 void  NVSync(ScrnInfoPtr pScrn);
 Bool  NVInitDma(ScrnInfoPtr pScrn);
+void  NVTakedownDma(ScrnInfoPtr pScrn);
 
-/* in nv_exa.c */
-Bool NVExaInit(ScreenPtr pScreen);
-Bool NVExaPixmapIsOnscreen(PixmapPtr pPixmap);
+/* in nouveau_exa.c */
+Bool nouveau_exa_init(ScreenPtr pScreen);
+Bool nouveau_exa_pixmap_is_onscreen(PixmapPtr pPixmap);
 
 /* in nv_hw.c */
 void NVCalcStateExt(ScrnInfoPtr,struct _riva_hw_state *,int,int,int,int,int,int);
@@ -114,6 +114,7 @@ void NVVgaSeqReset(NVPtr pNv, int head, bool start);
 void NVVgaProtect(NVPtr pNv, int head, bool protect);
 void NVSetOwner(NVPtr pNv, int owner);
 bool nv_heads_tied(NVPtr pNv);
+bool nv_lock_vga_crtc_base(NVPtr pNv, int head, bool lock);
 bool NVLockVgaCrtcs(NVPtr pNv, bool lock);
 void NVBlankScreen(NVPtr pNv, int head, bool blank);
 void nv_fix_nv40_hw_cursor(NVPtr pNv, int head);
@@ -143,13 +144,23 @@ int NVSetBlitPortAttribute(ScrnInfoPtr, Atom, INT32, pointer);
 int NVGetBlitPortAttribute(ScrnInfoPtr, Atom, INT32 *, pointer);
 void NVStopBlitVideo(ScrnInfoPtr, pointer, Bool);
 
+/* in nv04_exa.c */
+Bool NV04EXAPrepareSolid(PixmapPtr, int, Pixel, Pixel);
+void NV04EXASolid(PixmapPtr, int, int, int, int);
+void NV04EXADoneSolid(PixmapPtr);
+Bool NV04EXAPrepareCopy(PixmapPtr, PixmapPtr, int, int, int, Pixel);
+void NV04EXACopy(PixmapPtr, int, int, int, int, int, int);
+void NV04EXADoneCopy(PixmapPtr);
+Bool NV04EXAUploadIFC(ScrnInfoPtr, const char *src, int src_pitch,
+		      PixmapPtr pdPix, int x, int y, int w, int h, int cpp);
+
 /* in nv10_exa.c */
 Bool NVAccelInitNV10TCL(ScrnInfoPtr pScrn);
-Bool NV10CheckComposite(int, PicturePtr, PicturePtr, PicturePtr);
-Bool NV10PrepareComposite(int, PicturePtr, PicturePtr, PicturePtr,
-				  PixmapPtr, PixmapPtr, PixmapPtr);
-void NV10Composite(PixmapPtr, int, int, int, int, int, int, int, int);
-void NV10DoneComposite(PixmapPtr);
+Bool NV10EXACheckComposite(int, PicturePtr, PicturePtr, PicturePtr);
+Bool NV10EXAPrepareComposite(int, PicturePtr, PicturePtr, PicturePtr,
+			     PixmapPtr, PixmapPtr, PixmapPtr);
+void NV10EXAComposite(PixmapPtr, int, int, int, int, int, int, int, int);
+void NV10EXADoneComposite(PixmapPtr);
 
 /* in nv10_video_overlay.c */
 void NV10PutOverlayImage(ScrnInfoPtr, struct nouveau_bo *, int, int, int, int,

@@ -107,6 +107,7 @@ NV30_LoadFilterTable(ScrnInfoPtr pScrn)
 
 		int8_t *t=pNv->xv_filtertable_mem->map;
 		compute_filter_table(t);
+		nouveau_bo_unmap(pNv->xv_filtertable_mem);
 	}
 }
 
@@ -157,7 +158,7 @@ NV30VideoTexture(ScrnInfoPtr pScrn, struct nouveau_bo *src, int offset,
 	OUT_RELOCl(chan, src, offset, NOUVEAU_BO_VRAM | NOUVEAU_BO_RD);
 	if (unit==0) {
 		OUT_RELOCd(chan, pNv->FB, NV34TCL_TX_FORMAT_DIMS_1D | card_fmt |
-				 (1 << NV34TCL_TX_FORMAT_MIPMAP_LEVELS_SHIFT) |
+				 (1 << 16) |
 				 (log2i(width) <<
 				  NV34TCL_TX_FORMAT_BASE_SIZE_U_SHIFT) |
 				 (log2i(height) <<
@@ -170,7 +171,7 @@ NV30VideoTexture(ScrnInfoPtr pScrn, struct nouveau_bo *src, int offset,
 				 NV34TCL_TX_WRAP_R_CLAMP_TO_EDGE);
 	} else {
 		OUT_RELOCd(chan, pNv->FB, NV34TCL_TX_FORMAT_DIMS_2D | card_fmt |
-				 (1 << NV34TCL_TX_FORMAT_MIPMAP_LEVELS_SHIFT) |
+				 (1 << 16) |
 				 (log2i(width) <<
 				  NV34TCL_TX_FORMAT_BASE_SIZE_U_SHIFT) |
 				 (log2i(height) <<
@@ -269,7 +270,7 @@ NV30PutTextureImage(ScrnInfoPtr pScrn, struct nouveau_bo *src, int src_offset,
 	}
 
 #ifdef COMPOSITE
-	if (!NVExaPixmapIsOnscreen(ppix))
+	if (!nouveau_exa_pixmap_is_onscreen(ppix))
 		redirected = TRUE;
 #endif
 

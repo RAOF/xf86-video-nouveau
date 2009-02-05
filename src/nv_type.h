@@ -21,7 +21,6 @@
 #include "nv_pcicompat.h"
 
 #include "nouveau_bios.h"
-#include "nouveau_local.h" /* needed for NOUVEAU_EXA_PIXMAPS */
 
 #include "nouveau_crtc.h"
 #include "nouveau_connector.h"
@@ -194,11 +193,7 @@ typedef struct _riva_hw_state
 struct nouveau_crtc {
 	int head;
 	uint8_t last_dpms;
-#if NOUVEAU_EXA_PIXMAPS
-	struct nouveau_bo *shadow;
-#else
 	ExaOffscreenArea *shadow;
-#endif /* NOUVEAU_EXA_PIXMAPS */
 	int fp_users;
 };
 
@@ -247,6 +242,8 @@ typedef struct _NVRec {
     unsigned long	VRAMPhysicalSize;
     /* Accesible VRAM size (by the GPU) */
     unsigned long	VRAMSize;
+    /* Mapped VRAM BAR */
+    void *              VRAMMap;
     /* Accessible AGP size */
     unsigned long	AGPSize;
 
@@ -309,7 +306,7 @@ typedef struct _NVRec {
     Bool                alphaCursor;
     unsigned char       DDCBase;
     Bool                twoHeads;
-    Bool                twoStagePLL;
+    bool                two_reg_pll;
     Bool                fpScaler;
     int                 fpWidth;
     int                 fpHeight;
@@ -341,6 +338,7 @@ typedef struct _NVRec {
 	struct {
 		int entries;
 		struct dcb_entry entry[MAX_NUM_DCB_ENTRIES];
+		uint8_t i2c_default_indices;
 		struct dcb_i2c_entry i2c[MAX_NUM_DCB_ENTRIES];
 	} dcb_table;
 
@@ -364,7 +362,6 @@ typedef struct _NVRec {
 	/* GPU context */
 	struct nouveau_channel *chan;
 	struct nouveau_notifier *notify0;
-	struct nouveau_grobj *NvNull;
 	struct nouveau_grobj *NvContextSurfaces;
 	struct nouveau_grobj *NvContextBeta1;
 	struct nouveau_grobj *NvContextBeta4;
@@ -381,6 +378,16 @@ typedef struct _NVRec {
 	struct nouveau_bo *tesla_scratch;
 	struct nouveau_bo *shader_mem;
 	struct nouveau_bo *xv_filtertable_mem;
+
+	/* Acceleration context */
+	PixmapPtr pspix, pmpix, pdpix;
+	PicturePtr pspict, pmpict, pdpict;
+	Pixel fg_colour;
+	Pixel planemask;
+	int alu;
+	unsigned point_x, point_y;
+	unsigned width_in, width_out;
+	unsigned height_in, height_out;
 } NVRec;
 
 #define NVPTR(p) ((NVPtr)((p)->driverPrivate))

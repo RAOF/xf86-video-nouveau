@@ -1,7 +1,7 @@
 /*
  * Copyright 2005-2006 Erik Waling
  * Copyright 2006 Stephane Marchesin
- * Copyright 2007-2008 Stuart Bennett
+ * Copyright 2007-2009 Stuart Bennett
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -38,10 +38,12 @@ typedef struct nouveau_bios bios_t;
 #define NV_CIO_CRE_44_HEADB 0x3
 #define FEATURE_MOBILE 0x10
 
-//#define BIOSLOG(sip, fmt, arg...) xf86DrvMsg(sip->scrnIndex, X_INFO, fmt, ##arg)
-//#define LOG_OLD_VALUE(x) x
+#if 0
+#define BIOSLOG(sip, fmt, arg...) xf86DrvMsg(sip->scrnIndex, X_INFO, fmt, ##arg)
+#else
 #define BIOSLOG(sip, fmt, arg...)
-#define LOG_OLD_VALUE(x)
+#endif
+#define LOG_OLD_VALUE(x) //x
 
 #define BIOS_USLEEP(n) usleep(n)
 
@@ -106,20 +108,39 @@ static int score_vbios(ScrnInfoPtr pScrn, const uint8_t *data)
 
 static void load_vbios_prom(NVPtr pNv, uint8_t *data)
 {
+	uint32_t pci_nv_20 = nvReadMC(pNv, NV_PBUS_PCI_NV_20);
+	int pcir_ptr;
 	int i;
 
 	/* enable ROM access */
-	nvWriteMC(pNv, NV_PBUS_PCI_NV_20, NV_PBUS_PCI_NV_20_ROM_SHADOW_DISABLED);
-	for (i = 0; i < NV_PROM_SIZE; i++) {
-		/* according to nvclock, we need that to work around a 6600GT/6800LE bug */
+	nvWriteMC(pNv, NV_PBUS_PCI_NV_20,
+		  pci_nv_20 & ~NV_PBUS_PCI_NV_20_ROM_SHADOW_ENABLED);
+
+	/* bail if no rom signature */
+	if (NV_RD08(pNv->REGS, NV_PROM_OFFSET) != 0x55 ||
+	    NV_RD08(pNv->REGS, NV_PROM_OFFSET + 1) != 0xaa)
+		goto out;
+
+	/* additional check (see note below) - read PCI record header */
+	pcir_ptr = NV_RD08(pNv->REGS, NV_PROM_OFFSET + 0x18) |
+		   NV_RD08(pNv->REGS, NV_PROM_OFFSET + 0x19) << 8;
+	if (NV_RD08(pNv->REGS, NV_PROM_OFFSET + pcir_ptr) != 'P' ||
+	    NV_RD08(pNv->REGS, NV_PROM_OFFSET + pcir_ptr + 1) != 'C' ||
+	    NV_RD08(pNv->REGS, NV_PROM_OFFSET + pcir_ptr + 2) != 'I' ||
+	    NV_RD08(pNv->REGS, NV_PROM_OFFSET + pcir_ptr + 3) != 'R')
+		goto out;
+
+	/* on some 6600GT/6800LE prom reads are messed up.  nvclock alleges a
+	 * a good read may be obtained by waiting or re-reading (cargocult: 5x)
+	 * each byte.  we'll hope pramin has something usable instead
+	 */
+	for (i = 0; i < NV_PROM_SIZE; i++)
 		data[i] = NV_RD08(pNv->REGS, NV_PROM_OFFSET + i);
-		data[i] = NV_RD08(pNv->REGS, NV_PROM_OFFSET + i);
-		data[i] = NV_RD08(pNv->REGS, NV_PROM_OFFSET + i);
-		data[i] = NV_RD08(pNv->REGS, NV_PROM_OFFSET + i);
-		data[i] = NV_RD08(pNv->REGS, NV_PROM_OFFSET + i);
-	}
+
+out:
 	/* disable ROM access */
-	nvWriteMC(pNv, NV_PBUS_PCI_NV_20, NV_PBUS_PCI_NV_20_ROM_SHADOW_ENABLED);
+	nvWriteMC(pNv, NV_PBUS_PCI_NV_20,
+		  pci_nv_20 | NV_PBUS_PCI_NV_20_ROM_SHADOW_ENABLED);
 }
 
 static void load_vbios_pramin(NVPtr pNv, uint8_t *data)
@@ -137,9 +158,15 @@ static void load_vbios_pramin(NVPtr pNv, uint8_t *data)
 		NV_WR32(pNv->REGS, 0x1700, vbios_vram >> 16);
 	}
 
+	/* bail if no rom signature */
+	if (NV_RD08(pNv->REGS, NV_PRAMIN_OFFSET) != 0x55 ||
+	    NV_RD08(pNv->REGS, NV_PRAMIN_OFFSET + 1) != 0xaa)
+		goto out;
+
 	for (i = 0; i < NV_PROM_SIZE; i++)
 		data[i] = NV_RD08(pNv->REGS, NV_PRAMIN_OFFSET + i);
 
+out:
 	if (pNv->Architecture >= NV_ARCH_50)
 		NV_WR32(pNv->REGS, 0x1700, old_bar0_pramin);
 }
@@ -1349,36 +1376,56 @@ static bool init_pll2(ScrnInfoPtr pScrn, bios_t *bios, uint16_t offset, init_exe
 	return true;
 }
 
+static int dcb_entry_idx_from_crtchead(ScrnInfoPtr pScrn)
+{
+	/* for the results of this function to be correct, CR44 must have been
+	 * set (using nv_idx_port_wr to set crtchead), CR58 set for CR57 = 0,
+	 * and the DCB table parsed, before the script calling the function is
+	 * run.  run_digital_op_script is example of how to do such setup
+	 */
+
+	uint8_t dcb_entry = NVReadVgaCrtc5758(NVPTR(pScrn), crtchead, 0);
+
+	if (dcb_entry > NVPTR(pScrn)->dcb_table.entries) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			   "CR58 doesn't have a valid DCB entry currently (%02X)\n",
+			   dcb_entry);
+		dcb_entry = 0x7f;	/* unused / invalid marker */
+	}
+
+	return dcb_entry;
+}
+
 static int init_dcb_i2c_entry(ScrnInfoPtr pScrn, bios_t *bios, int index);
 
 static int
-create_i2c_device(ScrnInfoPtr pScrn, bios_t *bios, int i2c_index, int address, I2CDevPtr *newdev)
+create_i2c_device(ScrnInfoPtr pScrn, bios_t *bios, int i2c_index, int address, I2CDevRec *i2cdev)
 {
 	NVPtr pNv = NVPTR(pScrn);
 	int ret;
-	I2CDevPtr i2cdev;
 
 	if (i2c_index == 0xff) {
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "I2C index == 0xff case not implemented\n");
-		return -ENOSYS;
+		/* note: dcb_entry_idx_from_crtchead needs pre-script set-up */
+		int idx = dcb_entry_idx_from_crtchead(pScrn), shift = 0;
+		int default_indices = pNv->dcb_table.i2c_default_indices;
+
+		if (idx != 0x7f && pNv->dcb_table.entry[idx].i2c_upper_default)
+			shift = 4;
+
+		i2c_index = (default_indices >> shift) & 0xf;
 	}
 
 	if ((ret = init_dcb_i2c_entry(pScrn, bios, i2c_index)))
 		return ret;
 
-	if (!(i2cdev = xf86CreateI2CDevRec())) {
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "I2C device allocation failed\n");
-		return -ENOMEM;
-	}
+	memset(i2cdev, 0, sizeof(I2CDevRec));
 	i2cdev->DevName = "init script device";
-	i2cdev->SlaveAddr = address;
 	i2cdev->pI2CBus = pNv->dcb_table.i2c[i2c_index].chan;
+	i2cdev->SlaveAddr = address;
 	if (!xf86I2CDevInit(i2cdev)) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Couldn't add I2C device\n");
 		return -EINVAL;
 	}
-
-	*newdev = i2cdev;
 
 	return 0;
 }
@@ -1405,7 +1452,7 @@ static bool init_i2c_byte(ScrnInfoPtr pScrn, bios_t *bios, uint16_t offset, init
 	uint8_t i2c_index = bios->data[offset + 1];
 	uint8_t i2c_address = bios->data[offset + 2];
 	uint8_t count = bios->data[offset + 3];
-	I2CDevPtr i2cdev;
+	I2CDevRec i2cdev;
 	int i;
 
 	if (!iexec->execute)
@@ -1423,7 +1470,7 @@ static bool init_i2c_byte(ScrnInfoPtr pScrn, bios_t *bios, uint16_t offset, init
 		uint8_t data = bios->data[offset + 6 + i * 3];
 		uint8_t value;
 
-		xf86I2CReadByte(i2cdev, i2c_reg, &value);
+		xf86I2CReadByte(&i2cdev, i2c_reg, &value);
 
 		BIOSLOG(pScrn, "0x%04X: I2CReg: 0x%02X, Value: 0x%02X, Mask: 0x%02X, Data: 0x%02X\n",
 			offset, i2c_reg, value, mask, data);
@@ -1431,10 +1478,10 @@ static bool init_i2c_byte(ScrnInfoPtr pScrn, bios_t *bios, uint16_t offset, init
 		value = (value & mask) | data;
 
 		if (bios->execute)
-			xf86I2CWriteByte(i2cdev, i2c_reg, value);
+			xf86I2CWriteByte(&i2cdev, i2c_reg, value);
 	}
 
-	xf86DestroyI2CDevRec(i2cdev, TRUE);
+	xf86DestroyI2CDevRec(&i2cdev, FALSE);
 
 	return true;
 }
@@ -1459,7 +1506,7 @@ static bool init_zm_i2c_byte(ScrnInfoPtr pScrn, bios_t *bios, uint16_t offset, i
 	uint8_t i2c_index = bios->data[offset + 1];
 	uint8_t i2c_address = bios->data[offset + 2];
 	uint8_t count = bios->data[offset + 3];
-	I2CDevPtr i2cdev;
+	I2CDevRec i2cdev;
 	int i;
 
 	if (!iexec->execute)
@@ -1472,18 +1519,63 @@ static bool init_zm_i2c_byte(ScrnInfoPtr pScrn, bios_t *bios, uint16_t offset, i
 		return false;
 
 	for (i = 0; i < count; i++) {
-		uint8_t i2c_reg = bios->data[offset + 4 + i * 3];
-		uint8_t data = bios->data[offset + 5 + i * 3];
+		uint8_t i2c_reg = bios->data[offset + 4 + i * 2];
+		uint8_t data = bios->data[offset + 5 + i * 2];
 
 		BIOSLOG(pScrn, "0x%04X: I2CReg: 0x%02X, Data: 0x%02X\n",
 			offset, i2c_reg, data);
 
 		if (bios->execute)
-			if (!xf86I2CWriteByte(i2cdev, i2c_reg, data))
+			if (!xf86I2CWriteByte(&i2cdev, i2c_reg, data))
 				break;
 	}
 
-	xf86DestroyI2CDevRec(i2cdev, TRUE);
+	xf86DestroyI2CDevRec(&i2cdev, FALSE);
+
+	return true;
+}
+
+static bool init_zm_i2c(ScrnInfoPtr pScrn, bios_t *bios, uint16_t offset, init_exec_t *iexec)
+{
+	/* INIT_ZM_I2C   opcode: 0x4E ('N')
+	 *
+	 * offset      (8 bit): opcode
+	 * offset + 1  (8 bit): DCB I2C table entry index
+	 * offset + 2  (8 bit): I2C slave address
+	 * offset + 3  (8 bit): count
+	 * offset + 4  (8 bit): data 1
+	 * ...
+	 *
+	 * Send "count" bytes ("data n") to the device addressed by "I2C slave
+	 * address" on the I2C bus given by "DCB I2C table entry index"
+	 */
+
+	uint8_t i2c_index = bios->data[offset + 1];
+	uint8_t i2c_address = bios->data[offset + 2];
+	uint8_t count = bios->data[offset + 3];
+	I2CDevRec i2cdev;
+	uint8_t data[UINT8_MAX];
+	int i;
+
+	if (!iexec->execute)
+		return true;
+
+	BIOSLOG(pScrn, "0x%04X: DCBI2CIndex: 0x%02X, I2CAddress: 0x%02X, Count: 0x%02X\n",
+		offset, i2c_index, i2c_address, count);
+
+	if (create_i2c_device(pScrn, bios, i2c_index, i2c_address, &i2cdev))
+		return false;
+
+	for (i = 0; i < count; i++) {
+		data[i] = bios->data[offset + 4 + i];
+
+		BIOSLOG(pScrn, "0x%04X: Data: 0x%02X\n", offset, data[i]);
+	}
+
+	if (bios->execute)
+		xf86I2CWrite(&i2cdev, data, count);
+
+	xf86DestroyI2CDevRec(&i2cdev, FALSE);
 
 	return true;
 }
@@ -1502,15 +1594,11 @@ static uint32_t get_tmds_index_reg(ScrnInfoPtr pScrn, uint8_t mlv)
 	const uint32_t pramdac_table[4] = {0x6808b0, 0x6808b8, 0x6828b0, 0x6828b8};
 
 	if (mlv >= 0x80) {
-		/* here we assume that the DCB table has already been parsed */
-		uint8_t dcb_entry = NVReadVgaCrtc5758(NVPTR(pScrn), crtchead, 0);
-		int dacoffset;
+		int dcb_entry, dacoffset;
 
-		if (dcb_entry > pNv->dcb_table.entries) {
-			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-				   "CR58 doesn't have a valid DCB entry currently (%02X)\n", dcb_entry);
+		/* note: dcb_entry_idx_from_crtchead needs pre-script set-up */
+		if ((dcb_entry = dcb_entry_idx_from_crtchead(pScrn)) == 0x7f)
 			return 0;
-		}
 		dacoffset = pramdac_offset[pNv->dcb_table.entry[dcb_entry].or];
 		if (mlv == 0x81)
 			dacoffset ^= 8;
@@ -2700,7 +2788,7 @@ static init_tbl_entry_t itbl_entry[] = {
 	{ "INIT_PLL2"                         , 0x4B, 9       , 0       , 0       , init_pll2                       },
 	{ "INIT_I2C_BYTE"                     , 0x4C, 4       , 3       , 3       , init_i2c_byte                   },
 	{ "INIT_ZM_I2C_BYTE"                  , 0x4D, 4       , 3       , 2       , init_zm_i2c_byte                },
-/*	{ "INIT_ZM_I2C"                       , 0x4E, x       , x       , x       , init_zm_i2c                     }, */
+	{ "INIT_ZM_I2C"                       , 0x4E, 4       , 3       , 1       , init_zm_i2c                     },
 	{ "INIT_TMDS"                         , 0x4F, 5       , 0       , 0       , init_tmds                       },
 	{ "INIT_ZM_TMDS_GROUP"                , 0x50, 3       , 2       , 2       , init_zm_tmds_group              },
 	{ "INIT_CR_INDEX_ADDRESS_LATCHED"     , 0x51, 5       , 4       , 1       , init_cr_idx_adr_latch           },
@@ -2747,24 +2835,25 @@ static unsigned int get_init_table_entry_length(bios_t *bios, unsigned int offse
 	return itbl_entry[i].length + bios->data[offset + itbl_entry[i].length_offset]*itbl_entry[i].length_multiplier;
 }
 
+#define MAX_TABLE_OPS 1000
+
 static int parse_init_table(ScrnInfoPtr pScrn, bios_t *bios, unsigned int offset, init_exec_t *iexec)
 {
-	/* Parses all commands in a init table. */
-
-	/* We start out executing all commands found in the
-	 * init table. Some op codes may change the status
-	 * of this variable to SKIP, which will cause
-	 * the following op codes to perform no operation until
-	 * the value is changed back to EXECUTE.
+	/* Parses all commands in an init table.
+	 *
+	 * We start out executing all commands found in the init table. Some
+	 * opcodes may change the status of iexec->execute to SKIP, which will
+	 * cause the following opcodes to perform no operation until the value
+	 * is changed back to EXECUTE.
 	 */
-	unsigned char id;
-	int i;
 
-	int count=0;
+	int count = 0, i;
+	uint8_t id;
+
 	/* Loop until INIT_DONE causes us to break out of the loop
 	 * (or until offset > bios length just in case... )
-	 * (and no more than 10000 iterations just in case... ) */
-	while ((offset < bios->length) && (count++ < 10000)) {
+	 * (and no more than MAX_TABLE_OPS iterations, just in case... ) */
+	while ((offset < bios->length) && (count++ < MAX_TABLE_OPS)) {
 		id = bios->data[offset];
 
 		/* Find matching id in itbl_entry */
@@ -2792,6 +2881,15 @@ static int parse_init_table(ScrnInfoPtr pScrn, bios_t *bios, unsigned int offset
 		offset += get_init_table_entry_length(bios, offset, i);
 	}
 
+	if (offset >= bios->length)
+		xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
+			   "Offset 0x%04X greater than known bios image length."
+			   "  Corrupt image?\n", offset);
+	if (count >= MAX_TABLE_OPS)
+		xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
+			   "More than %d opcodes to a table is unlikely, "
+			   "is the bios image corrupt?\n", MAX_TABLE_OPS);
+
 	return 0;
 }
 
@@ -2802,6 +2900,15 @@ static void parse_init_tables(ScrnInfoPtr pScrn, bios_t *bios)
 	int i = 0;
 	uint16_t table;
 	init_exec_t iexec = {true, false};
+
+	if (bios->old_style_init) {
+		if (bios->init_script_tbls_ptr)
+			parse_init_table(pScrn, bios, bios->init_script_tbls_ptr, &iexec);
+		if (bios->extra_init_script_tbl_ptr)
+			parse_init_table(pScrn, bios, bios->extra_init_script_tbl_ptr, &iexec);
+
+		return;
+	}
 
 	while ((table = le16_to_cpu(*((uint16_t *)(&bios->data[bios->init_script_tbls_ptr + i]))))) {
 		xf86DrvMsg(pScrn->scrnIndex, X_PROBED,
@@ -2864,7 +2971,7 @@ static uint16_t clkcmptable(bios_t *bios, uint16_t clktable, int pxclk)
 	return scriptptr;
 }
 
-static void rundigitaloutscript(ScrnInfoPtr pScrn, uint16_t scriptptr, struct dcb_entry *dcbent, int head)
+static void run_digital_op_script(ScrnInfoPtr pScrn, uint16_t scriptptr, struct dcb_entry *dcbent, int head)
 {
 	bios_t *bios = &NVPTR(pScrn)->VBIOS;
 	init_exec_t iexec = {true, false};
@@ -2888,7 +2995,7 @@ static int call_lvds_manufacturer_script(ScrnInfoPtr pScrn, struct dcb_entry *dc
 	if (!bios->fp.xlated_entry || !sub || !scriptofs)
 		return -EINVAL;
 
-	rundigitaloutscript(pScrn, scriptofs, dcbent, head);
+	run_digital_op_script(pScrn, scriptofs, dcbent, head);
 
 	if (script == LVDS_PANEL_OFF)
 		/* off-on delay in ms */
@@ -2974,7 +3081,7 @@ static int run_lvds_table(ScrnInfoPtr pScrn, struct dcb_entry *dcbent, int head,
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "LVDS output init script not found\n");
 		return -ENOENT;
 	}
-	rundigitaloutscript(pScrn, scriptptr, dcbent, head);
+	run_digital_op_script(pScrn, scriptptr, dcbent, head);
 
 	return 0;
 }
@@ -3018,12 +3125,6 @@ int call_lvds_script(ScrnInfoPtr pScrn, struct dcb_entry *dcbent, int head, enum
 
 	return ret;
 }
-
-struct fppointers {
-	uint16_t fptablepointer;
-	uint16_t fpxlatetableptr;
-	int xlatwidth;
-};
 
 struct lvdstableheader {
 	uint8_t lvds_ver, headerlen, recordlen;
@@ -3085,7 +3186,7 @@ static int parse_lvds_manufacturer_table_header(ScrnInfoPtr pScrn, bios_t *bios,
 	return 0;
 }
 
-static int parse_fp_mode_table(ScrnInfoPtr pScrn, bios_t *bios, struct fppointers *fpp)
+static int parse_fp_mode_table(ScrnInfoPtr pScrn, bios_t *bios)
 {
 	uint8_t *fptable;
 	uint8_t fptable_ver, headerlen = 0, recordlen, fpentries = 0xf, fpindex;
@@ -3094,13 +3195,13 @@ static int parse_fp_mode_table(ScrnInfoPtr pScrn, bios_t *bios, struct fppointer
 	uint16_t modeofs;
 	DisplayModePtr mode;
 
-	if (fpp->fptablepointer == 0x0) {
+	if (bios->fp.fptablepointer == 0x0) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "Pointer to flat panel table invalid\n");
 		return -EINVAL;
 	}
 
-	fptable = &bios->data[fpp->fptablepointer];
+	fptable = &bios->data[bios->fp.fptablepointer];
 	fptable_ver = fptable[0];
 
 	switch (fptable_ver) {
@@ -3144,14 +3245,14 @@ static int parse_fp_mode_table(ScrnInfoPtr pScrn, bios_t *bios, struct fppointer
 	case 0x0a:
 		/* make sure to match the 0xff strapping check below */
 		if ((bios->fp.strapping & 0xf) == 0xf)
-			bios->data[fpp->fpxlatetableptr + 0xf] = 0xf;
+			bios->data[bios->fp.fpxlatetableptr + 0xf] = 0xf;
 		break;
 	case 0x30:
 	case 0x40:
-		fpp->fpxlatetableptr = bios->fp.lvdsmanufacturerpointer + lth.headerlen + 1;
-		fpp->xlatwidth = lth.recordlen;
+		bios->fp.fpxlatetableptr = bios->fp.lvdsmanufacturerpointer + lth.headerlen + 1;
+		bios->fp.xlatwidth = lth.recordlen;
 	}
-	if (fpp->fpxlatetableptr == 0x0) {
+	if (bios->fp.fpxlatetableptr == 0x0) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "Pointer to flat panel xlat table invalid\n");
 		return -EINVAL;
@@ -3182,10 +3283,10 @@ static int parse_fp_mode_table(ScrnInfoPtr pScrn, bios_t *bios, struct fppointer
 		if (matches != 1)
 			index = 0xF;
 
-		fpindex = bios->data[fpp->fpxlatetableptr + index * fpp->xlatwidth];
+		fpindex = bios->data[bios->fp.fpxlatetableptr + index * bios->fp.xlatwidth];
 		bios->fp.strapping = ((fpindex & 0xF) << 4) | (fpindex & 0xF);
 	} else {
-		fpindex = bios->data[fpp->fpxlatetableptr + bios->fp.strapping * fpp->xlatwidth];
+		fpindex = bios->data[bios->fp.fpxlatetableptr + bios->fp.strapping * bios->fp.xlatwidth];
 		bios->fp.strapping |= fpindex << 4;
 	}
 
@@ -3291,7 +3392,9 @@ int parse_lvds_manufacturer_table(ScrnInfoPtr pScrn, int pxclk)
 		/* change in behaviour guessed at nv30; see datapoints below */
 		if (bios->chip_version < 0x30) {
 			/* nv17 behaviour */
-			lvdsmanufacturerindex = bios->fp.if_is_24bit ? 2 : 0;
+			/* it seems the old style lvds script pointer is reused
+			 * to select 18/24 bit colour depth for EDID panels */
+			lvdsmanufacturerindex = (bios->legacy.lvds_single_a_script_ptr & 1) ? 2 : 0;
 			if (pxclk >= bios->fp.duallink_transition_clk)
 				lvdsmanufacturerindex++;
 		} else {
@@ -3403,7 +3506,7 @@ int run_tmds_table(ScrnInfoPtr pScrn, struct dcb_entry *dcbent, int head, int px
 
 	/* don't let script change pll->head binding */
 	sel_clk_binding = nv32_rd(pScrn, NV_RAMDAC_SEL_CLK) & 0x50000;
-	rundigitaloutscript(pScrn, scriptptr, dcbent, head);
+	run_digital_op_script(pScrn, scriptptr, dcbent, head);
 	nv32_wr(pScrn, NV_RAMDAC_SEL_CLK, (nv32_rd(pScrn, NV_RAMDAC_SEL_CLK) & ~0x50000) | sel_clk_binding);
 
 	return 0;
@@ -3446,6 +3549,28 @@ static void parse_bios_version(ScrnInfoPtr pScrn, bios_t *bios, uint16_t offset)
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Bios version %02x.%02x.%02x.%02x\n",
 		   bios->data[offset + 3], bios->data[offset + 2],
 		   bios->data[offset + 1], bios->data[offset]);
+}
+
+static void parse_script_table_pointers(ScrnInfoPtr pScrn, bios_t *bios, uint16_t offset)
+{
+	/* Parses the init table segment for pointers used in script execution.
+	 *
+	 * offset + 0  (16 bits): init script tables pointer
+	 * offset + 2  (16 bits): macro index table pointer
+	 * offset + 4  (16 bits): macro table pointer
+	 * offset + 6  (16 bits): condition table pointer
+	 * offset + 8  (16 bits): io condition table pointer
+	 * offset + 10 (16 bits): io flag condition table pointer
+	 * offset + 12 (16 bits): init function table pointer
+	 */
+
+	bios->init_script_tbls_ptr = le16_to_cpu(*((uint16_t *)(&bios->data[offset])));
+	bios->macro_index_tbl_ptr = le16_to_cpu(*((uint16_t *)(&bios->data[offset + 2])));
+	bios->macro_tbl_ptr = le16_to_cpu(*((uint16_t *)(&bios->data[offset + 4])));
+	bios->condition_tbl_ptr = le16_to_cpu(*((uint16_t *)(&bios->data[offset + 6])));
+	bios->io_condition_tbl_ptr = le16_to_cpu(*((uint16_t *)(&bios->data[offset + 8])));
+	bios->io_flag_condition_tbl_ptr = le16_to_cpu(*((uint16_t *)(&bios->data[offset + 10])));
+	bios->init_function_tbl_ptr = le16_to_cpu(*((uint16_t *)(&bios->data[offset + 12])));
 }
 
 int get_pll_limits(ScrnInfoPtr pScrn, uint32_t limit_match, struct pll_lims *pll_lim)
@@ -3715,12 +3840,17 @@ static int parse_bit_A_tbl_entry(ScrnInfoPtr pScrn, bios_t *bios, bit_entry_t *b
 
 	load_table_ptr = le16_to_cpu(*((uint16_t *)(&bios->data[bitentry->offset])));
 
+	if (load_table_ptr == 0x0) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Pointer to BIT loadval table invalid\n");
+		return -EINVAL;
+	}
+
 	version = bios->data[load_table_ptr];
 
 	if (version != 0x10) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "BIT loadval table version %d.%d not supported\n",
 			version >> 4, version & 0xF);
-		return -EINVAL;
+		return -ENOSYS;
 	}
 
 	headerlen = bios->data[load_table_ptr + 1];
@@ -3764,31 +3894,21 @@ static int parse_bit_display_tbl_entry(ScrnInfoPtr pScrn, bios_t *bios, bit_entr
 	 * offset + 2  (16 bits): mode table pointer
 	 */
 
-	struct fppointers fpp = { 0 };
-
 	if (bitentry->length != 4) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Do not understand BIT display table\n");
 		return -EINVAL;
 	}
 
-	fpp.fptablepointer = le16_to_cpu(*((uint16_t *)(&bios->data[bitentry->offset + 2])));
+	bios->fp.fptablepointer = le16_to_cpu(*((uint16_t *)(&bios->data[bitentry->offset + 2])));
 
-	return parse_fp_mode_table(pScrn, bios, &fpp);
+	return 0;
 }
 
 static int parse_bit_init_tbl_entry(ScrnInfoPtr pScrn, bios_t *bios, bit_entry_t *bitentry)
 {
 	/* Parses the init table segment that the bit entry points to.
-	 * Starting at bitentry->offset: 
 	 * 
-	 * offset + 0  (16 bits): init script tables pointer
-	 * offset + 2  (16 bits): macro index table pointer
-	 * offset + 4  (16 bits): macro table pointer
-	 * offset + 6  (16 bits): condition table pointer
-	 * offset + 8  (16 bits): io condition table pointer
-	 * offset + 10 (16 bits): io flag condition table pointer
-	 * offset + 12 (16 bits): init function table pointer
-	 *
+	 * See parse_script_table_pointers for layout
 	 */
 
 	if (bitentry->length < 14) {
@@ -3796,13 +3916,7 @@ static int parse_bit_init_tbl_entry(ScrnInfoPtr pScrn, bios_t *bios, bit_entry_t
 		return -EINVAL;
 	}
 
-	bios->init_script_tbls_ptr = le16_to_cpu(*((uint16_t *)(&bios->data[bitentry->offset])));
-	bios->macro_index_tbl_ptr = le16_to_cpu(*((uint16_t *)(&bios->data[bitentry->offset + 2])));
-	bios->macro_tbl_ptr = le16_to_cpu(*((uint16_t *)(&bios->data[bitentry->offset + 4])));
-	bios->condition_tbl_ptr = le16_to_cpu(*((uint16_t *)(&bios->data[bitentry->offset + 6])));
-	bios->io_condition_tbl_ptr = le16_to_cpu(*((uint16_t *)(&bios->data[bitentry->offset + 8])));
-	bios->io_flag_condition_tbl_ptr = le16_to_cpu(*((uint16_t *)(&bios->data[bitentry->offset + 10])));
-	bios->init_function_tbl_ptr = le16_to_cpu(*((uint16_t *)(&bios->data[bitentry->offset + 12])));
+	parse_script_table_pointers(pScrn, bios, bitentry->offset);
 
 	return 0;
 }
@@ -3878,9 +3992,8 @@ static int parse_bit_lvds_tbl_entry(ScrnInfoPtr pScrn, bios_t *bios, bit_entry_t
 
 	/* no idea if it's still called the LVDS manufacturer table, but the concept's close enough */
 	bios->fp.lvdsmanufacturerpointer = le16_to_cpu(*((uint16_t *)(&bios->data[bitentry->offset])));
-	bios->fp.strapping = get_fp_strap(pScrn, bios);
 
-	return parse_lvds_manufacturer_table(pScrn, 0);
+	return 0;
 }
 
 static int parse_bit_M_tbl_entry(ScrnInfoPtr pScrn, bios_t *bios, bit_entry_t *bitentry)
@@ -3965,64 +4078,65 @@ static int parse_bit_tmds_tbl_entry(ScrnInfoPtr pScrn, bios_t *bios, bit_entry_t
 	return 0;
 }
 
+struct bit_table {
+	const char id;
+	int (* const parse_fn)(ScrnInfoPtr, bios_t *, bit_entry_t *);
+};
+
+#define BIT_TABLE(id, funcid) ((struct bit_table){ id, parse_bit_##funcid##_tbl_entry })
+
+static int parse_bit_table(ScrnInfoPtr pScrn, bios_t *bios, const uint16_t bitoffset, struct bit_table *table)
+{
+	uint8_t maxentries = bios->data[bitoffset + 4];
+	int i, offset;
+	bit_entry_t bitentry;
+
+	for (i = 0, offset = bitoffset + 6; i < maxentries; i++, offset += 6) {
+		bitentry.id[0] = bios->data[offset];
+
+		if (bitentry.id[0] != table->id)
+			continue;
+
+		bitentry.id[1] = bios->data[offset + 1];
+		bitentry.length = le16_to_cpu(*((uint16_t *)&bios->data[offset + 2]));
+		bitentry.offset = le16_to_cpu(*((uint16_t *)&bios->data[offset + 4]));
+
+		return table->parse_fn(pScrn, bios, &bitentry);
+	}
+
+	xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "BIT table '%c' not found\n", table->id);
+
+	return -ENOSYS;
+}
+
 static int parse_bit_structure(ScrnInfoPtr pScrn, bios_t *bios, const uint16_t bitoffset)
 {
-	int entries = bios->data[bitoffset + 4];
-	/* parse i first, I next (which needs C & M before it), and L before D */
-	char parseorder[] = "iCMILDTA";
-	bit_entry_t bitentry;
-	int i, j, offset, ret;
+	int ret;
 
-	for (i = 0; i < sizeof(parseorder); i++) {
-		for (j = 0, offset = bitoffset + 6; j < entries; j++, offset += 6) {
-			bitentry.id[0] = bios->data[offset];
-			bitentry.id[1] = bios->data[offset + 1];
-			bitentry.length = le16_to_cpu(*((uint16_t *)&bios->data[offset + 2]));
-			bitentry.offset = le16_to_cpu(*((uint16_t *)&bios->data[offset + 4]));
-
-			if (bitentry.id[0] != parseorder[i])
-				continue;
-
-			switch (bitentry.id[0]) {
-			case 'A':
-				parse_bit_A_tbl_entry(pScrn, bios, &bitentry);
-				break;
-			case 'C':
-				if ((ret = parse_bit_C_tbl_entry(pScrn, bios, &bitentry)))
-					return ret;
-				break;
-			case 'D':
-				parse_bit_display_tbl_entry(pScrn, bios, &bitentry);
-				break;
-			case 'I':
-				if ((ret = parse_bit_init_tbl_entry(pScrn, bios, &bitentry)))
-					return ret;
-				parse_init_tables(pScrn, bios);
-				break;
-			case 'i': /* info? */
-				if ((ret = parse_bit_i_tbl_entry(pScrn, bios, &bitentry)))
-					return ret;
-				break;
-			case 'L':
-				if (bios->feature_byte & FEATURE_MOBILE)
-					parse_bit_lvds_tbl_entry(pScrn, bios, &bitentry);
-				break;
-			case 'M': /* memory? */
-				parse_bit_M_tbl_entry(pScrn, bios, &bitentry);
-				break;
-			case 'T':
-				parse_bit_tmds_tbl_entry(pScrn, bios, &bitentry);
-				break;
-			}
-		}
-	}
+	/* the only restriction on parsing order currently is having 'i' first
+	 * for use of bios->*_version or bios->feature_byte while parsing;
+	 * functions shouldn't be actually *doing* anything apart from pulling
+	 * data from the image into the bios struct, thus no interdependencies
+	 */
+	if ((ret = parse_bit_table(pScrn, bios, bitoffset, &BIT_TABLE('i', i)))) /* info? */
+		return ret;
+	if (bios->major_version >= 0x60) /* g80+ */
+		parse_bit_table(pScrn, bios, bitoffset, &BIT_TABLE('A', A));
+	if ((ret = parse_bit_table(pScrn, bios, bitoffset, &BIT_TABLE('C', C))))
+		return ret;
+	parse_bit_table(pScrn, bios, bitoffset, &BIT_TABLE('D', display));
+	if ((ret = parse_bit_table(pScrn, bios, bitoffset, &BIT_TABLE('I', init))))
+		return ret;
+	parse_bit_table(pScrn, bios, bitoffset, &BIT_TABLE('M', M)); /* memory? */
+	parse_bit_table(pScrn, bios, bitoffset, &BIT_TABLE('L', lvds));
+	parse_bit_table(pScrn, bios, bitoffset, &BIT_TABLE('T', tmds));
 
 	return 0;
 }
 
 static int parse_bmp_structure(ScrnInfoPtr pScrn, bios_t *bios, unsigned int offset)
 {
-	/* Parse the BMP structure for useful things
+	/* Parses the BMP structure for useful things, but does not act on them
 	 *
 	 * offset +   5: BMP major version
 	 * offset +   6: BMP minor version
@@ -4046,7 +4160,7 @@ static int parse_bmp_structure(ScrnInfoPtr pScrn, bios_t *bios, unsigned int off
 	 * offset +  67: maximum internal PLL frequency (single stage PLL)
 	 * offset +  71: minimum internal PLL frequency (single stage PLL)
 	 *
-	 * offset +  75: script table pointers, as for parse_bit_init_tbl_entry
+	 * offset +  75: script table pointers, as described in parse_script_table_pointers
 	 *
 	 * offset +  89: TMDS single link output A table pointer
 	 * offset +  91: TMDS single link output B table pointer
@@ -4061,9 +4175,7 @@ static int parse_bmp_structure(ScrnInfoPtr pScrn, bios_t *bios, unsigned int off
 	NVPtr pNv = NVPTR(pScrn);
 	uint8_t bmp_version_major, bmp_version_minor;
 	uint16_t bmplength;
-	struct fppointers fpp = { 0 };
 	uint16_t legacy_scripts_offset, legacy_i2c_offset;
-	int ret;
 
 	/* load needed defaults in case we can't parse this info */
 	pNv->dcb_table.i2c[0].write = NV_CIO_CRE_DDC_WR__INDEX;
@@ -4133,6 +4245,8 @@ static int parse_bmp_structure(ScrnInfoPtr pScrn, bios_t *bios, unsigned int off
 
 	parse_bios_version(pScrn, bios, offset + 10);
 
+	if (bmp_version_major < 5 || bmp_version_minor < 0x10)
+		bios->old_style_init = true;
 	legacy_scripts_offset = offset + 18;
 	if (bmp_version_major < 2)
 		legacy_scripts_offset -= 4;
@@ -4160,23 +4274,20 @@ static int parse_bmp_structure(ScrnInfoPtr pScrn, bios_t *bios, unsigned int off
 		bios->fmaxvco = le32_to_cpu(*((uint32_t *)&bios->data[offset + 67]));
 		bios->fminvco = le32_to_cpu(*((uint32_t *)&bios->data[offset + 71]));
 	}
-	if (bmplength > 88) {
-		bit_entry_t initbitentry;
-		initbitentry.length = 14;
-		initbitentry.offset = offset + 75;
-		parse_bit_init_tbl_entry(pScrn, bios, &initbitentry);
-	}
+	if (bmplength > 88)
+		parse_script_table_pointers(pScrn, bios, offset + 75);
 	if (bmplength > 94) {
 		bios->tmds.output0_script_ptr = le16_to_cpu(*((uint16_t *)&bios->data[offset + 89]));
 		bios->tmds.output1_script_ptr = le16_to_cpu(*((uint16_t *)&bios->data[offset + 91]));
-		/* it seems the old style lvds script pointer (which I've not observed in use) gets
-		 * reused as the 18/24 bit panel interface default for EDID equipped panels */
-		bios->fp.if_is_24bit = bios->data[offset + 95] & 1;
+		/* never observed in use with lvds scripts, but is reused for
+		 * 18/24 bit panel interface default for EDID equipped panels
+		 * (if_is_24bit not set directly to avoid any oscillation) */
+		bios->legacy.lvds_single_a_script_ptr = le16_to_cpu(*((uint16_t *)&bios->data[offset + 95]));
 	}
 	if (bmplength > 108) {
-		fpp.fptablepointer = le16_to_cpu(*((uint16_t *)(&bios->data[offset + 105])));
-		fpp.fpxlatetableptr = le16_to_cpu(*((uint16_t *)(&bios->data[offset + 107])));
-		fpp.xlatwidth = 1;
+		bios->fp.fptablepointer = le16_to_cpu(*((uint16_t *)(&bios->data[offset + 105])));
+		bios->fp.fpxlatetableptr = le16_to_cpu(*((uint16_t *)(&bios->data[offset + 107])));
+		bios->fp.xlatwidth = 1;
 	}
 	if (bmplength > 120) {
 		bios->fp.lvdsmanufacturerpointer = le16_to_cpu(*((uint16_t *)(&bios->data[offset + 117])));
@@ -4188,26 +4299,6 @@ static int parse_bmp_structure(ScrnInfoPtr pScrn, bios_t *bios, unsigned int off
 	if (bmplength > 157)
 		bios->fp.duallink_transition_clk = le16_to_cpu(*((uint16_t *)&bios->data[offset + 156])) * 10;
 
-	/* want pll_limit_tbl_ptr set (if available) before init is run */
-	if (bmp_version_major < 5 || bmp_version_minor < 0x10) {
-		init_exec_t iexec = {true, false};
-		if (bios->init_script_tbls_ptr)
-			parse_init_table(pScrn, bios, bios->init_script_tbls_ptr, &iexec);
-		if (bios->extra_init_script_tbl_ptr)
-			parse_init_table(pScrn, bios, bios->extra_init_script_tbl_ptr, &iexec);
-	} else
-		parse_init_tables(pScrn, bios);
-
-	/* If it's not a laptop, you probably don't care about fptables */
-	if (!(bios->feature_byte & FEATURE_MOBILE))
-		return 0;
-
-	bios->fp.strapping = get_fp_strap(pScrn, bios);
-	if ((ret = parse_lvds_manufacturer_table(pScrn, 0)))
-		return ret;
-#ifndef __powerpc__
-	return parse_fp_mode_table(pScrn, bios, &fpp);
-#endif
 	return 0;
 }
 
@@ -4231,7 +4322,7 @@ read_dcb_i2c_entry(ScrnInfoPtr pScrn, int dcb_version, uint16_t i2ctabptr, int i
 {
 	NVPtr pNv = NVPTR(pScrn);
 	uint8_t *i2ctable = &pNv->VBIOS.data[i2ctabptr];
-	uint8_t dcb_i2c_ver = dcb_version, headerlen = 0;
+	uint8_t dcb_i2c_ver = dcb_version, headerlen = 0, entry_len = 4;
 	int i2c_entries = MAX_NUM_DCB_ENTRIES;
 	int recordoffset = 0, rdofs = 1, wrofs = 0;
 	uint8_t port_type = 0;
@@ -4247,6 +4338,9 @@ read_dcb_i2c_entry(ScrnInfoPtr pScrn, int dcb_version, uint16_t i2ctabptr, int i
 		dcb_i2c_ver = i2ctable[0];
 		headerlen = i2ctable[1];
 		i2c_entries = i2ctable[2];
+		entry_len = i2ctable[3];
+		/* XXX this requires a dcb entry calls read_dcb_i2c_entry */
+		pNv->dcb_table.i2c_default_indices = i2ctable[4];
 	}
 	/* it's your own fault if you call this function on a DCB 1.1 BIOS --
 	 * the test below is for DCB 1.2
@@ -4265,14 +4359,14 @@ read_dcb_i2c_entry(ScrnInfoPtr pScrn, int dcb_version, uint16_t i2ctabptr, int i
 			   index, i2ctable[2]);
 		return -ENOENT;
 	}
-	if (i2ctable[headerlen + 4 * index + 3] == 0xff) {
+	if (i2ctable[headerlen + entry_len * index + 3] == 0xff) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "DCB I2C entry invalid\n");
 		return -EINVAL;
 	}
 
 	if (dcb_i2c_ver >= 0x30) {
-		port_type = i2ctable[headerlen + recordoffset + 3 + 4 * index];
+		port_type = i2ctable[headerlen + recordoffset + 3 + entry_len * index];
 
 		/* fixup for chips using same address offset for read and write */
 		if (port_type == 4)	/* seen on C51 */
@@ -4285,8 +4379,8 @@ read_dcb_i2c_entry(ScrnInfoPtr pScrn, int dcb_version, uint16_t i2ctabptr, int i
 			   "DCB I2C table has port type %d\n", port_type);
 
 	pNv->dcb_table.i2c[index].port_type = port_type;
-	pNv->dcb_table.i2c[index].read = i2ctable[headerlen + recordoffset + rdofs + 4 * index];
-	pNv->dcb_table.i2c[index].write = i2ctable[headerlen + recordoffset + wrofs + 4 * index];
+	pNv->dcb_table.i2c[index].read = i2ctable[headerlen + recordoffset + rdofs + entry_len * index];
+	pNv->dcb_table.i2c[index].write = i2ctable[headerlen + recordoffset + wrofs + entry_len * index];
 
 	return 0;
 }
@@ -4394,6 +4488,10 @@ parse_dcb_entry(ScrnInfoPtr pScrn, int index, uint8_t dcb_version, uint16_t i2ct
 			/* weird type that appears on g80 mobile bios; nv driver treats it as a terminator */
 			return false;
 		}
+		/* unsure what DCB version introduces this, 3.0? */
+		if (conf & 0x100000)
+			entry->i2c_upper_default = true;
+
 		read_dcb_i2c_entry(pScrn, dcb_version, i2ctabptr, entry->i2c_index);
 	} else if (dcb_version >= 0x14 ) {
 		if (conn != 0xf0003f00 && conn != 0xf2247f10 &&
@@ -4610,15 +4708,10 @@ static int parse_dcb_table(ScrnInfoPtr pScrn, bios_t *bios)
 	return 0;
 }
 
-static int load_nv17_hw_sequencer_ucode(ScrnInfoPtr pScrn, bios_t *bios, uint16_t hwsq_offset, int entry)
+static int load_nv17_hwsq_ucode_entry(ScrnInfoPtr pScrn, bios_t *bios, uint16_t hwsq_offset, int entry)
 {
-	/* BMP based cards, from NV17, need a microcode loading to correctly
-	 * control the GPIO etc for LVDS panels
-	 *
-	 * BIT based cards seem to do this directly in the init scripts
-	 *
-	 * The microcode entries are found by the "HWSQ" signature.
-	 * The header following has the number of entries, and the entry size
+	/* The header following the "HWSQ" signature has the number of entries,
+	 * and the entry size
 	 *
 	 * An entry consists of a dword to write to the sequencer control reg
 	 * (0x00001304), followed by the ucode bytes, written sequentially,
@@ -4660,6 +4753,28 @@ static int load_nv17_hw_sequencer_ucode(ScrnInfoPtr pScrn, bios_t *bios, uint16_
 	return 0;
 }
 
+static int load_nv17_hw_sequencer_ucode(ScrnInfoPtr pScrn, bios_t *bios)
+{
+	/* BMP based cards, from NV17, need a microcode loading to correctly
+	 * control the GPIO etc for LVDS panels
+	 *
+	 * BIT based cards seem to do this directly in the init scripts
+	 *
+	 * The microcode entries are found by the "HWSQ" signature.
+	 */
+
+	const uint8_t hwsq_signature[] = { 'H', 'W', 'S', 'Q' };
+	int hwsq_offset;
+
+	if (!(hwsq_offset = findstr(bios->data, bios->length, hwsq_signature,
+				    sizeof(hwsq_signature))))
+		return 0;
+
+	/* always use entry 0? */
+	return load_nv17_hwsq_ucode_entry(pScrn, bios,
+					  hwsq_offset + sizeof(hwsq_signature), 0);
+}
+
 static int read_bios_edid(ScrnInfoPtr pScrn)
 {
 	bios_t *bios = &NVPTR(pScrn)->VBIOS;
@@ -4693,13 +4808,9 @@ bool NVInitVBIOS(ScrnInfoPtr pScrn)
 	NVPtr pNv = NVPTR(pScrn);
 
 	memset(&pNv->VBIOS, 0, sizeof(bios_t));
-	if (!(pNv->VBIOS.data = xalloc(NV_PROM_SIZE)))
-		return false;
 
-	if (!NVShadowVBIOS(pScrn, pNv->VBIOS.data)) {
-		xfree(pNv->VBIOS.data);
+	if (!NVShadowVBIOS(pScrn, pNv->VBIOS.data))
 		return false;
-	}
 
 	pNv->VBIOS.length = pNv->VBIOS.data[2] * 512;
 	if (pNv->VBIOS.length > NV_PROM_SIZE)
@@ -4711,33 +4822,50 @@ bool NVInitVBIOS(ScrnInfoPtr pScrn)
 int NVRunVBIOSInit(ScrnInfoPtr pScrn)
 {
 	NVPtr pNv = NVPTR(pScrn);
-	const uint8_t bmp_signature[] = { 0xff, 0x7f, 'N', 'V', 0x0 };
+	struct nouveau_bios *bios = &NVPTR(pScrn)->VBIOS;
 	const uint8_t bit_signature[] = { 0xff, 0xb8, 'B', 'I', 'T' };
+	const uint8_t bmp_signature[] = { 0xff, 0x7f, 'N', 'V', 0x0 };
 	int offset, ret;
 
-	NVLockVgaCrtcs(pNv, false);
-	if (pNv->twoHeads)
-		NVSetOwner(pNv, crtchead);
-
-	if ((offset = findstr(pNv->VBIOS.data, pNv->VBIOS.length, bit_signature, sizeof(bit_signature)))) {
+	if ((offset = findstr(bios->data, bios->length, bit_signature, sizeof(bit_signature)))) {
 		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "BIT BIOS found\n");
-		ret = parse_bit_structure(pScrn, &pNv->VBIOS, offset + 6);
-	} else if ((offset = findstr(pNv->VBIOS.data, pNv->VBIOS.length, bmp_signature, sizeof(bmp_signature)))) {
-		const uint8_t hwsq_signature[] = { 'H', 'W', 'S', 'Q' };
-		int hwsq_offset;
-
-		if ((hwsq_offset = findstr(pNv->VBIOS.data, pNv->VBIOS.length, hwsq_signature, sizeof(hwsq_signature))))
-			/* always use entry 0? */
-			load_nv17_hw_sequencer_ucode(pScrn, &pNv->VBIOS, hwsq_offset + sizeof(hwsq_signature), 0);
-
+		ret = parse_bit_structure(pScrn, bios, offset + 6);
+	} else if ((offset = findstr(bios->data, bios->length, bmp_signature, sizeof(bmp_signature)))) {
 		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "BMP BIOS found\n");
-		ret = parse_bmp_structure(pScrn, &pNv->VBIOS, offset);
+		ret = parse_bmp_structure(pScrn, bios, offset);
 	} else {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "No known BIOS signature found\n");
 		ret = -ENODEV;
 	}
 
+	if (ret || bios->major_version == 0) /* we don't parse version 0 bios */
+		return ret;
+
+	NVLockVgaCrtcs(pNv, false);
+	if (pNv->twoHeads)
+		NVSetOwner(pNv, crtchead);
+
+	if (bios->major_version < 5)	/* BMP only */
+		load_nv17_hw_sequencer_ucode(pScrn, bios);
+
+	parse_init_tables(pScrn, bios);
+
+	/* all BIT systems need parse_fp_mode.. for digital_min_front_porch */
+	if (bios->feature_byte & FEATURE_MOBILE || bios->major_version >= 5) {
+#ifdef __powerpc__
+		/* PPC cards don't have the fp table; the laptops use DDC */
+		bios->digital_min_front_porch = 0x4b;
+#else
+		bios->fp.strapping = get_fp_strap(pScrn, bios);
+		if ((ret = parse_fp_mode_table(pScrn, bios)))
+			goto out;
+#endif
+	}
+	if (bios->feature_byte & FEATURE_MOBILE)
+		ret = parse_lvds_manufacturer_table(pScrn, 0);
+
+out:
 	NVLockVgaCrtcs(pNv, true);
 	if (pNv->twoHeads)
 		NVSetOwner(pNv, crtchead);

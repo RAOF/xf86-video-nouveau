@@ -119,11 +119,11 @@ static void nv_crtc_save_state_pll(xf86CrtcPtr crtc, RIVA_HW_STATE *state)
 
 	if (nv_crtc->head) {
 		regp->vpll_a = NVReadRAMDAC(pNv, 0, NV_RAMDAC_VPLL2);
-		if (pNv->twoStagePLL)
+		if (pNv->two_reg_pll)
 			regp->vpll_b = NVReadRAMDAC(pNv, 0, NV_RAMDAC_VPLL2_B);
 	} else {
 		regp->vpll_a = NVReadRAMDAC(pNv, 0, NV_RAMDAC_VPLL);
-		if (pNv->twoStagePLL)
+		if (pNv->two_reg_pll)
 			regp->vpll_b = NVReadRAMDAC(pNv, 0, NV_RAMDAC_VPLL_B);
 	}
 	if (pNv->twoHeads)
@@ -156,11 +156,11 @@ static void nv_crtc_load_state_pll(xf86CrtcPtr crtc, RIVA_HW_STATE *state)
 
 	if (nv_crtc->head) {
 		NVWriteRAMDAC(pNv, 0, NV_RAMDAC_VPLL2, regp->vpll_a);
-		if (pNv->twoStagePLL)
+		if (pNv->two_reg_pll)
 			NVWriteRAMDAC(pNv, 0, NV_RAMDAC_VPLL2_B, regp->vpll_b);
 	} else {
 		NVWriteRAMDAC(pNv, 0, NV_RAMDAC_VPLL, regp->vpll_a);
-		if (pNv->twoStagePLL)
+		if (pNv->two_reg_pll)
 			NVWriteRAMDAC(pNv, 0, NV_RAMDAC_VPLL_B, regp->vpll_b);
 	}
 
@@ -211,82 +211,71 @@ static void nv_crtc_calc_state_ext(xf86CrtcPtr crtc, DisplayModePtr mode, int do
 	RIVA_HW_STATE *state = &pNv->ModeReg;
 	NVCrtcRegPtr regp = &state->crtc_reg[nv_crtc->head];
 	struct pll_lims pll_lim;
-	int NM1 = 0xbeef, NM2 = 0, log2P = 0, VClk = 0;
+	bool using_two_pll_stages = false;
+	/* nvidia uses 0x11f as bogus data when running in single stage mode */
+	int NM1 = 0xbeef, NM2 = 0x11f, log2P = 0, VClk = 0;
 	uint32_t g70_pll_special_bits = 0;
-	bool nv4x_single_stage_pll_mode = false;
 	uint8_t arbitration0;
 	uint16_t arbitration1;
 
 	if (get_pll_limits(pScrn, nv_crtc->head ? VPLL2 : VPLL1, &pll_lim))
 		return;
 
-	if (pNv->twoStagePLL || pNv->NVArch == 0x30 || pNv->NVArch == 0x35) {
-		if (dot_clock < pll_lim.vco1.maxfreq && pNv->NVArch > 0x40) { /* use a single VCO */
-			nv4x_single_stage_pll_mode = true;
-			/* Turn the second set of divider and multiplier off */
-			/* Bogus data, the same nvidia uses */
-			NM2 = 0x11f;
-			VClk = getMNP_single(pScrn, &pll_lim, dot_clock, &NM1, &log2P);
-		} else
-			VClk = getMNP_double(pScrn, &pll_lim, dot_clock, &NM1, &NM2, &log2P);
+	/* for newer nv4x the blob uses only the first stage of the vpll below a
+	 * certain clock.  for a certain nv4b this is 150MHz.  since the max
+	 * output frequency of the first stage for this card is 300MHz, it is
+	 * assumed the threshold is given by vco1 maxfreq/2
+	 */
+	/* for early nv4x, specifically nv40 and *some* nv43 (devids 0 and 6,
+	 * not 8, others unknown), the blob always uses both plls.  no problem
+	 * has yet been observed in allowing the use a single stage pll on all
+	 * nv43 however.  the behaviour of single stage use is untested on nv40
+	 */
+	if ((pNv->two_reg_pll || pNv->NVArch == 0x30 || pNv->NVArch == 0x35) &&
+	    (pNv->NVArch < 0x41 || dot_clock > (pll_lim.vco1.maxfreq / 2))) {
+		using_two_pll_stages = true;
+		VClk = getMNP_double(pScrn, &pll_lim, dot_clock, &NM1, &NM2, &log2P);
 	} else
 		VClk = getMNP_single(pScrn, &pll_lim, dot_clock, &NM1, &log2P);
 
-	/* Are these all the (relevant) G70 cards? */
-	if (pNv->NVArch == 0x4B || pNv->NVArch == 0x46 || pNv->NVArch == 0x47 || pNv->NVArch == 0x49) {
-		/* This is a big guess, but should be reasonable until we can narrow it down. */
-		/* What exactly are the purpose of the upper 2 bits of pll_a and pll_b? */
-		if (nv4x_single_stage_pll_mode)
-			g70_pll_special_bits = 0x1;
-		else
-			g70_pll_special_bits = 0x3;
-	}
+	/* magic bits set by the blob (but not the bios), purpose unknown */
+	if (pNv->NVArch == 0x46 || pNv->NVArch == 0x49 || pNv->NVArch == 0x4b)
+		g70_pll_special_bits = (using_two_pll_stages ? 0xc : 0x4);
 
 	if (pNv->NVArch == 0x30 || pNv->NVArch == 0x35)
 		/* See nvregisters.xml for details. */
 		regp->vpll_a = (NM2 & (0x18 << 8)) << 13 | (NM2 & (0x7 << 8)) << 11 | log2P << 16 | NV30_RAMDAC_ENABLE_VCO2 | (NM2 & 7) << 4 | NM1;
 	else
-		regp->vpll_a = g70_pll_special_bits << 30 | log2P << 16 | NM1;
+		regp->vpll_a = g70_pll_special_bits << 28 | log2P << 16 | NM1;
 	regp->vpll_b = NV31_RAMDAC_ENABLE_VCO2 | NM2;
 
-	if (nv4x_single_stage_pll_mode) {
-		if (nv_crtc->head == 0)
-			state->reg580 |= NV_RAMDAC_580_VPLL1_ACTIVE;
-		else
-			state->reg580 |= NV_RAMDAC_580_VPLL2_ACTIVE;
-	} else {
-		if (nv_crtc->head == 0)
-			state->reg580 &= ~NV_RAMDAC_580_VPLL1_ACTIVE;
-		else
-			state->reg580 &= ~NV_RAMDAC_580_VPLL2_ACTIVE;
-	}
-
-	/* The NV40 seems to have more similarities to NV3x than other NV4x */
-	if (pNv->NVArch < 0x41)
-		state->pllsel |= NV_RAMDAC_PLL_SELECT_PLL_SOURCE_NVPLL |
-				 NV_RAMDAC_PLL_SELECT_PLL_SOURCE_MPLL;
 	/* The blob uses this always, so let's do the same */
 	if (pNv->Architecture == NV_ARCH_40)
 		state->pllsel |= NV_RAMDAC_PLL_SELECT_USE_VPLL2_TRUE;
 
-	if (nv_crtc->head == 1) {
-		if (!nv4x_single_stage_pll_mode)
-			state->pllsel |= NV_RAMDAC_PLL_SELECT_VCLK2_RATIO_DB2;
+	/* again nv40 and some nv43 act more like nv3x as described above */
+	if (pNv->NVArch < 0x41)
+		state->pllsel |= NV_RAMDAC_PLL_SELECT_PLL_SOURCE_MPLL |
+				 NV_RAMDAC_PLL_SELECT_PLL_SOURCE_NVPLL;
+
+	state->pllsel |= (nv_crtc->head ? NV_RAMDAC_PLL_SELECT_PLL_SOURCE_VPLL2 |
+					  NV_RAMDAC_PLL_SELECT_VCLK2_RATIO_DB2 :
+					  NV_RAMDAC_PLL_SELECT_PLL_SOURCE_VPLL |
+					  NV_RAMDAC_PLL_SELECT_VCLK_RATIO_DB2);
+
+	if (pNv->NVArch >= 0x40) {
+		if (using_two_pll_stages)
+			state->reg580 &= (nv_crtc->head ? ~NV_RAMDAC_580_VPLL2_ACTIVE :
+							  ~NV_RAMDAC_580_VPLL1_ACTIVE);
 		else
-			state->pllsel &= ~NV_RAMDAC_PLL_SELECT_VCLK2_RATIO_DB2;
-		state->pllsel |= NV_RAMDAC_PLL_SELECT_PLL_SOURCE_VPLL2;
-	} else {
-		if (!nv4x_single_stage_pll_mode)
-			state->pllsel |= NV_RAMDAC_PLL_SELECT_VCLK_RATIO_DB2;
-		else
-			state->pllsel &= ~NV_RAMDAC_PLL_SELECT_VCLK_RATIO_DB2;
-		state->pllsel |= NV_RAMDAC_PLL_SELECT_PLL_SOURCE_VPLL;
+			state->reg580 |= (nv_crtc->head ? NV_RAMDAC_580_VPLL2_ACTIVE :
+							  NV_RAMDAC_580_VPLL1_ACTIVE);
 	}
 
-	if ((!pNv->twoStagePLL && pNv->NVArch != 0x30 && pNv->NVArch != 0x35) || nv4x_single_stage_pll_mode)
-		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "vpll: n %d m %d log2p %d\n", NM1 >> 8, NM1 & 0xff, log2P);
-	else
+	if (using_two_pll_stages)
 		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "vpll: n1 %d n2 %d m1 %d m2 %d log2p %d\n", NM1 >> 8, NM2 >> 8, NM1 & 0xff, NM2 & 0xff, log2P);
+	else
+		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "vpll: n %d m %d log2p %d\n", NM1 >> 8, NM1 & 0xff, log2P);
 
 	if (pNv->Architecture < NV_ARCH_30)
 		nv4_10UpdateArbitrationSettings(pScrn, VClk, pScrn->bitsPerPixel, &arbitration0, &arbitration1);
@@ -1337,8 +1326,10 @@ static void nv_crtc_load_state_vga(xf86CrtcPtr crtc, RIVA_HW_STATE *state)
 	for (i = 0; i < 5; i++)
 		NVWriteVgaSeq(pNv, nv_crtc->head, i, regp->Sequencer[i]);
 
+	nv_lock_vga_crtc_base(pNv, nv_crtc->head, false);
 	for (i = 0; i < 25; i++)
 		crtc_wr_cio_state(crtc, regp, i);
+	nv_lock_vga_crtc_base(pNv, nv_crtc->head, true);
 
 	for (i = 0; i < 9; i++)
 		NVWriteVgaGr(pNv, nv_crtc->head, i, regp->Graphics[i]);

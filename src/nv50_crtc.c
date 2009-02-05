@@ -279,15 +279,15 @@ NV50CrtcBlank(nouveauCrtcPtr crtc, Bool blanked)
 		if (pNv->NVArch != 0x50)
 			NV50CrtcCommand(crtc, NV84_CRTC0_BLANK_UNK2, NV84_CRTC0_BLANK_UNK2_BLANK);
 	} else {
-		/* The bufmgr hands addresses in GPU VM, CRTC wants physical
-		 * addresses.  VRAM is currently mapped at 512MiB in the VM,
-		 * so adjust here before poking the CRTCs.
-		 */
-		uint32_t fb = crtc->front_buffer->offset - 0x20000000;
-		uint32_t clut = crtc->lut->offset - 0x20000000;
-		uint32_t cursor =
-			(crtc->index ? (pNv->Cursor2->offset - 0x20000000) :
-			 	       (pNv->Cursor->offset - 0x20000000));
+		struct nouveau_device *dev = crtc->front_buffer->device;
+		uint32_t fb = crtc->front_buffer->offset - dev->vm_vram_base;
+		uint32_t clut = crtc->lut->offset - dev->vm_vram_base;
+		uint32_t cursor;
+		
+		if (crtc->index)
+			cursor = pNv->Cursor2->offset - dev->vm_vram_base;
+		else
+			cursor = pNv->Cursor->offset - dev->vm_vram_base;
 
 		NV50CrtcCommand(crtc, NV50_CRTC0_FB_OFFSET, fb >> 8);
 		NV50CrtcCommand(crtc, 0x864, 0);
@@ -431,19 +431,17 @@ NV50CrtcSetCursorPosition(nouveauCrtcPtr crtc, int x, int y)
 static void
 NV50CrtcLoadCursor(nouveauCrtcPtr crtc, Bool argb, uint32_t *src)
 {
+	NVPtr pNv = NVPTR(crtc->scrn);
+	struct nouveau_bo *cursor = NULL;
+
 	if (!argb) /* FIXME */
 		return;
 
-	NVPtr pNv = NVPTR(crtc->scrn);
-	uint32_t *dst = NULL;
-
-	if (crtc->index == 1)
-		dst = (uint32_t *) pNv->Cursor2->map;
-	else
-		dst = (uint32_t *) pNv->Cursor->map;
-
+	nouveau_bo_ref(crtc->index ? pNv->Cursor2 : pNv->Cursor, &cursor);
+	nouveau_bo_map(cursor, NOUVEAU_BO_WR);
 	/* Assume cursor is 64x64 */
-	memcpy(dst, src, 64 * 64 * 4);
+	memcpy(cursor->map, src, 64 * 64 * 4);
+	nouveau_bo_unmap(cursor);
 }
 
 /*
@@ -502,7 +500,9 @@ NV50CrtcGammaSet(nouveauCrtcPtr crtc, uint16_t *red, uint16_t *green, uint16_t *
 	if (!crtc->lut)
 		return;
 
+	nouveau_bo_map(crtc->lut, NOUVEAU_BO_WR);
 	memcpy(crtc->lut->map, crtc->lut_values, 4*256*sizeof(uint16_t));
+	nouveau_bo_unmap(crtc->lut);
 }
 
 void
@@ -549,6 +549,9 @@ NV50CrtcDestroy(ScrnInfoPtr pScrn)
 
 	for (i=0; i < 2; i++) {
 		nouveauCrtcPtr crtc = pNv->crtc[i];
+
+		if (!crtc)
+			continue;
 
 		xfree(crtc->name);
 		xfree(crtc);

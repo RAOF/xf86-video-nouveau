@@ -24,6 +24,8 @@
 #ifndef __NOUVEAU_BIOS_H__
 #define __NOUVEAU_BIOS_H__
 
+#include "nvreg.h"
+
 #define MAX_NUM_DCB_ENTRIES 16
 
 #define LOC_ON_CHIP 0
@@ -43,6 +45,7 @@ struct dcb_entry {
 			bool use_power_scripts;
 		} lvdsconf;
 	};
+	bool i2c_upper_default;
 };
 
 struct dcb_i2c_entry {
@@ -107,7 +110,7 @@ struct pll_lims {
 };
 
 struct nouveau_bios {
-	uint8_t *data;
+	uint8_t data[NV_PROM_SIZE];
 	unsigned int length;
 	bool execute;
 
@@ -118,6 +121,7 @@ struct nouveau_bios {
 
 	uint32_t dactestval;
 
+	bool old_style_init;
 	uint16_t init_script_tbls_ptr;
 	uint16_t extra_init_script_tbl_ptr;
 	uint16_t macro_index_tbl_ptr;
@@ -135,6 +139,9 @@ struct nouveau_bios {
 	struct {
 		DisplayModePtr native_mode;
 		uint8_t *edid;
+		uint16_t fptablepointer;	/* also used by tmds */
+		uint16_t fpxlatetableptr;
+		int xlatwidth;
 		uint16_t lvdsmanufacturerpointer;
 		uint16_t fpxlatemanufacturertableptr;
 		uint16_t xlated_entry;
@@ -163,6 +170,8 @@ struct nouveau_bios {
 		struct {
 			uint8_t crt, tv, panel;
 		} i2c_indices;
+
+		uint16_t lvds_single_a_script_ptr;
 	} legacy;
 };
 

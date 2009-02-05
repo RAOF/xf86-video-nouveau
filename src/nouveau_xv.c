@@ -323,15 +323,16 @@ NVXvDMANotifierFree(ScrnInfoPtr pScrn, struct nouveau_notifier **ptarget)
 	XvDMANotifierStatus[i] = XV_DMA_NOTIFIER_FREE;
 }
 
-void NVXvDMANotifiersRealFree(void)
+static void NVXvDMANotifiersRealFree(void)
 {
 	int i;
 
-	for (i = 0; i < 6; i++)
+	for (i = 0; i < 6; i++) {
 		if (XvDMANotifierStatus[i] != XV_DMA_NOTIFIER_NOALLOC) {
 			nouveau_notifier_free(&XvDMANotifiers[i]);
 			XvDMANotifierStatus[i] = XV_DMA_NOTIFIER_NOALLOC;
 		}
+	}
 }
 
 static int
@@ -344,21 +345,15 @@ nouveau_xv_bo_realloc(ScrnInfoPtr pScrn, unsigned flags, unsigned size,
 	if (*pbo) {
 		if ((*pbo)->size >= size)
 			return 0;
-		nouveau_bo_del(pbo);
+		nouveau_bo_ref(NULL, pbo);
 	}
 
 	if (pNv->Architecture >= NV_ARCH_50 && (flags & NOUVEAU_BO_VRAM))
-		flags |= NOUVEAU_BO_TILE;
+		flags |= NOUVEAU_BO_TILED;
 
 	ret = nouveau_bo_new(pNv->dev, flags | NOUVEAU_BO_PIN, 0, size, pbo);
 	if (ret)
 		return ret;
-
-	ret = nouveau_bo_map(*pbo, NOUVEAU_BO_RDWR);
-	if (ret) {
-		nouveau_bo_del(pbo);
-		return ret;
-	}
 
 	return 0;
 }
@@ -370,25 +365,21 @@ nouveau_xv_bo_realloc(ScrnInfoPtr pScrn, unsigned flags, unsigned size,
  * @param pScrn screen whose port wants to free memory
  * @param pPriv port to free memory of
  */
-void
+static void
 NVFreePortMemory(ScrnInfoPtr pScrn, NVPortPrivPtr pPriv)
 {
-	if(pPriv->video_mem) {
-		nouveau_bo_del(&pPriv->video_mem);
-		pPriv->video_mem = NULL;
-	}
+	nouveau_bo_ref(NULL, &pPriv->video_mem);
 
 	if (pPriv->TT_mem_chunk[0] && pPriv->DMANotifier[0])
-		nouveau_notifier_wait_status(pPriv->DMANotifier[0], 0, 0, 1000);
+		nouveau_notifier_wait_status(pPriv->DMANotifier[0], 0, 0, 1.0);
 
 	if (pPriv->TT_mem_chunk[1] && pPriv->DMANotifier[1])
-		nouveau_notifier_wait_status(pPriv->DMANotifier[1], 0, 0, 1000);
+		nouveau_notifier_wait_status(pPriv->DMANotifier[1], 0, 0, 1.0);
 
-	nouveau_bo_del(&pPriv->TT_mem_chunk[0]);
-	nouveau_bo_del(&pPriv->TT_mem_chunk[1]);
+	nouveau_bo_ref(NULL, &pPriv->TT_mem_chunk[0]);
+	nouveau_bo_ref(NULL, &pPriv->TT_mem_chunk[1]);
 	NVXvDMANotifierFree(pScrn, &pPriv->DMANotifier[0]);
 	NVXvDMANotifierFree(pScrn, &pPriv->DMANotifier[1]);
-
 }
 
 /**
@@ -924,7 +915,7 @@ NV_set_action_flags(ScrnInfoPtr pScrn, DrawablePtr pDraw, NVPortPrivPtr pPriv,
 	{
 		PixmapPtr ppix = NVGetDrawablePixmap(pDraw);
 
-		if (!NVExaPixmapIsOnscreen(ppix))
+		if (!nouveau_exa_pixmap_is_onscreen(ppix))
 			*action_flags &= ~USE_OVERLAY;
 	}
 #endif
@@ -1145,7 +1136,7 @@ NVPutImage(ScrnInfoPtr pScrn, short src_x, short src_y, short drw_x,
 						    newTTSize,
 						    &pPriv->TT_mem_chunk[1]);
 			if (ret) {
-				nouveau_bo_del(&pPriv->TT_mem_chunk[0]);
+				nouveau_bo_ref(NULL, &pPriv->TT_mem_chunk[0]);
 				pPriv->currentHostBuffer =
 					NO_PRIV_HOST_BUFFER_AVAILABLE;
 			}
@@ -1188,9 +1179,9 @@ NVPutImage(ScrnInfoPtr pScrn, short src_x, short src_y, short drw_x,
 				 */
 				xf86DrvMsg(0, X_ERROR,
 					   "Ran out of Xv notifiers!\n");
-				nouveau_bo_del(&pPriv->TT_mem_chunk[0]);
+				nouveau_bo_ref(NULL, &pPriv->TT_mem_chunk[0]);
 				pPriv->TT_mem_chunk[0] = NULL;
-				nouveau_bo_del(&pPriv->TT_mem_chunk[1]);
+				nouveau_bo_ref(NULL, &pPriv->TT_mem_chunk[1]);
 				pPriv->TT_mem_chunk[1] = NULL;
 				pPriv->currentHostBuffer =
 					NO_PRIV_HOST_BUFFER_AVAILABLE;
@@ -1213,10 +1204,13 @@ NVPutImage(ScrnInfoPtr pScrn, short src_x, short src_y, short drw_x,
 	}
 
 	if (newTTSize <= destination_buffer->size) {
-		unsigned char *dst = destination_buffer->map;
+		unsigned char *dst;
 		int i = 0;
 
 		/* Upload to GART */
+		nouveau_bo_map(destination_buffer, NOUVEAU_BO_WR);
+		dst = destination_buffer->map;
+
 		if (action_flags & IS_YV12) {
 			if (action_flags & CONVERT_TO_YUY2) {
 				NVCopyData420(buf + (top * srcPitch) + left,
@@ -1249,6 +1243,8 @@ NVPutImage(ScrnInfoPtr pScrn, short src_x, short src_y, short drw_x,
 				buf += srcPitch;
 			}
 		}
+
+		nouveau_bo_unmap(destination_buffer);
 
 		BEGIN_RING(chan, m2mf,
 			   NV04_MEMORY_TO_MEMORY_FORMAT_DMA_BUFFER_IN, 2);
@@ -1335,6 +1331,7 @@ NVPutImage(ScrnInfoPtr pScrn, short src_x, short src_y, short drw_x,
 
 	} else {
 CPU_copy:
+		nouveau_bo_map(pPriv->video_mem, NOUVEAU_BO_WR);
 		map = pPriv->video_mem->map + offset;
 
 		if (action_flags & IS_YV12) {
@@ -1400,6 +1397,8 @@ CPU_copy:
 				buf += srcPitch - (npixels << 1);
 			}
 		}
+
+		nouveau_bo_unmap(pPriv->video_mem);
 	}
 
 	if (skip)
@@ -2324,3 +2323,24 @@ NVInitVideo(ScreenPtr pScreen)
 		}
 	}
 }
+
+void
+NVTakedownVideo(ScrnInfoPtr pScrn)
+{
+	NVPtr pNv = NVPTR(pScrn);
+
+	nouveau_bo_ref(NULL, &pNv->xv_filtertable_mem);
+	if (pNv->blitAdaptor)
+		NVFreePortMemory(pScrn, GET_BLIT_PRIVATE(pNv));
+	if (pNv->textureAdaptor[0]) {
+		NVFreePortMemory(pScrn,
+				 pNv->textureAdaptor[0]->pPortPrivates[0].ptr);
+	}
+	if (pNv->textureAdaptor[1]) {
+		NVFreePortMemory(pScrn,
+				 pNv->textureAdaptor[1]->pPortPrivates[0].ptr);
+	}
+
+	NVXvDMANotifiersRealFree();
+}
+

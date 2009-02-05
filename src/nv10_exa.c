@@ -275,7 +275,7 @@ static void NV10EXAFallbackInfo_real(char * reason, int op, PicturePtr pSrcPictu
 }
 
 
-Bool NV10CheckComposite(int	op,
+Bool NV10EXACheckComposite(int	op,
 			     PicturePtr pSrcPicture,
 			     PicturePtr pMaskPicture,
 			     PicturePtr pDstPicture)
@@ -600,18 +600,29 @@ static void NV10SetPictOp(NVPtr pNv,int op)
 	OUT_RING  (chan, 1);
 }
 
-Bool NV10PrepareComposite(int	  op,
-			       PicturePtr pSrcPicture,
-			       PicturePtr pMaskPicture,
-			       PicturePtr pDstPicture,
-			       PixmapPtr  pSrc,
-			       PixmapPtr  pMask,
-			       PixmapPtr  pDst)
+static void
+NV10StateCompositeReemit(struct nouveau_channel *chan)
+{
+	ScrnInfoPtr pScrn = chan->user_private;
+	NVPtr pNv = NVPTR(pScrn);
+
+	NV10EXAPrepareComposite(pNv->alu, pNv->pspict, pNv->pmpict, pNv->pdpict,
+				pNv->pspix, pNv->pmpix, pNv->pdpix);
+}
+
+Bool NV10EXAPrepareComposite(int op,
+			     PicturePtr pSrcPicture,
+			     PicturePtr pMaskPicture,
+			     PicturePtr pDstPicture,
+			     PixmapPtr  pSrc,
+			     PixmapPtr  pMask,
+			     PixmapPtr  pDst)
 {
 	ScrnInfoPtr pScrn = xf86Screens[pDst->drawable.pScreen->myNum];
 	NVPtr pNv = NVPTR(pScrn);
 	struct nouveau_channel *chan = pNv->chan;
-	struct nouveau_grobj *celcius = pNv->Nv3D;
+
+	WAIT_RING(chan, 128);
 
 	if (NV10Check_A8plusA8_Feasability(pSrcPicture,pMaskPicture,pDstPicture,op))
 		{
@@ -641,9 +652,15 @@ Bool NV10PrepareComposite(int	  op,
 	/* Set PictOp */
 	NV10SetPictOp(pNv, op);
 
-	BEGIN_RING(chan, celcius, NV10TCL_VERTEX_BEGIN_END, 1);
-	OUT_RING  (chan, NV10TCL_VERTEX_BEGIN_END_QUADS);
 
+	pNv->alu = op;
+	pNv->pspict = pSrcPicture;
+	pNv->pmpict = pMaskPicture;
+	pNv->pdpict = pDstPicture;
+	pNv->pspix = pSrc;
+	pNv->pmpix = pMask;
+	pNv->pdpix = pDst;
+	chan->flush_notify = NV10StateCompositeReemit;
 	state.have_mask=(pMaskPicture!=NULL);
 	return TRUE;
 }
@@ -702,7 +719,7 @@ NV10EXATransformCoord(PictTransformPtr t, int x, int y, float sx, float sy,
 }
 
 
-void NV10Composite(PixmapPtr pDst,
+void NV10EXAComposite(PixmapPtr pDst,
 			int	  srcX,
 			int	  srcY,
 			int	  maskX,
@@ -718,6 +735,10 @@ void NV10Composite(PixmapPtr pDst,
 	struct nouveau_grobj *celcius = pNv->Nv3D;
 	float sX0, sX1, sX2, sY0, sY1, sY2, sX3, sY3;
 	float mX0, mX1, mX2, mY0, mY1, mY2, mX3, mY3;
+
+	WAIT_RING (chan, 64);
+	BEGIN_RING(chan, celcius, NV10TCL_VERTEX_BEGIN_END, 1);
+	OUT_RING  (chan, NV10TCL_VERTEX_BEGIN_END_QUADS);
 
 	NV10EXATransformCoord(state.unit[0].transform, srcX, srcY,
 			      state.unit[0].width,
@@ -857,19 +878,18 @@ void NV10Composite(PixmapPtr pDst,
 		NV10Vertex(pNv , dstX + width , dstY + height , sX2 , sY2);
 		NV10Vertex(pNv , dstX         , dstY + height , sX3 , sY3);
 	}
+
+	BEGIN_RING(chan, celcius, NV10TCL_VERTEX_BEGIN_END, 1);
+	OUT_RING  (chan, NV10TCL_VERTEX_BEGIN_END_STOP);
 }
 
-void NV10DoneComposite (PixmapPtr pDst)
+void NV10EXADoneComposite (PixmapPtr pDst)
 {
 	ScrnInfoPtr pScrn = xf86Screens[pDst->drawable.pScreen->myNum];
 	NVPtr pNv = NVPTR(pScrn);
 	struct nouveau_channel *chan = pNv->chan;
-	struct nouveau_grobj *celcius = pNv->Nv3D;
 
-	BEGIN_RING(chan, celcius, NV10TCL_VERTEX_BEGIN_END, 1);
-	OUT_RING  (chan, NV10TCL_VERTEX_BEGIN_END_STOP);
-
-	FIRE_RING (chan);
+	chan->flush_notify = NULL;
 }
 
 
@@ -887,7 +907,7 @@ NVAccelInitNV10TCL(ScrnInfoPtr pScrn)
 		((chipset & 0xf0) != NV_ARCH_20) )
 		return FALSE;
 
-	if (chipset>=0x20)
+	if (chipset >= 0x20 || chipset == 0x1a)
 		class = NV11TCL;
 	else if (chipset>=0x17)
 		class = NV17TCL;
@@ -903,7 +923,7 @@ NVAccelInitNV10TCL(ScrnInfoPtr pScrn)
 	celcius = pNv->Nv3D;
 
 	BEGIN_RING(chan, celcius, NV10TCL_DMA_NOTIFY, 1);
-	OUT_RING  (chan, pNv->NvNull->handle);
+	OUT_RING  (chan, chan->nullobj->handle);
 
 	BEGIN_RING(chan, celcius, NV10TCL_DMA_IN_MEMORY0, 2);
 	OUT_RING  (chan, pNv->chan->vram->handle);
@@ -1044,7 +1064,7 @@ NVAccelInitNV10TCL(ScrnInfoPtr pScrn)
 	OUT_RING  (chan, 0);
 	BEGIN_RING(chan, celcius, NV10TCL_CULL_FACE_ENABLE, 1);
 	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, celcius, NV10TCL_CLIP_PLANE_ENABLE(0), 8);
+	BEGIN_RING(chan, celcius, NV10TCL_TX_GEN_S(0), 8);
 	for (i=0;i<8;i++) {
 		OUT_RING  (chan, 0);
 	}

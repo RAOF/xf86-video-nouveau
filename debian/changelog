@@ -85,6 +85,7 @@ xserver-xorg-video-nouveau (1:0.0.10~git+20090205+4dfd0b1-1) experimental; urgen
       done
   * Don't include .git in .orig.tar.gz.
   * Replace "(C)" in debian/copyright with "©" to appease lintian.
+  * Replace usage of `dh_clean -k` with dh_prep.
 
  -- Chris Lamb <lamby@debian.org>  Thu, 05 Feb 2009 00:21:35 +0000
 

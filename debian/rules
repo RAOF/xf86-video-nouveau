@@ -30,6 +30,7 @@ get-orig-source:
 	cd xf86-video-nouveau && autoreconf -v --install && \
 	REVISION=$$(git show --pretty=format:"%h" HEAD | head -n1) && cd .. && \
 	PREFIX=xserver-xorg-video-nouveau_0.0.10~git+$$(date +%Y%m%d)+$$REVISION && \
+	rm -rf xf86-video-nouveau/.git && \
 	tar czf $$PREFIX.orig.tar.gz --exclude=autom4te.cache xf86-video-nouveau && \
 	rm -rf xf86-video-nouveau
 

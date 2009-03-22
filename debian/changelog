@@ -1,3 +1,111 @@
+xserver-xorg-video-nouveau (1:0.0.10~git+20090322+3e7fa97) jaunty; urgency=low
+
+  * New upstream snapshot
+    - 3e7fa97... dri: pass object handle instead of offset if using real mm
+    - 88efe40... dri2: initial implementation, only with driver pixmaps
+    - 675126e... kms: support framebuffer resize if driver pixmaps enabled
+    - 8b354b9... kms: copy old fb to new fb on modeset
+    - 6658403... Call NVEnterVT from NVScreenInit rather than duplicating it.
+    - f59fef1... exa: fix multiple prepare/finish_access on a pixmap
+    - 75a1c41... Wrap bios endian casting
+    - 3666d73... Switch to using pll_vals struct for passing pll stuff around
+    - a3dbc06... randr12: cull old unused pll code
+    - 71c821b... Don't pointlessly overallocate cursor storage
+    - 7284c07... randr12: nv10 hw cursor fixes/changes
+    - bcc3a14... randr12: use nv0x cursor colour expansion funcs on later cards, unify argb paths
+    - b21c807... randr12: store nv0x hw cursor image in VRAM
+    - 3ea4b19... Kill pre-randr12 hwcursor code, and tidy randr12 hwcursor code
+    - b988160... Remove calls to load ddc and i2c modules -- they're built-in since server 1.3
+    - d5893ec... Hack around missing display table in rdivacky's GeForce 7050 PV/nForce 630a
+    - 369e1ef... Fix xserver shutdown for randr12 off
+    - 8343d6b... Remove bios lvds parsing pxclk test; ddc_permitted is a sufficient condition
+    - 8b56c69... Name some regs/values and reduce crtc reg struct size
+    - 79d23d8... improve drm/dri initialisation code
+    - bd14482... kms: cleanup set_property
+    - 7a45592... kms: get current values for output properties on startup
+    - 7095e89... kms: work around some xserver stupidity with DPMS
+    - 8f9a580... Another DCB 1.5 entry (seen in rh#455194)
+    - 9a71990... randr12: add output properties for digital vibrance and image sharpening
+    - 678ddc2... randr12: functionate output properties creation
+    - ed9bd88... kms: remove early-exit from gamma_set, the kernel side works now
+    - 98c9e4e... kms: work around some bong hits with dpms
+    - 88ae2c9... kms: implement dpms
+    - 5269cc8... randr12: make props code slightly less awful to behold
+    - 0b87c49... More robust PLL upclocking for old cards
+    - cb237a3... bios/randr12: mode validation fixes (includes fix for #20298)
+    - 9cfccd7... Handle failure to calculate pll values better
+    - 1e99440... xv: return BadAlloc if destination pixmap is not put into EXA offscreen (#15792)
+    - 77347da... Remove duplicated DCB parsing
+    - 1b6cabe... Remove VBIOS access in parse_dcb_entry
+    - 72fd0ae... randr12: no need to re-detect edid for lvds, it's not going away
+    - ae981a8... nv50: some minor modesetting changes
+    - 42f99e6... nv30/xv: restore original viewport/clipping after putimage
+    - 56bb8f8... Allow parse_fp_mode_table for x86 cards that find themselves on ppc
+    - 1c2f33e... Don't rely on the bios mobile feature bit for BMP biosen (#19986)
+    - e436c7e... randr12: make treatment of CR4B more closely resemble blob's behaviour
+    - c61102b... Parse bios fp mode during modesetting, removing extra alloc
+    - 631e15a... Get dual_link and dithering bios info through lvds table parsing function
+    - 2d43771... Call parse_lvds_manufacturer_table during modesetting only (#19986 partial fix)
+    - ce8f5d7... Variety of LVDS script changes
+    - 071d537... Read embedded bios edid only on demand
+    - f04689c... move memset of fb after NVSave(), hopefully fix lost VGA fonts
+    - 6961efb... kms: fix check for xf86drmMode.h
+    - 76fa656... Detypedef bios_t, rename bios io functions, group various helper functions
+    - 39c9d02... Move parsed DCB to bios structs, split into public and private parts
+    - 275daaf... Split bios struct into struct for nv_bios.c, and exported public info struct
+    - 8b3e966... Remove never updated bios opcodes 0x31, 0x5A and 0x73
+    - ce9eb05... Trivial bios convenience variable changes
+    - cfeef11... exa: forgot to check if EXA_SUPPORTS_PREPARE_AUX was defined
+    - 37a85dc... exa: we support PREPARE_AUX
+    - 1249fd2... Revert exa: support major version 3
+    - 1c4a284... Rework PLL decoding in terms of pll_vals, save/restore pll_vals on vt switch
+    - 81b4732... New common struct for pll values
+    - adf2e35... Check whether NV_RAMDAC_580 has changed when setting PLLs
+    - b7f99ae... exa: support major version 3
+    - d91fc78... kms: fix resize func
+    - 535498b... clear the scanout buffer on statup to avoid seeing garbage on-screen
+    - 0227673... nv50/exa: properly align offset for mem_tile ioctl
+    - e09f50e... bios/randr12: fix dual link TMDS (#20006)
+    - b968db7... Return of bios: fix create_i2c_device for g80
+    - 0a439ba... Parse DCB before running init
+    - 870b6f0... Split parsing and init into separate functions
+    - 0280a0c... Attempt to remove pNv and bios_t use in parsing the DCB
+    - 9179c66... Variety of DCB enhancements
+    - 317ca47... Revert bios: fix create_i2c_device for g80
+    - 7b25a30... nv04: unbreak copy
+    - 60c8bb1... default to autodetecting whether to enable the driver's kms paths
+    - a31b1d0... exa: reimplement driver-controlled pixmaps
+    - d97e993... exa: preparation for reintroducing driver-controlled pixmaps
+    - 1e00c7d... shadowfb: clip copied regions to frontbuffer size.
+    - efe2796... nv50: correct a poorly written comment
+    - 2573c06... exa: remove exaWaitSync() call in nouveau_exa_pixmap_map()
+    - 5000535... exa: don't need exaMarkSync on DFS, the operation will be done already
+    - a7e7c55... xv: remove notifier usage
+    - 8ecb8d5... exa: remove notifier waits in UTS/DFS
+    - cfb884b... bios: add some more valid regs
+    - ca72ca2... bios: fix create_i2c_device for g80
+    - bbd7041... bios: implement opcode 0x76 (INIT_IO_CONDITION).
+    - 5dd2cbe... exa: add nouveau_exa_pixmap_is_tiled
+    - 15ccf72... randr12: anti-crash measures for #19854
+    - 17e9d4b... randr12: use bios PLL setting routines for modesetting
+    - e444e0e... Readability improvements for nv_hw.c and nvreg.h
+    - f5ea66c... Pull in extras from CRTC PLL code to bios routines
+    - 4166365... Pull out ramdac580 setting and powerctrl_1 shift code to separate functions
+    - 8b70418... Miscellaneous fixes to bios PLL code
+    - 01bb4c1... Make PROM score badly, out of available bios images, if checksum bad
+    - 30848dd... randr12: bodge-in continuous timings when the scaler is in use (#19203)
+    - 0387ac3... Allow reading of PROM and PCI rom on PPC (for people using x86 cards)
+    - 6ad66c0... bios/randr12: be strict about when to use modes from bios vs modes from ddc
+    - b5391eb... Simplify FP strapping semantics and trust bios parsing of use_straps_for_mode
+    - 34c2b15... bios/randr12: misc (mainly lvds related) clarifications and cleanups
+    - 98b8cad... Always allocate 2 hw cursors.
+    - f109981... Fix a few warnings.
+    - 691589d... Fix some cursor fallout, mostly in legacy code.
+    - 945f0cb... kms: update drmmode_display
+    - ba1f897... keep resources around after leavevt, far too problematic currently
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sun, 22 Mar 2009 17:39:00 +1100
+
 xserver-xorg-video-nouveau (1:0.0.10~git+20090205+4dfd0b1-1) experimental; urgency=low
 
   * New upstream snapshot (Closes: #514080)

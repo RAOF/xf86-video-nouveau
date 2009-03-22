@@ -1,4 +1,4 @@
-xserver-xorg-video-nouveau (1:0.0.10~git+20090322+3e7fa97) jaunty; urgency=low
+xserver-xorg-video-nouveau (1:0.0.10~git+20090322+3e7fa97-0ubuntu1) jaunty; urgency=low
 
   * New upstream snapshot
     - 3e7fa97... dri: pass object handle instead of offset if using real mm

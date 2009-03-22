@@ -69,7 +69,7 @@ PKG_CHECK_MODULES(LIBDRM_NOUVEAU, libdrm_nouveau)
 AC_SUBST(LIBDRM_NOUVEAU_CFLAGS)
 AC_SUBST(LIBDRM_NOUVEAU_LIBS)
 
-PKG_CHECK_MODULES(XORG, [xorg-server >= 1.3] xproto fontsproto libdrm xf86driproto $REQUIRED_MODULES)
+PKG_CHECK_MODULES(XORG, [xorg-server >= 1.4.99.901] xproto fontsproto libdrm xf86driproto $REQUIRED_MODULES)
 sdkdir=$(pkg-config --variable=sdkdir xorg-server)
 
 # Checks for libraries.
@@ -101,14 +101,15 @@ CFLAGS="$CFLAGS $XORG_CFLAGS"
 AC_MSG_CHECKING(for DRM modesetting)
 AC_ARG_WITH(
 	kms,
-	[  --with-kms=yes,no       compile with drm modesetting support (default: no)],
+	[  --with-kms=yes,no       compile with drm modesetting support (default: auto)],
 	kms="$withval",
-	kms="no")
+	kms="yes")
 AC_MSG_RESULT($kms)
 
 if test "x$kms" = xyes; then
 	AC_CHECK_HEADER([xf86drmMode.h],[kms=yes],[kms=no],
-		[#include "stdint.h"    ]
+		[#include <stdint.h>
+		 #include <stdlib.h> ]
 	)
 fi
 

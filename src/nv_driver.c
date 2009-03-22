@@ -24,8 +24,8 @@
 
 #include "nv_include.h"
 
+#include "xorg-server.h"
 #include "xf86int10.h"
-
 #include "xf86drm.h"
 
 /*
@@ -163,13 +163,6 @@ static const char *exaSymbols[] = {
     NULL
 };
 
-static const char *ramdacSymbols[] = {
-    "xf86CreateCursorInfoRec",
-    "xf86DestroyCursorInfoRec",
-    "xf86InitCursor",
-    NULL
-};
-
 static const char *ddcSymbols[] = {
     "xf86PrintEDID",
     "xf86DoEDID_DDC2",
@@ -286,7 +279,7 @@ nouveauSetup(pointer module, pointer opts, int *errmaj, int *errmin)
 		 * might refer to.
 		 */
 		LoaderRefSymLists(vgahwSymbols, exaSymbols, fbSymbols,
-				ramdacSymbols, shadowSymbols, drmSymbols, 
+				shadowSymbols, drmSymbols,
 				i2cSymbols, ddcSymbols, vbeSymbols,
 				int10Symbols, NULL);
 
@@ -665,35 +658,36 @@ NVEnterVT(int scrnIndex, int flags)
 
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "NVEnterVT is called.\n");
 
-	NVMapMem(pScrn);
-	if (pNv->Architecture >= NV_ARCH_50 && pNv->EXADriverPtr) {
-		nouveau_bo_tile(pNv->FB, NOUVEAU_BO_VRAM | NOUVEAU_BO_TILED,
-				pNv->EXADriverPtr->offScreenBase,
-				pNv->EXADriverPtr->memorySize -
-				pNv->EXADriverPtr->offScreenBase);
-	}
+	if (!pNv->NoAccel)
+		NVAccelCommonInit(pScrn);
 
-	if (!pNv->kms_enable && pNv->randr12_enable)
+	if (!pNv->kms_enable) {
+		/* Save current state, VGA fonts etc */
 		NVSave(pScrn);
+
+		/* Clear the framebuffer, we don't want to see garbage
+		 * on-screen up until X decides to draw something
+		 */
+		nouveau_bo_map(pNv->FB, NOUVEAU_BO_WR);
+		memset(pNv->FB->map, 0, NOUVEAU_ALIGN(pScrn->virtualX, 64) *
+		       pScrn->virtualY * (pScrn->bitsPerPixel >> 3));
+		nouveau_bo_unmap(pNv->FB);
+
+		if (pNv->Architecture == NV_ARCH_50) {
+			if (!NV50AcquireDisplay(pScrn))
+				return FALSE;
+		}
+	}
 
 	if (!pNv->randr12_enable) {
 		if (!NVModeInit(pScrn, pScrn->currentMode))
 			return FALSE;
 		NVAdjustFrame(scrnIndex, pScrn->frameX0, pScrn->frameY0, 0);
 	} else {
-		pScrn->vtSema = TRUE;
-
-		if (!pNv->kms_enable && pNv->Architecture == NV_ARCH_50)
-			if (!NV50AcquireDisplay(pScrn))
-				return FALSE;
-
+		pNv->allow_dpms = FALSE;
 		if (!xf86SetDesiredModes(pScrn))
 			return FALSE;
-	}
-
-	if (!pNv->NoAccel) {
-		NVInitDma(pScrn);
-		NVAccelCommonInit(pScrn);
+		pNv->allow_dpms = TRUE;
 	}
 
 	if (pNv->overlayAdaptor && pNv->Architecture != NV_ARCH_04)
@@ -716,24 +710,18 @@ NVLeaveVT(int scrnIndex, int flags)
 	ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
 	NVPtr pNv = NVPTR(pScrn);
 
-	if (pNv->randr12_enable)
-		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "NVLeaveVT is called.\n");
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "NVLeaveVT is called.\n");
 
 	NVSync(pScrn);
-	NVAccelFree(pScrn);
-	NVTakedownVideo(pScrn);
-	NVTakedownDma(pScrn);
-	NVUnmapMem(pScrn);
 
-	if (pNv->kms_enable)
-		return;
+	if (!pNv->kms_enable) {
+		if (pNv->Architecture == NV_ARCH_50) {
+			NV50ReleaseDisplay(pScrn);
+			return;
+		}
 
-	if (pNv->Architecture == NV_ARCH_50) {
-		NV50ReleaseDisplay(pScrn);
-		return;
+		NVRestore(pScrn);
 	}
-
-	NVRestore(pScrn);
 }
 
 static void 
@@ -796,10 +784,16 @@ NVCloseScreen(int scrnIndex, ScreenPtr pScreen)
 	NVUnmapMem(pScrn);
 
 	vgaHWUnmapMem(pScrn);
-	NVDRICloseScreen(pScrn);
-	xf86_cursors_fini(pScreen);
-	if (pNv->CursorInfoRec)
-		xf86DestroyCursorInfoRec(pNv->CursorInfoRec);
+
+	if (!pNv->exa_driver_pixmaps)
+		NVDRICloseScreen(pScrn);
+#ifdef DRI2
+	else
+		nouveau_dri2_fini(pScreen);
+#endif
+
+	if (pNv->randr12_enable)
+		xf86_cursors_fini(pScreen);
 	if (pNv->ShadowPtr) {
 		xfree(pNv->ShadowPtr);
 		pNv->ShadowPtr = NULL;
@@ -884,67 +878,11 @@ NVValidMode(int scrnIndex, DisplayModePtr mode, Bool verbose, int flags)
 
 Bool NVI2CInit(ScrnInfoPtr pScrn)
 {
-	NVPtr pNv = NVPTR(pScrn);
+	xf86LoaderReqSymLists(i2cSymbols,NULL);
+	xf86LoaderReqSymLists(ddcSymbols, NULL);
 
-	if (xf86LoadSubModule(pScrn, "i2c") && xf86LoadSubModule(pScrn, "ddc")) {
-		xf86LoaderReqSymLists(i2cSymbols,NULL);
-		xf86LoaderReqSymLists(ddcSymbols, NULL);
-
-		/* randr-1.2 clients have their DDCs initialized elsewhere */
-		if (!pNv->randr12_enable)
-			return NVDACi2cInit(pScrn);
-		return true;
-	} else
-		xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
-		"Couldn't load i2c and ddc modules.  DDC probing can't be done\n");
-	return false;
-}
-
-#ifdef XF86DRM_MODE
-static bool nouveau_kernel_modesetting_enabled(ScrnInfoPtr pScrn)
-{
-#if XSERVER_LIBPCIACCESS
-	struct pci_device *PciInfo;
-#else
-	pciVideoPtr PciInfo;
-#endif
-	EntityInfoPtr pEnt;
-	char *busIdString;
-	int ret;
-
-	pEnt = xf86GetEntityInfo(pScrn->entityList[0]);
-	PciInfo = xf86GetPciInfoForEntity(pEnt->index);
-
-	busIdString = DRICreatePCIBusID(PciInfo);
-
-	ret = drmCheckModesettingSupported(busIdString);
-	xfree(busIdString);
-	if (ret)
-		return FALSE;
-
-	return TRUE;
-}
-#else
-#define nouveau_kernel_modesetting_enabled(x) FALSE
-#endif
-
-static Bool NVPreInitDRI(ScrnInfoPtr pScrn)
-{
-	NVPtr pNv = NVPTR(pScrn);
-
-    	if (!NVDRIGetVersion(pScrn))
-		return FALSE;
-
- 	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-		"[dri] Found DRI library version %d.%d.%d and kernel"
-		" module version %d.%d.%d\n",
-		pNv->pLibDRMVersion->version_major,
-		pNv->pLibDRMVersion->version_minor,
-		pNv->pLibDRMVersion->version_patchlevel,
-		pNv->pKernelDRMVersion->version_major,
-		pNv->pKernelDRMVersion->version_minor,
-		pNv->pKernelDRMVersion->version_patchlevel);
-
+	if (!NVPTR(pScrn)->randr12_enable)
+		return NVDACi2cInit(pScrn);
 	return TRUE;
 }
 
@@ -970,15 +908,78 @@ static const xf86CrtcConfigFuncsRec nv_xf86crtc_config_funcs = {
 	return FALSE;                                                       \
 } while(0)
 
+static Bool
+NVPreInitDRM(ScrnInfoPtr pScrn)
+{
+	NVPtr pNv = NVPTR(pScrn);
+	drmVersion *version;
+	char *bus_id;
+	int ret;
+
+	/* Load the kernel module, and open the DRM */
+	bus_id = DRICreatePCIBusID(pNv->PciInfo);
+	ret = DRIOpenDRMMaster(pScrn, SAREA_MAX, bus_id, "nouveau");
+	if (!ret) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			   "[drm] error opening the drm\n");
+		xfree(bus_id);
+		return FALSE;
+	}
+
+	/* Check the version reported by the kernel module.  In theory we
+	 * shouldn't have to do this, as libdrm_nouveau will do its own checks.
+	 * But, we're currently using the kernel patchlevel to also version
+	 * the DRI interface.
+	 */
+	version = drmGetVersion(DRIMasterFD(pScrn));
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+		   "[drm] nouveau interface version: %d.%d.%d\n",
+		   version->version_major, version->version_minor,
+		   version->version_patchlevel);
+
+	ret = !(version->version_patchlevel == NOUVEAU_DRM_HEADER_PATCHLEVEL);
+	drmFree(version);
+	if (ret) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			   "[drm] wrong version, expecting 0.0.%d\n",
+			   NOUVEAU_DRM_HEADER_PATCHLEVEL);
+		xfree(bus_id);
+		return FALSE;
+	}
+
+	/* Initialise libdrm_nouveau */
+	ret = nouveau_device_open_existing(&pNv->dev, 0, DRIMasterFD(pScrn), 0);
+	if (ret) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			   "[drm] error creating device, setting NoAccel\n");
+		xfree(bus_id);
+		return FALSE;
+	}
+
+	/* Check if KMS is enabled before we do anything, we don't want to
+	 * go stomping on registers behind its back
+	 */
+#ifdef XF86DRM_MODE
+	pNv->kms_enable = !drmCheckModesettingSupported(bus_id);
+#endif
+	xf86DrvMsg(pScrn->scrnIndex, X_PROBED,
+		   "[drm] kernel modesetting %s\n", pNv->kms_enable ?
+		   "in use" : "not available");
+
+	xfree(bus_id);
+	return TRUE;
+}
+
 /* Mandatory */
 Bool
 NVPreInit(ScrnInfoPtr pScrn, int flags)
 {
 	NVPtr pNv;
 	MessageType from;
-	int i, max_width, max_height;
 	ClockRangePtr clockRanges;
+	int max_width, max_height;
 	int config_mon_rates = FALSE;
+	int ret, i;
 
 	if (flags & PROBE_DETECT) {
 		EntityInfoPtr pEnt = xf86GetEntityInfo(pScrn->entityList[0]);
@@ -1104,6 +1105,16 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 #endif
 	}
 
+	/* Attempt to initialise the kernel module, if we fail this we'll
+	 * fallback to limited functionality.
+	 */
+	if (!NVPreInitDRM(pScrn)) {
+		xf86DrvMsg(pScrn->scrnIndex, X_NOTICE,
+			   "Failing back to NoAccel mode\n");
+		pNv->NoAccel = TRUE;
+		pNv->ShadowFB = TRUE;
+	}
+
 	/* Save current console video mode */
 	if (pNv->Architecture >= NV_ARCH_50 && pNv->pInt10 && !pNv->kms_enable) {
 		const xf86Int10InfoPtr pInt10 = pNv->pInt10;
@@ -1193,19 +1204,12 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 
 	from = X_DEFAULT;
 
-	pNv->kms_enable = false;
-#ifdef XF86DRM_MODE
-	if (pNv->Architecture == NV_ARCH_50)
-		pNv->kms_enable = nouveau_kernel_modesetting_enabled(pScrn);
-#endif /* XF86DRM_MODE */
-
-	if (pNv->kms_enable)
-		xf86DrvMsg(pScrn->scrnIndex, from, "NV50 Kernel modesetting enabled\n");
-
 	pNv->randr12_enable = true;
-	if (pNv->Architecture != NV_ARCH_50 && !xf86ReturnOptValBool(pNv->Options, OPTION_RANDR12, TRUE))
+	if (pNv->Architecture != NV_ARCH_50 && !pNv->kms_enable &&
+	    !xf86ReturnOptValBool(pNv->Options, OPTION_RANDR12, TRUE))
 		pNv->randr12_enable = false;
-	xf86DrvMsg(pScrn->scrnIndex, from, "Randr1.2 support %sabled\n", pNv->randr12_enable ? "en" : "dis");
+	xf86DrvMsg(pScrn->scrnIndex, from, "Randr1.2 support %sabled\n",
+		   pNv->randr12_enable ? "en" : "dis");
 
 	pNv->HWCursor = TRUE;
 	/*
@@ -1220,6 +1224,8 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 		from = X_CONFIG;
 		pNv->HWCursor = FALSE;
 	}
+	if (!pNv->randr12_enable)
+		pNv->HWCursor = FALSE;
 	xf86DrvMsg(pScrn->scrnIndex, from, "Using %s cursor\n",
 		pNv->HWCursor ? "HW" : "SW");
 
@@ -1229,16 +1235,21 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 		xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, "Flat panel scaling %s\n",
 			pNv->FpScale ? "on" : "off");
 	}
+
 	if (xf86ReturnOptValBool(pNv->Options, OPTION_NOACCEL, FALSE)) {
 		pNv->NoAccel = TRUE;
 		xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, "Acceleration disabled\n");
 	}
+
 	if (xf86ReturnOptValBool(pNv->Options, OPTION_SHADOW_FB, FALSE)) {
 		pNv->ShadowFB = TRUE;
 		pNv->NoAccel = TRUE;
 		xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, 
 			"Using \"Shadow Framebuffer\" - acceleration disabled\n");
 	}
+
+	if (xf86ReturnOptValBool(pNv->Options, OPTION_EXA_PIXMAPS, FALSE))
+		pNv->exa_driver_pixmaps = TRUE;
 
 	if(xf86GetOptValInteger(pNv->Options, OPTION_VIDEO_KEY, &(pNv->videoKey))) {
 		xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, "video key set to 0x%x\n",
@@ -1324,29 +1335,16 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 
 #ifdef XF86DRM_MODE
 	if (pNv->kms_enable){
-		int res = 0;
-		char *bus_id;
-		bus_id = DRICreatePCIBusID(pNv->PciInfo);
-
-		pNv->drmmode = calloc(1, sizeof(drmmode_rec));
-		res = drmmode_pre_init(pScrn, bus_id, pNv->drmmode, pScrn->bitsPerPixel >> 3);
-		if (!res) {
-			xfree(bus_id);
+		ret = drmmode_pre_init(pScrn, nouveau_device(pNv->dev)->fd,
+				       pScrn->bitsPerPixel >> 3);
+		if (ret == FALSE)
 			NVPreInitFail("Kernel modesetting failed to initialize\n");
-		}
 	} else
 #endif
 	if (pNv->randr12_enable) {
 		/* Allocate an xf86CrtcConfig */
 		xf86CrtcConfigInit(pScrn, &nv_xf86crtc_config_funcs);
 		xf86CrtcSetSizeRange(pScrn, 320, 200, max_width, max_height);
-	}
-
-	if (!pNv->NoAccel && NVPreInitDRI(pScrn) == FALSE) {
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			   "DRI pre-initialisation failed.  Setting NoAccel\n");
-		pNv->ShadowFB = TRUE;
-		pNv->NoAccel = TRUE;
 	}
 
 	if (!pNv->randr12_enable) {
@@ -1531,14 +1529,6 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 		xf86LoaderReqSymLists(exaSymbols, NULL);
 	}
 
-	/* Load ramdac if needed */
-	if (pNv->HWCursor) {
-		if (!xf86LoadSubModule(pScrn, "ramdac")) {
-			NVPreInitFail("\n");
-		}
-		xf86LoaderReqSymLists(ramdacSymbols, NULL);
-	}
-
 	/* Load shadowfb */
 	if (!xf86LoadSubModule(pScrn, "shadowfb"))
 		NVPreInitFail("\n");
@@ -1580,8 +1570,8 @@ NVMapMemSW(ScrnInfoPtr pScrn)
 #endif
 
 	Cursor0Offset = VRAMReserved;
-	Cursor1Offset = Cursor0Offset + (64 * 1024);
-	CLUTOffset[0] = Cursor1Offset + (64 * 1024);
+	Cursor1Offset = Cursor0Offset + (64 * 64 * 4);
+	CLUTOffset[0] = Cursor1Offset + (64 * 64 * 4);
 	CLUTOffset[1] = CLUTOffset[0] + (4 * 1024);
 
 	ret = nouveau_bo_fake(&dev, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN,
@@ -1593,14 +1583,14 @@ NVMapMemSW(ScrnInfoPtr pScrn)
 
 	ret = nouveau_bo_fake(&dev, Cursor0Offset,
 			      NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN,
-			      64*1024, pNv->VRAMMap + Cursor0Offset,
+			      64 * 64 * 4, pNv->VRAMMap + Cursor0Offset,
 			      &pNv->Cursor);
 	if (ret)
 		return FALSE;
 
 	ret = nouveau_bo_fake(&dev, Cursor1Offset,
 			      NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN,
-			      64*1024, pNv->VRAMMap + Cursor1Offset,
+			      64 * 64 * 4, pNv->VRAMMap + Cursor1Offset,
 			      &pNv->Cursor2);
 	if (ret)
 		return FALSE;
@@ -1634,10 +1624,10 @@ static Bool
 NVMapMem(ScrnInfoPtr pScrn)
 {
 	NVPtr pNv = NVPTR(pScrn);
-	int gart_scratch_size;
 	uint64_t res;
+	int size;
 
-	if (pNv->NoAccel)
+	if (!pNv->dev)
 		return NVMapMemSW(pScrn);
 
 	nouveau_device_get_param(pNv->dev, NOUVEAU_GETPARAM_FB_SIZE, &res);
@@ -1647,37 +1637,43 @@ NVMapMem(ScrnInfoPtr pScrn)
 	nouveau_device_get_param(pNv->dev, NOUVEAU_GETPARAM_AGP_SIZE, &res);
 	pNv->AGPSize=res;
 
+	if (pNv->exa_driver_pixmaps) {
+		size = NOUVEAU_ALIGN(pScrn->virtualX, 64);
+		size = size * (pScrn->bitsPerPixel >> 3);
+		size = size * pScrn->virtualY;
+	} else {
+		size = pNv->VRAMPhysicalSize / 2;
+	}
+
 	if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN,
-		0, pNv->VRAMPhysicalSize / 2, &pNv->FB)) {
-			xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Failed to allocate memory for framebuffer!\n");
-			return FALSE;
+			   0, size, &pNv->FB)) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			   "Failed to allocate framebuffer memory\n");
+		return FALSE;
 	}
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-		"Allocated %dMiB VRAM for framebuffer + offscreen pixmaps, at offset 0x%X\n",
-		(uint32_t)(pNv->FB->size >> 20), (uint32_t) pNv->FB->offset);
-#ifdef XF86DRM_MODE
-	if (pNv->kms_enable)
-		drmmode_set_fb(pScrn, pNv->drmmode, pScrn->virtualX, pScrn->virtualY, pScrn->displayWidth*(pScrn->bitsPerPixel >> 3), pNv->FB);
-#endif
+		   "Allocated %dMiB VRAM for framebuffer + offscreen pixmaps, "
+		   "at offset 0x%X\n",
+		   (uint32_t)(pNv->FB->size >> 20), (uint32_t) pNv->FB->offset);
 
 	if (pNv->AGPSize) {
 		xf86DrvMsg(pScrn->scrnIndex, X_INFO,
 			   "AGPGART: %dMiB available\n",
 			   (unsigned int)(pNv->AGPSize >> 20));
 		if (pNv->AGPSize > (16*1024*1024))
-			gart_scratch_size = 16*1024*1024;
+			size = 16*1024*1024;
 		else
 			/* always leave 512kb for other things like the fifos */
-			gart_scratch_size = pNv->AGPSize - 512*1024;
+			size = pNv->AGPSize - 512*1024;
 	} else {
-		gart_scratch_size = (4 << 20) - (1 << 18) ;
+		size = (4 << 20) - (1 << 18) ;
 		xf86DrvMsg(pScrn->scrnIndex, X_INFO,
 			   "GART: PCI DMA - using %dKiB\n",
-			   gart_scratch_size >> 10);
+			   size >> 10);
 	}
 
 	if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_GART | NOUVEAU_BO_PIN, 0,
-			   gart_scratch_size, &pNv->GART)) {
+			   size, &pNv->GART)) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "Unable to allocate GART memory\n");
 	}
@@ -1687,20 +1683,24 @@ NVMapMem(ScrnInfoPtr pScrn)
 			   (unsigned int)(pNv->GART->size >> 20));
 	}
 
+	/* We don't need to allocate cursors / lut here if we're using
+	 * kernel modesetting
+	 **/
+	if (pNv->kms_enable)
+		return TRUE;
+
 	if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN, 0,
-			   64 * 1024, &pNv->Cursor)) {
+			   64 * 64 * 4, &pNv->Cursor)) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "Failed to allocate memory for hardware cursor\n");
 		return FALSE;
 	}
 
-	if (pNv->randr12_enable) {
-		if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN, 0,
-			64 * 1024, &pNv->Cursor2)) {
-			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-				"Failed to allocate memory for hardware cursor\n");
-			return FALSE;
-		}
+	if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN, 0,
+		64 * 64 * 4, &pNv->Cursor2)) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			"Failed to allocate memory for hardware cursor\n");
+		return FALSE;
 	}
 
 	/* This is not the ideal solution, but significant changes are needed
@@ -1743,7 +1743,7 @@ NVUnmapMem(ScrnInfoPtr pScrn)
 {
 	NVPtr pNv = NVPTR(pScrn);
 
-	if (pNv->NoAccel) {
+	if (!pNv->dev) {
 #ifdef XSERVER_LIBPCIACCESS
 		pci_device_unmap_range(pNv->PciInfo, pNv->VRAMMap,
 				       pNv->PciInfo->regions[1].size);
@@ -1759,7 +1759,7 @@ NVUnmapMem(ScrnInfoPtr pScrn)
 	nouveau_bo_ref(NULL, &pNv->Cursor2);
 
 	/* Again not the most ideal way. */
-	if (pNv->Architecture == NV_ARCH_50) {
+	if (pNv->Architecture == NV_ARCH_50 && !pNv->kms_enable) {
 		int i;
 
 		for(i = 0; i < 2; i++) {
@@ -1840,7 +1840,7 @@ NVRestore(ScrnInfoPtr pScrn)
 		int i;
 
 		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Restoring encoders\n");
-		for (i = 0; i < pNv->dcb_table.entries; i++)
+		for (i = 0; i < pNv->vbios->dcb->entries; i++)
 			nv_encoder_restore(pScrn, &pNv->encoders[i]);
 
 		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Restoring crtcs\n");
@@ -2040,19 +2040,18 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 			return FALSE;
 	}
 
-	/* First init DRI/DRM */
-	if (!pNv->NoAccel && !NVDRIScreenInit(pScrn)) {
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			   "DRI initialisation failed.  Setting NoAccel\n");
-		pNv->ShadowFB = TRUE;
-		pNv->NoAccel = TRUE;
-	}
-
 	/* Allocate and map memory areas we need */
 	if (!NVMapMem(pScrn))
 		return FALSE;
 
 	if (!pNv->NoAccel) {
+		if (!pNv->exa_driver_pixmaps)
+			NVDRIScreenInit(pScrn);
+#ifdef DRI2
+		else
+			nouveau_dri2_init(pScreen);
+#endif
+
 		/* Init DRM - Alloc FIFO */
 		if (!NVInitDma(pScrn))
 			return FALSE;
@@ -2075,25 +2074,6 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
 	if (!pNv->kms_enable)
 		NVSave(pScrn);
-
-	if (!pNv->randr12_enable) {
-		if (!NVModeInit(pScrn, pScrn->currentMode))
-			return FALSE;
-		pScrn->AdjustFrame(scrnIndex, pScrn->frameX0, pScrn->frameY0, 0);
-	} else {
-		pScrn->vtSema = TRUE;
-
-		if (!pNv->kms_enable && pNv->Architecture == NV_ARCH_50)
-			if (!NV50AcquireDisplay(pScrn))
-				return FALSE;
-
-		if (!xf86SetDesiredModes(pScrn))
-			return FALSE;
-	}
-
-	/* Darken the screen for aesthetic reasons */
-	if (!pNv->kms_enable)
-		NVSaveScreen(pScreen, SCREEN_SAVER_ON);
 
 	/*
 	 * The next step is to setup the screen's visuals, and initialise the
@@ -2173,6 +2153,10 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
 	xf86SetBlackWhitePixels(pScreen);
 
+	nouveau_bo_map(pNv->FB, NOUVEAU_BO_RDWR);
+	pNv->FBMap = pNv->FB->map;
+	nouveau_bo_unmap(pNv->FB);
+
 	if (!pNv->NoAccel) {
 		if (!nouveau_exa_init(pScreen))
 			return FALSE;
@@ -2200,9 +2184,7 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	 * Must follow software cursor initialization.
 	 */
 	if (pNv->HWCursor) { 
-		if (pNv->Architecture < NV_ARCH_50 && !pNv->randr12_enable)
-			ret = NVCursorInit(pScreen);
-		else if (pNv->Architecture < NV_ARCH_50 && pNv->randr12_enable)
+		if (pNv->Architecture < NV_ARCH_50)
 			ret = NVCursorInitRandr12(pScreen);
 		else
 			ret = NV50CursorInit(pScreen);
@@ -2214,11 +2196,30 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 		}
 	}
 
+	if (pNv->ShadowFB)
+		ShadowFBInit(pScreen, NVRefreshArea);
+
+	pScrn->memPhysBase = pNv->VRAMPhysical;
+	pScrn->fbOffset = 0;
+
+	NVInitVideo(pScreen);
+
+	pScrn->vtSema = TRUE;
+	pScrn->pScreen = pScreen;
+	if (!NVEnterVT(pScrn->scrnIndex, 0))
+		return FALSE;
+
 	if (pNv->randr12_enable) {
 		xf86DPMSInit(pScreen, xf86DPMSSet, 0);
 
 		if (!xf86CrtcScreenInit(pScreen))
 			return FALSE;
+	} else {
+		if(pNv->FlatPanel) {
+			xf86DPMSInit(pScreen, NVDPMSSetLCD, 0);
+		} else {
+			xf86DPMSInit(pScreen, NVDPMSSet, 0);
+		}
 	}
 
 	/* Initialise default colourmap */
@@ -2229,31 +2230,16 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	 * Initialize colormap layer.
 	 * Must follow initialization of the default colormap 
 	 */
-	if (!pNv->randr12_enable && !pNv->kms_enable) {
+	if (!pNv->randr12_enable) {
 		if(!xf86HandleColormaps(pScreen, 256, 8, NVDACLoadPalette,
-				NULL, CMAP_RELOAD_ON_MODE_SWITCH | CMAP_PALETTED_TRUECOLOR))
+					NULL, CMAP_RELOAD_ON_MODE_SWITCH |
+					CMAP_PALETTED_TRUECOLOR))
 			return FALSE;
 	} else {
 		if (!xf86HandleColormaps(pScreen, 256, 8, NVLoadPalette,
-				NULL, CMAP_PALETTED_TRUECOLOR))
+					 NULL, CMAP_PALETTED_TRUECOLOR))
 			return FALSE;
 	}
-
-	if (pNv->ShadowFB)
-		ShadowFBInit(pScreen, NVRefreshArea);
-
-	if (!pNv->randr12_enable) {
-		if(pNv->FlatPanel) {
-			xf86DPMSInit(pScreen, NVDPMSSetLCD, 0);
-		} else {
-			xf86DPMSInit(pScreen, NVDPMSSet, 0);
-		}
-	}
-
-	pScrn->memPhysBase = pNv->VRAMPhysical;
-	pScrn->fbOffset = 0;
-
-	NVInitVideo(pScreen);
 
 	pScreen->SaveScreen = NVSaveScreen;
 
@@ -2318,7 +2304,7 @@ NVSave(ScrnInfoPtr pScrn)
 			xf86_config->crtc[i]->funcs->save(xf86_config->crtc[i]);
 
 		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Saving encoders\n");
-		for (i = 0; i < pNv->dcb_table.entries; i++)
+		for (i = 0; i < pNv->vbios->dcb->entries; i++)
 			nv_encoder_save(pScrn, &pNv->encoders[i]);
 	} else {
 		vgaHWPtr pVga = VGAHWPTR(pScrn);

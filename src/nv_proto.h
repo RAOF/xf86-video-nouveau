@@ -3,6 +3,11 @@
 #ifndef __NV_PROTO_H__
 #define __NV_PROTO_H__
 
+/* in drmmode_display.c */
+Bool drmmode_pre_init(ScrnInfoPtr pScrn, int fd, int cpp);
+Bool drmmode_is_rotate_pixmap(ScrnInfoPtr pScrn, pointer pPixData,
+			      struct nouveau_bo **);
+
 /* in nv_accel_common.c */
 Bool NVAccelCommonInit(ScrnInfoPtr pScrn);
 Bool NVAccelGetCtxSurf2DFormatFromPixmap(PixmapPtr pPix, int *fmt_ret);
@@ -19,6 +24,10 @@ Bool NVDRIFinishScreenInit(ScrnInfoPtr pScrn);
 void NVDRICloseScreen(ScrnInfoPtr pScrn);
 extern const char *drmSymbols[], *driSymbols[];
 Bool NVDRIGetVersion(ScrnInfoPtr pScrn);
+
+/* in nouveau_dri2.c */
+Bool nouveau_dri2_init(ScreenPtr pScreen);
+void nouveau_dri2_fini(ScreenPtr pScreen);
 
 /* in nv_dac.c */
 Bool   NVDACInit(ScrnInfoPtr pScrn, DisplayModePtr mode);
@@ -42,7 +51,6 @@ void   RivaEnterLeave(ScrnInfoPtr pScrn, Bool enter);
 void   NVCommonSetup(ScrnInfoPtr pScrn);
 
 /* in nv_cursor.c */
-Bool   NVCursorInit(ScreenPtr pScreen);
 Bool NVCursorInitRandr12(ScreenPtr pScreen);
 void nv_crtc_show_cursor(xf86CrtcPtr crtc);
 void nv_crtc_hide_cursor(xf86CrtcPtr crtc);
@@ -59,6 +67,7 @@ void  NVTakedownDma(ScrnInfoPtr pScrn);
 /* in nouveau_exa.c */
 Bool nouveau_exa_init(ScreenPtr pScreen);
 Bool nouveau_exa_pixmap_is_onscreen(PixmapPtr pPixmap);
+bool nouveau_exa_pixmap_is_tiled(PixmapPtr ppix);
 
 /* in nv_hw.c */
 void NVCalcStateExt(ScrnInfoPtr,struct _riva_hw_state *,int,int,int,int,int,int);
@@ -71,14 +80,18 @@ void NVRefreshArea(ScrnInfoPtr pScrn, int num, BoxPtr pbox);
 
 /* in nv_bios.c */
 int NVParseBios(ScrnInfoPtr pScrn);
+int nouveau_bios_getmnp(ScrnInfoPtr pScrn, struct pll_lims *pll_lim, int clk, struct nouveau_pll_vals *pv);
+void nouveau_bios_setpll(ScrnInfoPtr pScrn, uint32_t reg1, struct nouveau_pll_vals *pv);
 int call_lvds_script(ScrnInfoPtr pScrn, struct dcb_entry *dcbent, int head, enum LVDS_script script, int pxclk);
-int parse_lvds_manufacturer_table(ScrnInfoPtr pScrn, int pxclk);
+bool nouveau_bios_fp_mode(ScrnInfoPtr pScrn, DisplayModeRec *mode);
+int nouveau_bios_parse_lvds_table(ScrnInfoPtr pScrn, int pxclk, bool *dl, bool *if_is_24bit);
 int run_tmds_table(ScrnInfoPtr pScrn, struct dcb_entry *dcbent, int head, int pxclk);
-int getMNP_single(ScrnInfoPtr pScrn, struct pll_lims *pll_lim, int clk, int *NM, int *log2P);
-int getMNP_double(ScrnInfoPtr pScrn, struct pll_lims *pll_lim, int clk, int *NM1, int *NM2, int *log2P);
 int get_pll_limits(ScrnInfoPtr pScrn, uint32_t limit_match, struct pll_lims *pll_lim);
+uint8_t * nouveau_bios_embedded_edid(ScrnInfoPtr pScrn);
 
 /* nv_crtc.c */
+void nv_crtc_set_digital_vibrance(xf86CrtcPtr crtc, int level);
+void nv_crtc_set_image_sharpening(xf86CrtcPtr crtc, int level);
 void NVCrtcSetBase(xf86CrtcPtr crtc, int x, int y);
 void nv_crtc_init(ScrnInfoPtr pScrn, int crtc_num);
 
@@ -119,7 +132,9 @@ bool NVLockVgaCrtcs(NVPtr pNv, bool lock);
 void NVBlankScreen(NVPtr pNv, int head, bool blank);
 void nv_fix_nv40_hw_cursor(NVPtr pNv, int head);
 void nv_show_cursor(NVPtr pNv, int head, bool show);
-int nv_decode_pll_highregs(NVPtr pNv, uint32_t pll1, uint32_t pll2, bool force_single, int refclk);
+int nouveau_hw_get_pllvals(ScrnInfoPtr pScrn, enum pll_types plltype,
+			   struct nouveau_pll_vals *pllvals);
+int nouveau_hw_pllvals_to_clk(struct nouveau_pll_vals *pllvals);
 void nv4_10UpdateArbitrationSettings(ScrnInfoPtr pScrn, int VClk, int bpp, uint8_t *burst, uint16_t *lwm);
 void nv30UpdateArbitrationSettings(uint8_t *burst, uint16_t *lwm);
 uint32_t nv_pitch_align(NVPtr pNv, uint32_t width, int bpp);

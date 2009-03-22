@@ -26,8 +26,6 @@
 #include "nouveau_connector.h"
 #include "nouveau_output.h"
 
-#include "drmmode_display.h"
-
 #define NV_ARCH_03  0x03
 #define NV_ARCH_04  0x04
 #define NV_ARCH_10  0x10
@@ -73,6 +71,7 @@
 #define CHIPSET_G73_BRIDGED 0x02E0
 
 
+#undef SetBit /* some input related header also includes a macro called SetBit, which gives a lot of warnings. */
 #define BITMASK(t,b) (((unsigned)(1U << (((t)-(b)+1)))-1)  << (b))
 #define MASKEXPAND(mask) BITMASK(1?mask,0?mask)
 #define SetBF(mask,value) ((value) << (0?mask))
@@ -93,7 +92,8 @@ typedef enum ORNum {
 	DAC1 = 1,
 	DAC2 = 2,
 	SOR0 = 0,
-	SOR1 = 1
+	SOR1 = 1,
+	SOR2 = 2,
 } ORNum;
 
 enum scaling_modes {
@@ -104,17 +104,34 @@ enum scaling_modes {
 	SCALE_INVALID
 };
 
+struct nouveau_pll_vals {
+	union {
+		struct {
+#if X_BYTE_ORDER == X_BIG_ENDIAN
+			uint8_t N1, M1, N2, M2;
+#else
+			uint8_t M1, N1, M2, N2;
+#endif
+		};
+		struct {
+			uint16_t NM1, NM2;
+		} __attribute__((packed));
+	};
+	int log2P;
+
+	int refclk;
+};
+
 typedef struct _nv_crtc_reg 
 {
 	unsigned char MiscOutReg;     /* */
-	uint8_t CRTC[0xff];
+	uint8_t CRTC[0x9f];
 	uint8_t CR58[0x10];
 	uint8_t Sequencer[5];
 	uint8_t Graphics[9];
 	uint8_t Attribute[21];
 	unsigned char DAC[768];       /* Internal Colorlookuptable */
 	uint32_t cursorConfig;
-	uint32_t gpio;
 	uint32_t gpio_ext;
 	uint32_t unk830;
 	uint32_t unk834;
@@ -126,6 +143,7 @@ typedef struct _nv_crtc_reg
 	/* These are former output regs, but are believed to be crtc related */
 	uint32_t general;
 	uint32_t unk_630;
+	uint32_t unk_634;
 	uint32_t debug_0;
 	uint32_t debug_1;
 	uint32_t debug_2;
@@ -138,8 +156,7 @@ typedef struct _nv_crtc_reg
 	uint32_t nv10_cursync;
 	uint32_t fp_control;
 	uint32_t dither;
-	uint32_t vpll_a;
-	uint32_t vpll_b;
+	struct nouveau_pll_vals pllvals;
 } NVCrtcRegRec, *NVCrtcRegPtr;
 
 typedef struct _nv_output_reg
@@ -173,7 +190,6 @@ typedef struct _riva_hw_state
 	uint32_t vpll2B;
 	uint32_t pllsel;
 	uint32_t sel_clk;
-	uint32_t reg580;
 	uint32_t general;
 	uint32_t crtcOwner;
 	uint32_t head;
@@ -195,6 +211,7 @@ struct nouveau_crtc {
 	uint8_t last_dpms;
 	ExaOffscreenArea *shadow;
 	int fp_users;
+	int saturation, sharpness;
 };
 
 struct nouveau_encoder {
@@ -203,6 +220,7 @@ struct nouveau_encoder {
 	DisplayModePtr native_mode;
 	uint8_t scaling_mode;
 	bool dithering;
+	bool dual_link;
 	NVOutputRegRec restore;
 };
 
@@ -249,13 +267,15 @@ typedef struct _NVRec {
 
     /* Various pinned memory regions */
     struct nouveau_bo * FB;
+    void *              FBMap;
     //struct nouveau_bo * FB_old; /* for KMS */
     struct nouveau_bo * shadow[2]; /* for easy acces by exa */
     struct nouveau_bo * Cursor;
     struct nouveau_bo * Cursor2;
     struct nouveau_bo * GART;
 
-    struct nouveau_bios	VBIOS;
+    struct nvbios	VBIOS;
+    struct nouveau_bios_info	*vbios;
     Bool                NoAccel;
     Bool                HWCursor;
     Bool                FpScale;
@@ -269,9 +289,7 @@ typedef struct _NVRec {
 
     volatile CARD32 *REGS;
     volatile CARD32 *FB_BAR;
-    volatile CARD32 *PGRAPH;
-    volatile CARD32 *PRAMIN;
-    volatile CARD32 *CURSOR;
+    //volatile CARD32 *PGRAPH;
     volatile CARD8 *PCIO0;
     volatile CARD8 *PCIO1;
     volatile CARD8 *PVIO0;
@@ -281,12 +299,12 @@ typedef struct _NVRec {
 
     uint8_t cur_head;
     ExaDriverPtr	EXADriverPtr;
-    xf86CursorInfoPtr   CursorInfoRec;
+    Bool		exa_driver_pixmaps;
     ScreenBlockHandlerProcPtr BlockHandler;
     CloseScreenProcPtr  CloseScreen;
     /* Cursor */
-    CARD32              curFg, curBg;
-    CARD32              curImage[256];
+	uint32_t	curFg, curBg;
+	uint32_t	curImage[256];
     /* I2C / DDC */
     xf86Int10InfoPtr    pInt10;
     unsigned            Int10Mode;
@@ -333,14 +351,8 @@ typedef struct _NVRec {
 
 #ifdef XF86DRM_MODE
 	void *drmmode; /* for KMS */
+	Bool allow_dpms;
 #endif
-
-	struct {
-		int entries;
-		struct dcb_entry entry[MAX_NUM_DCB_ENTRIES];
-		uint8_t i2c_default_indices;
-		struct dcb_i2c_entry i2c[MAX_NUM_DCB_ENTRIES];
-	} dcb_table;
 
 	nouveauCrtcPtr crtc[2];
 	nouveauOutputPtr output; /* this a linked list. */
@@ -358,6 +370,7 @@ typedef struct _NVRec {
 
 	/* DRM interface */
 	struct nouveau_device *dev;
+	char drm_device_name[128];
 
 	/* GPU context */
 	struct nouveau_channel *chan;
@@ -392,8 +405,6 @@ typedef struct _NVRec {
 
 #define NVPTR(p) ((NVPtr)((p)->driverPrivate))
 
-#define NVShowHideCursor(pScrn, show) nv_show_cursor(NVPTR(pScrn), NVPTR(pScrn)->cur_head, show)
-
 #define nvReadCurVGA(pNv, reg) NVReadVgaCrtc(pNv, pNv->cur_head, reg)
 #define nvWriteCurVGA(pNv, reg, val) NVWriteVgaCrtc(pNv, pNv->cur_head, reg, val)
 
@@ -406,20 +417,11 @@ typedef struct _NVRec {
 #define nvReadFB(pNv, reg) DDXMMIOW("nvReadFB: reg %08x val %08x\n", reg, (uint32_t)MMIO_IN32(pNv->REGS, reg))
 #define nvWriteFB(pNv, reg, val) MMIO_OUT32(pNv->REGS, reg, DDXMMIOW("nvWriteFB: reg %08x val %08x\n", reg, val))
 
-#define nvReadGRAPH(pNv, reg) DDXMMIOW("nvReadGRAPH: reg %08x val %08x\n", reg, (uint32_t)MMIO_IN32(pNv->REGS, reg))
-#define nvWriteGRAPH(pNv, reg, val) MMIO_OUT32(pNv->REGS, reg, DDXMMIOW("nvWriteGRAPH: reg %08x val %08x\n", reg, val))
-
 #define nvReadMC(pNv, reg) DDXMMIOW("nvReadMC: reg %08x val %08x\n", reg, (uint32_t)MMIO_IN32(pNv->REGS, reg))
 #define nvWriteMC(pNv, reg, val) MMIO_OUT32(pNv->REGS, reg, DDXMMIOW("nvWriteMC: reg %08x val %08x\n", reg, val))
 
-#define nvReadME(pNv, reg) DDXMMIOW("nvReadME: reg %08x val %08x\n", reg, (uint32_t)MMIO_IN32(pNv->REGS, reg))
-#define nvWriteME(pNv, reg, val) MMIO_OUT32(pNv->REGS, reg, DDXMMIOW("nvWriteME: reg %08x val %08x\n", reg, val))
-
 #define nvReadEXTDEV(pNv, reg) DDXMMIOW("nvReadEXTDEV: reg %08x val %08x\n", reg, (uint32_t)MMIO_IN32(pNv->REGS, reg))
 #define nvWriteEXTDEV(pNv, reg, val) MMIO_OUT32(pNv->REGS, reg, DDXMMIOW("nvWriteEXTDEV: reg %08x val %08x\n", reg, val))
-
-#define nvReadTIMER(pNv, reg) DDXMMIOW("nvReadTIMER: reg %08x val %08x\n", reg, (uint32_t)MMIO_IN32(pNv->REGS, reg))
-#define nvWriteTIMER(pNv, reg, val) MMIO_OUT32(pNv->REGS, reg, DDXMMIOW("nvWriteTIMER: reg %08x val %08x\n", reg, val))
 
 #define nvReadVIDEO(pNv, reg) DDXMMIOW("nvReadVIDEO: reg %08x val %08x\n", reg, (uint32_t)MMIO_IN32(pNv->REGS, reg))
 #define nvWriteVIDEO(pNv, reg, val) MMIO_OUT32(pNv->REGS, reg, DDXMMIOW("nvWriteVIDEO: reg %08x val %08x\n", reg, val))
@@ -448,7 +450,6 @@ typedef struct _NVPortPrivRec {
 	int		offset;
 	struct nouveau_bo *TT_mem_chunk[2];
 	int		currentHostBuffer;
-	struct nouveau_notifier *DMANotifier[2];
 } NVPortPrivRec, *NVPortPrivPtr;
 
 #define GET_OVERLAY_PRIVATE(pNv) \
@@ -464,5 +465,45 @@ typedef struct _NVPortPrivRec {
 #define FREE_DELAY      5000
 
 #define TIMER_MASK      (OFF_TIMER | FREE_TIMER)
+
+/* EXA driver-controlled pixmaps */
+struct nouveau_pixmap {
+	struct nouveau_bo *bo;
+	void *linear;
+	unsigned size;
+	int map_refcount;
+};
+
+static inline struct nouveau_pixmap *
+nouveau_pixmap(PixmapPtr ppix)
+{
+	return (struct nouveau_pixmap *)exaGetPixmapDriverPrivate(ppix);
+}
+
+static inline struct nouveau_bo *
+nouveau_pixmap_bo(PixmapPtr ppix)
+{
+	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
+	NVPtr pNv = NVPTR(pScrn);
+
+	if (pNv->exa_driver_pixmaps) {
+		struct nouveau_pixmap *nvpix = nouveau_pixmap(ppix);
+		return nvpix ? nvpix->bo : NULL;
+	}
+
+	return pNv->FB;
+}
+
+static inline unsigned
+nouveau_pixmap_offset(PixmapPtr ppix)
+{
+	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
+	NVPtr pNv = NVPTR(pScrn);
+
+	if (pNv->exa_driver_pixmaps)
+		return 0;
+
+	return exaGetPixmapOffset(ppix);
+}
 
 #endif /* __NV_STRUCT_H__ */

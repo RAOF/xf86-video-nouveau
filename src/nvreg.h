@@ -157,7 +157,7 @@
 #define NV_PFB_TILE_SIZE_NV40		0x00100604
 
 #define NV_PEXTDEV_BOOT_0		0x00101000
-#	define NV_PEXTDEV_BOOT_0_STRAP_FP_IFACE_12BIT	(1 << 15)
+#	define NV_PEXTDEV_BOOT_0_STRAP_FP_IFACE_12BIT	(8 << 12)
 #define NV_PEXTDEV_BOOT_3		0x0010100c
 
 #define NV_CRTC_INTR_0			0x00600100
@@ -171,12 +171,14 @@
 #define NV_CRTC_CURSOR_CONFIG		0x00600810
 #	define NV_CRTC_CURSOR_CONFIG_ENABLE		(1 << 0)
 #	define NV_CRTC_CURSOR_CONFIG_DOUBLE_SCAN	(1 << 4)
+#	define NV_PCRTC_CURSOR_CONFIG_ADDRESS_SPACE_PNVM	(1 << 8)
 #	define NV_CRTC_CURSOR_CONFIG_32BPP		(1 << 12)
 #	define NV_CRTC_CURSOR_CONFIG_64PIXELS		(1 << 16)
-#	define NV_CRTC_CURSOR_CONFIG_32LINES		(1 << 25)
-#	define NV_CRTC_CURSOR_CONFIG_64LINES		(1 << 26)
+#	define NV_CRTC_CURSOR_CONFIG_32LINES		(2 << 24)
+#	define NV_CRTC_CURSOR_CONFIG_64LINES		(4 << 24)
 #	define NV_CRTC_CURSOR_CONFIG_ALPHA_BLEND	(1 << 28)
 
+/* note: PCRTC_GPIO is not available on nv10, and in fact aliases 0x600810 */
 #define NV_CRTC_GPIO			0x00600818
 #define NV_CRTC_GPIO_EXT		0x0060081c
 #define NV_CRTC_0830			0x00600830
@@ -228,6 +230,7 @@
 	/* Extended VGA CRTC registers */
 	#define NV_CIO_CRE_RPC0_INDEX		0x19	/* repaint control 0 */
 	#define NV_CIO_CRE_RPC1_INDEX		0x1a	/* repaint control 1 */
+		#define NV_CIO_CRE_RPC1_LARGE		0x04
 	#define NV_CIO_CRE_FF_INDEX		0x1b	/* fifo control */
 	#define NV_CIO_CRE_ENH_INDEX		0x1c	/* enhanced? */
 	#define NV_CIO_SR_LOCK_INDEX		0x1f	/* crtc lock */
@@ -258,17 +261,18 @@
 	#define NV_CIO_CRE_DDC_WR__INDEX	0x3f
 	#define NV_CIO_CRE_EBR_INDEX		0x41	/* extra bits ? (vertical) */
 	#define NV_CIO_CRE_44			0x44	/* head control */
-	#define NV_CIO_CRE_CSB			0x45
+	#define NV_CIO_CRE_CSB			0x45	/* colour saturation b...? */
 	#define NV_CIO_CRE_RCR			0x46
 		#define NV_CIO_CRE_RCR_ENDIAN_BIG	0x80
 	#define NV_CIO_CRE_47			0x47	/* extended fifo lwm, used on nv30+ */
 	#define NV_CIO_CRE_4B			0x4b	/* given patterns in 0x[2-3][a-c] regs, probably scratch 6 */
-	#define NV_CIO_CRE_52			0x52
+	#define NV_CIO_CRE_TVOUT_LATENCY	0x52
 	#define NV_CIO_CRE_53			0x53	/* `fp_htiming' according to Haiku */
 	#define NV_CIO_CRE_54			0x54	/* `fp_vtiming' according to Haiku */
 	#define NV_CIO_CRE_57			0x57	/* index reg for cr58 */
 	#define NV_CIO_CRE_58			0x58	/* data reg for cr57 */
 	#define NV_CIO_CRE_59			0x59
+	#define NV_CIO_CRE_5B			0x5B	/* newer colour saturation reg */
 	#define NV_CIO_CRE_85			0x85
 	#define NV_CIO_CRE_86			0x86
 #define NV_PRMCIO_INP0__COLOR		0x006013da
@@ -285,7 +289,7 @@
 #	define NV_RAMDAC_PLL_COEFF_MDIV			0x000000FF
 #	define NV_RAMDAC_PLL_COEFF_NDIV			0x0000FF00
 #	define NV_RAMDAC_PLL_COEFF_PDIV			0x00070000
-#	define NV30_RAMDAC_ENABLE_VCO2			(1 << 7)
+#	define NV30_RAMDAC_ENABLE_VCO2			(8 << 4)
 
 #define NV_RAMDAC_PLL_SELECT		0x0068050c
 /* Without this it will use vpll1 */
@@ -329,7 +333,7 @@
 #define NV_RAMDAC_VPLL_B		0x00680578
 #define NV_RAMDAC_VPLL2_B		0x0068057c
 /* Educated guess, should remain on for NV4x vpll's. */
-#	define NV31_RAMDAC_ENABLE_VCO2			(1 << 31)
+#	define NV31_RAMDAC_ENABLE_VCO2			(8 << 28)
 
 #define NV_RAMDAC_580			0x00680580
 /* This is not always activated, but only when VCLK_RATIO_DB1 is used */
@@ -343,8 +347,9 @@
 	#define NV_PRAMDAC_TEST_CONTROL_PWRDWN_DAC_OFF	(1 << 16)
 	#define NV_PRAMDAC_TEST_CONTROL_SENSEB_ALLHI	(1 << 28)
 #define NV_RAMDAC_TEST_DATA		0x00680610
-	#define NV_PRAMDAC_TESTPOINT_DATA_NOTBLANK	(1 << 31)
+	#define NV_PRAMDAC_TESTPOINT_DATA_NOTBLANK	(8 << 28)
 #define NV_RAMDAC_630			0x00680630
+#define NV_RAMDAC_634			0x00680634
 /* This register is similar to TEST_CONTROL in the style of values */
 #define NV_RAMDAC_670			0x00680670
 
@@ -411,7 +416,7 @@
 #	define NV_RAMDAC_FP_DEBUG_0_XSCALE_ENABLED	(1 << 0)
 #	define NV_RAMDAC_FP_DEBUG_0_YSCALE_ENABLED	(1 << 4)
 /* This doesn't seem to be essential for tmds, but still often set */
-#	define NV_RAMDAC_FP_DEBUG_0_TMDS_ENABLED	(1 << 7)
+#	define NV_RAMDAC_FP_DEBUG_0_TMDS_ENABLED	(8 << 4)
 #	define NV_RAMDAC_FP_DEBUG_0_PWRDOWN_FPCLK	(1 << 28)
 #	define NV_RAMDAC_FP_DEBUG_0_PWRDOWN_TMDS_PLL	(2 << 28)
 #	define NV_RAMDAC_FP_DEBUG_0_PWRDOWN_BOTH	(3 << 28)
@@ -522,11 +527,5 @@
 #define NV_PVIDEO_GREEN_CSC_OFFSET	0x00680284
 #define NV_PVIDEO_BLUE_CSC_OFFSET	0x00680288
 #define NV_PVIDEO_CSC_ADJUST		0x0068028c
-
-/* These are the real registers, not the redirected ones */
-#define NV40_VCLK1_A			0x4010
-#define NV40_VCLK1_B			0x4014
-#define NV40_VCLK2_A			0x4018
-#define NV40_VCLK2_B			0x401c
 
 #endif

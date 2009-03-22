@@ -83,114 +83,57 @@ static void crtc_wr_cio_state(xf86CrtcPtr crtc, NVCrtcRegPtr crtcstate, int inde
 		       crtcstate->CRTC[index]);
 }
 
-/* Even though they are not yet used, i'm adding some notes about some of the 0x4000 regs */
-/* They are only valid for NV4x, appearantly reordered for NV5x */
-/* gpu pll: 0x4000 + 0x4004
- * unknown pll: 0x4008 + 0x400c
+void nv_crtc_set_digital_vibrance(xf86CrtcPtr crtc, int level)
+{
+	struct nouveau_crtc *nv_crtc = to_nouveau_crtc(crtc);
+	NVPtr pNv = NVPTR(crtc->scrn);
+	NVCrtcRegPtr regp = &pNv->ModeReg.crtc_reg[nv_crtc->head];
+
+	regp->CRTC[NV_CIO_CRE_CSB] = nv_crtc->saturation = level;
+	if (nv_crtc->saturation && pNv->NVArch >= 0x17 && pNv->NVArch != 0x20) {
+		regp->CRTC[NV_CIO_CRE_CSB] = 0x80;
+		regp->CRTC[NV_CIO_CRE_5B] = nv_crtc->saturation << 2;
+		crtc_wr_cio_state(crtc, regp, NV_CIO_CRE_5B);
+	}
+	crtc_wr_cio_state(crtc, regp, NV_CIO_CRE_CSB);
+}
+
+void nv_crtc_set_image_sharpening(xf86CrtcPtr crtc, int level)
+{
+	struct nouveau_crtc *nv_crtc = to_nouveau_crtc(crtc);
+	NVCrtcRegPtr regp = &NVPTR(crtc->scrn)->ModeReg.crtc_reg[nv_crtc->head];
+
+	nv_crtc->sharpness = level;
+	if (level < 0)	/* blur is in hw range 0x3f -> 0x20 */
+		level += 0x40;
+	regp->unk_634 = level;
+	NVCrtcWriteRAMDAC(crtc, NV_RAMDAC_634, regp->unk_634);
+}
+
+/* NV4x 0x40.. pll notes:
+ * gpu pll: 0x4000 + 0x4004
+ * ?gpu? pll: 0x4008 + 0x400c
  * vpll1: 0x4010 + 0x4014
  * vpll2: 0x4018 + 0x401c
- * unknown pll: 0x4020 + 0x4024
- * unknown pll: 0x4038 + 0x403c
- * Some of the unknown's are probably memory pll's.
- * The vpll's use two set's of multipliers and dividers. I refer to them as a and b.
- * 1 and 2 refer to the registers of each pair. There is only one post divider.
- * Logic: clock = reference_clock * ((n(a) * n(b))/(m(a) * m(b))) >> p
- * 1) bit 0-7: familiar values, but redirected from were? (similar to PLL_SETUP_CONTROL)
- *     bit8: A switch that turns of the second divider and multiplier off.
- *     bit12: Also a switch, i haven't seen it yet.
- *     bit16-19: p-divider
- *     but 28-31: Something related to the mode that is used (see bit8).
- * 2) bit0-7: m-divider (a)
- *     bit8-15: n-multiplier (a)
- *     bit16-23: m-divider (b)
- *     bit24-31: n-multiplier (b)
+ * mpll: 0x4020 + 0x4024
+ * mpll: 0x4038 + 0x403c
+ *
+ * the first register of each pair has some unknown details:
+ * bits 0-7: redirected values from elsewhere? (similar to PLL_SETUP_CONTROL?)
+ * bits 20-23: (mpll) something to do with post divider?
+ * bits 28-31: related to single stage mode? (bit 8/12)
  */
-
-/* Modifying the gpu pll for example requires:
- * - Disable value 0x333 (inverse AND mask) on the 0xc040 register.
- * This is not needed for the vpll's which have their own bits.
- */
-
-static void nv_crtc_save_state_pll(xf86CrtcPtr crtc, RIVA_HW_STATE *state)
-{
-	struct nouveau_crtc *nv_crtc = to_nouveau_crtc(crtc);
-	NVCrtcRegPtr regp = &state->crtc_reg[nv_crtc->head];
-	NVPtr pNv = NVPTR(crtc->scrn);
-
-	if (nv_crtc->head) {
-		regp->vpll_a = NVReadRAMDAC(pNv, 0, NV_RAMDAC_VPLL2);
-		if (pNv->two_reg_pll)
-			regp->vpll_b = NVReadRAMDAC(pNv, 0, NV_RAMDAC_VPLL2_B);
-	} else {
-		regp->vpll_a = NVReadRAMDAC(pNv, 0, NV_RAMDAC_VPLL);
-		if (pNv->two_reg_pll)
-			regp->vpll_b = NVReadRAMDAC(pNv, 0, NV_RAMDAC_VPLL_B);
-	}
-	if (pNv->twoHeads)
-		state->sel_clk = NVReadRAMDAC(pNv, 0, NV_RAMDAC_SEL_CLK);
-	state->pllsel = NVReadRAMDAC(pNv, 0, NV_RAMDAC_PLL_SELECT);
-	if (pNv->Architecture == NV_ARCH_40)
-		state->reg580 = NVReadRAMDAC(pNv, 0, NV_RAMDAC_580);
-}
-
-static void nv_crtc_load_state_pll(xf86CrtcPtr crtc, RIVA_HW_STATE *state)
-{
-	struct nouveau_crtc *nv_crtc = to_nouveau_crtc(crtc);
-	NVCrtcRegPtr regp = &state->crtc_reg[nv_crtc->head];
-	ScrnInfoPtr pScrn = crtc->scrn;
-	NVPtr pNv = NVPTR(pScrn);
-	uint32_t savedc040 = 0;
-
-	/* This sequence is important, the NV28 is very sensitive in this area. */
-	/* Keep pllsel last and sel_clk first. */
-	if (pNv->twoHeads)
-		NVWriteRAMDAC(pNv, 0, NV_RAMDAC_SEL_CLK, state->sel_clk);
-
-	if (pNv->Architecture == NV_ARCH_40) {
-		savedc040 = nvReadMC(pNv, 0xc040);
-
-		/* for vpll1 change bits 16 and 17 are disabled */
-		/* for vpll2 change bits 18 and 19 are disabled */
-		nvWriteMC(pNv, 0xc040, savedc040 & ~(3 << (16 + nv_crtc->head * 2)));
-	}
-
-	if (nv_crtc->head) {
-		NVWriteRAMDAC(pNv, 0, NV_RAMDAC_VPLL2, regp->vpll_a);
-		if (pNv->two_reg_pll)
-			NVWriteRAMDAC(pNv, 0, NV_RAMDAC_VPLL2_B, regp->vpll_b);
-	} else {
-		NVWriteRAMDAC(pNv, 0, NV_RAMDAC_VPLL, regp->vpll_a);
-		if (pNv->two_reg_pll)
-			NVWriteRAMDAC(pNv, 0, NV_RAMDAC_VPLL_B, regp->vpll_b);
-	}
-
-	if (pNv->Architecture == NV_ARCH_40) {
-		NVWriteRAMDAC(pNv, 0, NV_RAMDAC_580, state->reg580);
-
-		/* We need to wait a while */
-		usleep(5000);
-		nvWriteMC(pNv, 0xc040, savedc040);
-	}
-
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Writing NV_RAMDAC_PLL_SELECT %08X\n", state->pllsel);
-	NVWriteRAMDAC(pNv, 0, NV_RAMDAC_PLL_SELECT, state->pllsel);
-}
 
 static void nv_crtc_cursor_set(xf86CrtcPtr crtc)
 {
 	NVPtr pNv = NVPTR(crtc->scrn);
-	struct nouveau_crtc *nv_crtc = to_nouveau_crtc(crtc);
-	uint32_t cursor_start;
-	NVCrtcRegPtr regp = &pNv->ModeReg.crtc_reg[nv_crtc->head];
+	int head = to_nouveau_crtc(crtc)->head;
+	NVCrtcRegPtr regp = &pNv->ModeReg.crtc_reg[head];
+	uint32_t cursor_start = head ? pNv->Cursor2->offset :
+				       pNv->Cursor->offset;
 
-	if (pNv->Architecture == NV_ARCH_04)
-		cursor_start = 0x5E00 << 2;
-	else
-		cursor_start = nv_crtc->head ? pNv->Cursor2->offset : pNv->Cursor->offset;
-
-	regp->CRTC[NV_CIO_CRE_HCUR_ADDR0_INDEX] = cursor_start >> 17;
-	if (pNv->Architecture != NV_ARCH_04)
-		regp->CRTC[NV_CIO_CRE_HCUR_ADDR0_INDEX] |= NV_CIO_CRE_HCUR_ASI;
+	regp->CRTC[NV_CIO_CRE_HCUR_ADDR0_INDEX] = NV_CIO_CRE_HCUR_ASI |
+						  (cursor_start >> 17);
 	regp->CRTC[NV_CIO_CRE_HCUR_ADDR1_INDEX] = (cursor_start >> 11) << 2;
 	if (crtc->mode.Flags & V_DBLSCAN)
 		regp->CRTC[NV_CIO_CRE_HCUR_ADDR1_INDEX] |= NV_CIO_CRE_HCUR_ADDR1_CUR_DBL;
@@ -200,7 +143,7 @@ static void nv_crtc_cursor_set(xf86CrtcPtr crtc)
 	crtc_wr_cio_state(crtc, regp, NV_CIO_CRE_HCUR_ADDR1_INDEX);
 	crtc_wr_cio_state(crtc, regp, NV_CIO_CRE_HCUR_ADDR2_INDEX);
 	if (pNv->Architecture == NV_ARCH_40)
-		nv_fix_nv40_hw_cursor(pNv, nv_crtc->head);
+		nv_fix_nv40_hw_cursor(pNv, head);
 }
 
 static void nv_crtc_calc_state_ext(xf86CrtcPtr crtc, DisplayModePtr mode, int dot_clock)
@@ -210,16 +153,17 @@ static void nv_crtc_calc_state_ext(xf86CrtcPtr crtc, DisplayModePtr mode, int do
 	struct nouveau_crtc *nv_crtc = to_nouveau_crtc(crtc);
 	RIVA_HW_STATE *state = &pNv->ModeReg;
 	NVCrtcRegPtr regp = &state->crtc_reg[nv_crtc->head];
+	struct nouveau_pll_vals *pv = &regp->pllvals;
 	struct pll_lims pll_lim;
-	bool using_two_pll_stages = false;
-	/* nvidia uses 0x11f as bogus data when running in single stage mode */
-	int NM1 = 0xbeef, NM2 = 0x11f, log2P = 0, VClk = 0;
-	uint32_t g70_pll_special_bits = 0;
+	int vclk;
 	uint8_t arbitration0;
 	uint16_t arbitration1;
 
 	if (get_pll_limits(pScrn, nv_crtc->head ? VPLL2 : VPLL1, &pll_lim))
 		return;
+
+	/* NM2 == 0 is used to determine single stage mode on two stage plls */
+	pv->NM2 = 0;
 
 	/* for newer nv4x the blob uses only the first stage of the vpll below a
 	 * certain clock.  for a certain nv4b this is 150MHz.  since the max
@@ -231,54 +175,31 @@ static void nv_crtc_calc_state_ext(xf86CrtcPtr crtc, DisplayModePtr mode, int do
 	 * has yet been observed in allowing the use a single stage pll on all
 	 * nv43 however.  the behaviour of single stage use is untested on nv40
 	 */
-	if ((pNv->two_reg_pll || pNv->NVArch == 0x30 || pNv->NVArch == 0x35) &&
-	    (pNv->NVArch < 0x41 || dot_clock > (pll_lim.vco1.maxfreq / 2))) {
-		using_two_pll_stages = true;
-		VClk = getMNP_double(pScrn, &pll_lim, dot_clock, &NM1, &NM2, &log2P);
-	} else
-		VClk = getMNP_single(pScrn, &pll_lim, dot_clock, &NM1, &log2P);
+	if (pNv->NVArch > 0x40 && dot_clock <= (pll_lim.vco1.maxfreq / 2))
+		memset(&pll_lim.vco2, 0, sizeof(pll_lim.vco2));
 
-	/* magic bits set by the blob (but not the bios), purpose unknown */
-	if (pNv->NVArch == 0x46 || pNv->NVArch == 0x49 || pNv->NVArch == 0x4b)
-		g70_pll_special_bits = (using_two_pll_stages ? 0xc : 0x4);
-
-	if (pNv->NVArch == 0x30 || pNv->NVArch == 0x35)
-		/* See nvregisters.xml for details. */
-		regp->vpll_a = (NM2 & (0x18 << 8)) << 13 | (NM2 & (0x7 << 8)) << 11 | log2P << 16 | NV30_RAMDAC_ENABLE_VCO2 | (NM2 & 7) << 4 | NM1;
-	else
-		regp->vpll_a = g70_pll_special_bits << 28 | log2P << 16 | NM1;
-	regp->vpll_b = NV31_RAMDAC_ENABLE_VCO2 | NM2;
+	if (!(vclk = nouveau_bios_getmnp(pScrn, &pll_lim, dot_clock, pv)))
+		return;
 
 	/* The blob uses this always, so let's do the same */
 	if (pNv->Architecture == NV_ARCH_40)
 		state->pllsel |= NV_RAMDAC_PLL_SELECT_USE_VPLL2_TRUE;
-
 	/* again nv40 and some nv43 act more like nv3x as described above */
 	if (pNv->NVArch < 0x41)
 		state->pllsel |= NV_RAMDAC_PLL_SELECT_PLL_SOURCE_MPLL |
 				 NV_RAMDAC_PLL_SELECT_PLL_SOURCE_NVPLL;
-
 	state->pllsel |= (nv_crtc->head ? NV_RAMDAC_PLL_SELECT_PLL_SOURCE_VPLL2 |
 					  NV_RAMDAC_PLL_SELECT_VCLK2_RATIO_DB2 :
 					  NV_RAMDAC_PLL_SELECT_PLL_SOURCE_VPLL |
 					  NV_RAMDAC_PLL_SELECT_VCLK_RATIO_DB2);
 
-	if (pNv->NVArch >= 0x40) {
-		if (using_two_pll_stages)
-			state->reg580 &= (nv_crtc->head ? ~NV_RAMDAC_580_VPLL2_ACTIVE :
-							  ~NV_RAMDAC_580_VPLL1_ACTIVE);
-		else
-			state->reg580 |= (nv_crtc->head ? NV_RAMDAC_580_VPLL2_ACTIVE :
-							  NV_RAMDAC_580_VPLL1_ACTIVE);
-	}
-
-	if (using_two_pll_stages)
-		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "vpll: n1 %d n2 %d m1 %d m2 %d log2p %d\n", NM1 >> 8, NM2 >> 8, NM1 & 0xff, NM2 & 0xff, log2P);
+	if (pv->NM2)
+		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "vpll: n1 %d n2 %d m1 %d m2 %d log2p %d\n", pv->N1, pv->N2, pv->M1, pv->M2, pv->log2P);
 	else
-		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "vpll: n %d m %d log2p %d\n", NM1 >> 8, NM1 & 0xff, log2P);
+		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "vpll: n %d m %d log2p %d\n", pv->N1, pv->M1, pv->log2P);
 
 	if (pNv->Architecture < NV_ARCH_30)
-		nv4_10UpdateArbitrationSettings(pScrn, VClk, pScrn->bitsPerPixel, &arbitration0, &arbitration1);
+		nv4_10UpdateArbitrationSettings(pScrn, vclk, pScrn->bitsPerPixel, &arbitration0, &arbitration1);
 	else if ((pNv->Chipset & 0xfff0) == CHIPSET_C51 ||
 		 (pNv->Chipset & 0xfff0) == CHIPSET_C512) {
 		arbitration0 = 128;
@@ -313,6 +234,7 @@ nv_crtc_dpms(xf86CrtcPtr crtc, int mode)
 	if (pNv->twoHeads)
 		NVSetOwner(pNv, nv_crtc->head);
 
+	/* nv4ref indicates these two RPC1 bits inhibit h/v sync */
 	crtc1A = NVReadVgaCrtc(pNv, nv_crtc->head, NV_CIO_CRE_RPC1_INDEX) & ~0xC0;
 	switch(mode) {
 		case DPMSModeStandby:
@@ -513,7 +435,8 @@ nv_crtc_mode_set_vga(xf86CrtcPtr crtc, DisplayModePtr mode, DisplayModePtr adjus
 
 	/* framebuffer can be larger than crtc scanout area. */
 	regp->CRTC[NV_CIO_CRE_RPC0_INDEX] = ((pScrn->displayWidth / 8 * pScrn->bitsPerPixel / 8) & 0x700) >> 3;
-	regp->CRTC[NV_CIO_CRE_RPC1_INDEX] = mode->CrtcHDisplay < 1280 ? 0x04 : 0x00;
+	regp->CRTC[NV_CIO_CRE_RPC1_INDEX] = mode->CrtcHDisplay < 1280 ?
+					    NV_CIO_CRE_RPC1_LARGE : 0x00;
 	regp->CRTC[NV_CIO_CRE_LSR_INDEX] = SetBitField(horizBlankEnd,6:6,4:4)
 				| SetBitField(vertBlankStart,10:10,3:3)
 				| SetBitField(vertStart,10:10,2:2)
@@ -530,7 +453,7 @@ nv_crtc_mode_set_vga(xf86CrtcPtr crtc, DisplayModePtr mode, DisplayModePtr adjus
 				| SetBitField(vertStart,11:11,4:4)
 				| SetBitField(vertBlankStart,11:11,6:6);
 
-	if(mode->Flags & V_INTERLACE) {
+	if (mode->Flags & V_INTERLACE) {
 		horizTotal = (horizTotal >> 1) & ~1;
 		regp->CRTC[NV_CIO_CRE_ILACE__INDEX] = Set8Bits(horizTotal);
 		regp->CRTC[NV_CIO_CRE_HEB__INDEX] |= SetBitField(horizTotal,8:8,4:4);
@@ -631,18 +554,14 @@ nv_crtc_mode_set_regs(xf86CrtcPtr crtc, DisplayModePtr mode)
 			regp->head |= NV_CRTC_FSEL_OVERLAY;
 	}
 
-	/* This is not what nv does, but it is what the blob does (for nv4x at least) */
-	/* This fixes my cursor corruption issue */
-	regp->cursorConfig = 0x0;
-	if(mode->Flags & V_DBLSCAN)
+	/* ADDRESS_SPACE_PNVM is the same as setting HCUR_ASI */
+	regp->cursorConfig = NV_CRTC_CURSOR_CONFIG_64LINES |
+			     NV_CRTC_CURSOR_CONFIG_64PIXELS |
+			     NV_PCRTC_CURSOR_CONFIG_ADDRESS_SPACE_PNVM;
+	if (pNv->alphaCursor)
+		regp->cursorConfig |= NV_CRTC_CURSOR_CONFIG_32BPP;
+	if (mode->Flags & V_DBLSCAN)
 		regp->cursorConfig |= NV_CRTC_CURSOR_CONFIG_DOUBLE_SCAN;
-	if (pNv->alphaCursor) {
-		regp->cursorConfig |= NV_CRTC_CURSOR_CONFIG_32BPP |
-				      NV_CRTC_CURSOR_CONFIG_64PIXELS |
-				      NV_CRTC_CURSOR_CONFIG_64LINES |
-				      NV_CRTC_CURSOR_CONFIG_ALPHA_BLEND;
-	} else
-		regp->cursorConfig |= NV_CRTC_CURSOR_CONFIG_32LINES;
 
 	/* Unblock some timings */
 	regp->CRTC[NV_CIO_CRE_53] = 0;
@@ -660,26 +579,21 @@ nv_crtc_mode_set_regs(xf86CrtcPtr crtc, DisplayModePtr mode)
 	/* This register seems to be used by the bios to make certain decisions on some G70 cards? */
 	regp->CRTC[NV_CIO_CRE_SCRATCH4__INDEX] = savep->CRTC[NV_CIO_CRE_SCRATCH4__INDEX];
 
-	regp->CRTC[NV_CIO_CRE_CSB] = 0x80;
+	nv_crtc_set_digital_vibrance(crtc, nv_crtc->saturation);
 
-	/* What does this do?:
-	 * bit0: crtc0
-	 * bit6: lvds
-	 * bit7: (only in X)
+	/* probably a scratch reg, but kept for cargo-cult purposes:
+	 * bit0: crtc0?, head A
+	 * bit6: lvds, head A
+	 * bit7: (only in X), head A
 	 */
 	if (nv_crtc->head == 0)
-		regp->CRTC[NV_CIO_CRE_4B] = 0x81;
-	else 
-		regp->CRTC[NV_CIO_CRE_4B] = 0x80;
-
-	if (lvds_output)
-		regp->CRTC[NV_CIO_CRE_4B] |= 0x40;
+		regp->CRTC[NV_CIO_CRE_4B] = savep->CRTC[NV_CIO_CRE_4B] | 0x80;
 
 	/* The blob seems to take the current value from crtc 0, add 4 to that
 	 * and reuse the old value for crtc 1 */
-	regp->CRTC[NV_CIO_CRE_52] = pNv->SavedReg.crtc_reg[0].CRTC[NV_CIO_CRE_52];
+	regp->CRTC[NV_CIO_CRE_TVOUT_LATENCY] = pNv->SavedReg.crtc_reg[0].CRTC[NV_CIO_CRE_TVOUT_LATENCY];
 	if (!nv_crtc->head)
-		regp->CRTC[NV_CIO_CRE_52] += 4;
+		regp->CRTC[NV_CIO_CRE_TVOUT_LATENCY] += 4;
 
 	regp->unk830 = mode->CrtcVDisplay - 3;
 	regp->unk834 = mode->CrtcVDisplay - 1;
@@ -687,9 +601,6 @@ nv_crtc_mode_set_regs(xf86CrtcPtr crtc, DisplayModePtr mode)
 	if (pNv->twoHeads)
 		/* This is what the blob does */
 		regp->unk850 = NVReadCRTC(pNv, 0, NV_CRTC_0850);
-
-	/* Never ever modify gpio, unless you know very well what you're doing */
-	regp->gpio = NVReadCRTC(pNv, 0, NV_CRTC_GPIO);
 
 	if (pNv->twoHeads)
 		regp->gpio_ext = NVReadCRTC(pNv, 0, NV_CRTC_GPIO_EXT);
@@ -703,7 +614,7 @@ nv_crtc_mode_set_regs(xf86CrtcPtr crtc, DisplayModePtr mode)
 	}
 
 	regp->CRTC[NV_CIO_CRE_PIXEL_INDEX] = (pScrn->depth + 1) / 8;
-	/* Enable slaved mode */
+	/* Enable slaved mode (called MODE_TV in nv4ref.h) */
 	if (lvds_output || tmds_output)
 		regp->CRTC[NV_CIO_CRE_PIXEL_INDEX] |= (1 << 7);
 
@@ -729,6 +640,8 @@ nv_crtc_mode_set_regs(xf86CrtcPtr crtc, DisplayModePtr mode)
 
 	regp->unk_630 = 0; /* turn off green mode (tv test pattern?) */
 
+	nv_crtc_set_image_sharpening(crtc, nv_crtc->sharpness);
+
 	/* Some values the blob sets */
 	regp->unk_a20 = 0x0;
 	regp->unk_a24 = 0xfffff;
@@ -746,32 +659,28 @@ nv_crtc_mode_set_fp_regs(xf86CrtcPtr crtc, DisplayModePtr mode, DisplayModePtr a
 	NVCrtcRegPtr savep = &pNv->SavedReg.crtc_reg[nv_crtc->head];
 	struct nouveau_encoder *nv_encoder = NULL;
 	xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
-	bool is_fp = false;
-	bool is_lvds = false;
 	uint32_t mode_ratio, panel_ratio;
 	int i;
 
 	for (i = 0; i < xf86_config->num_output; i++) {
-		xf86OutputPtr output = xf86_config->output[i];
 		/* assuming one fp output per crtc seems ok */
-		nv_encoder = to_nouveau_encoder(output);
+		nv_encoder = to_nouveau_encoder(xf86_config->output[i]);
+		if (xf86_config->output[i]->crtc != crtc)
+			continue;
 
-		if (output->crtc == crtc && nv_encoder->dcb->type == OUTPUT_LVDS)
-			is_lvds = true;
-		if (is_lvds || (output->crtc == crtc && nv_encoder->dcb->type == OUTPUT_TMDS)) {
-			is_fp = true;
+		if (nv_encoder->dcb->type == OUTPUT_LVDS ||
+		    nv_encoder->dcb->type == OUTPUT_TMDS)
 			break;
-		}
 	}
-	if (!is_fp)
+	if (i == xf86_config->num_output)
 		return;
 
 	regp->fp_horiz_regs[REG_DISP_END] = adjusted_mode->HDisplay - 1;
 	regp->fp_horiz_regs[REG_DISP_TOTAL] = adjusted_mode->HTotal - 1;
-	if ((adjusted_mode->HSyncStart - adjusted_mode->HDisplay) >= pNv->VBIOS.digital_min_front_porch)
+	if ((adjusted_mode->HSyncStart - adjusted_mode->HDisplay) >= pNv->vbios->digital_min_front_porch)
 		regp->fp_horiz_regs[REG_DISP_CRTC] = adjusted_mode->HDisplay;
 	else
-		regp->fp_horiz_regs[REG_DISP_CRTC] = adjusted_mode->HSyncStart - pNv->VBIOS.digital_min_front_porch - 1;
+		regp->fp_horiz_regs[REG_DISP_CRTC] = adjusted_mode->HSyncStart - pNv->vbios->digital_min_front_porch - 1;
 	regp->fp_horiz_regs[REG_DISP_SYNC_START] = adjusted_mode->HSyncStart - 1;
 	regp->fp_horiz_regs[REG_DISP_SYNC_END] = adjusted_mode->HSyncEnd - 1;
 	regp->fp_horiz_regs[REG_DISP_VALID_START] = adjusted_mode->HSkew;
@@ -793,7 +702,7 @@ nv_crtc_mode_set_fp_regs(xf86CrtcPtr crtc, DisplayModePtr mode, DisplayModePtr a
 	* bit24: 12/24 bit interface (12bit=on, 24bit=off)
 	* bit26: a bit sometimes seen on some g70 cards
 	* bit28: fp display enable bit
-	* bit31: set for dual link LVDS
+	* bit31: set for dual link
 	*/
 
 	regp->fp_control = (savep->fp_control & 0x04100000) |
@@ -806,10 +715,10 @@ nv_crtc_mode_set_fp_regs(xf86CrtcPtr crtc, DisplayModePtr mode, DisplayModePtr a
 	if (adjusted_mode->Flags & V_PHSYNC)
 		regp->fp_control |= NV_RAMDAC_FP_CONTROL_HSYNC_POS;
 
+	/* panel scaling first, as native would get set otherwise */
 	if (nv_encoder->scaling_mode == SCALE_PANEL ||
-	    nv_encoder->scaling_mode == SCALE_NOSCALE) /* panel needs to scale */
+	    nv_encoder->scaling_mode == SCALE_NOSCALE)	/* panel handles it */
 		regp->fp_control |= NV_RAMDAC_FP_CONTROL_MODE_CENTER;
-	/* This is also true for panel scaling, so we must put the panel scale check first */
 	else if (mode->HDisplay == adjusted_mode->HDisplay &&
 		 mode->VDisplay == adjusted_mode->VDisplay) /* native mode */
 		regp->fp_control |= NV_RAMDAC_FP_CONTROL_MODE_NATIVE;
@@ -819,7 +728,7 @@ nv_crtc_mode_set_fp_regs(xf86CrtcPtr crtc, DisplayModePtr mode, DisplayModePtr a
 	if (nvReadEXTDEV(pNv, NV_PEXTDEV_BOOT_0) & NV_PEXTDEV_BOOT_0_STRAP_FP_IFACE_12BIT)
 		regp->fp_control |= NV_RAMDAC_FP_CONTROL_WIDTH_12;
 
-	if (is_lvds && pNv->VBIOS.fp.dual_link)
+	if (nv_encoder->dual_link)
 		regp->fp_control |= (8 << 28);
 
 	/* Use the generic value, and enable x-scaling, y-scaling, and the TMDS enable bit */
@@ -933,7 +842,6 @@ nv_crtc_mode_set(xf86CrtcPtr crtc, DisplayModePtr mode,
 	nv_crtc_load_state_ext(crtc, &pNv->ModeReg);
 	nv_crtc_load_state_palette(crtc, &pNv->ModeReg);
 	nv_crtc_load_state_vga(crtc, &pNv->ModeReg);
-	nv_crtc_load_state_pll(crtc, &pNv->ModeReg);
 
 	NVVgaProtect(pNv, nv_crtc->head, false);
 
@@ -961,10 +869,8 @@ static void nv_crtc_save(xf86CrtcPtr crtc)
 	nv_crtc_save_state_vga(crtc, &pNv->SavedReg);
 	nv_crtc_save_state_palette(crtc, &pNv->SavedReg);
 	nv_crtc_save_state_ext(crtc, &pNv->SavedReg);
-	nv_crtc_save_state_pll(crtc, &pNv->SavedReg);
 
 	/* init some state to saved value */
-	pNv->ModeReg.reg580 = pNv->SavedReg.reg580;
 	pNv->ModeReg.sel_clk = pNv->SavedReg.sel_clk & ~(0x5 << 16);
 	pNv->ModeReg.crtc_reg[nv_crtc->head].CRTC[NV_CIO_CRE_LCD__INDEX] = pNv->SavedReg.crtc_reg[nv_crtc->head].CRTC[NV_CIO_CRE_LCD__INDEX];
 }
@@ -982,7 +888,6 @@ static void nv_crtc_restore(xf86CrtcPtr crtc)
 	nv_crtc_load_state_ext(crtc, &pNv->SavedReg);
 	nv_crtc_load_state_palette(crtc, &pNv->SavedReg);
 	nv_crtc_load_state_vga(crtc, &pNv->SavedReg);
-	nv_crtc_load_state_pll(crtc, &pNv->SavedReg);
 	NVVgaProtect(pNv, nv_crtc->head, false);
 
 	nv_crtc->last_dpms = NV_DPMS_CLEARED;
@@ -1254,10 +1159,11 @@ static const xf86CrtcFuncsRec nv_crtc_funcs = {
 	.destroy = nv_crtc_destroy,
 	.lock = nv_crtc_lock,
 	.unlock = nv_crtc_unlock,
-	.set_cursor_colors = NULL, /* Alpha cursors do not need this */
+	.set_cursor_colors = nv_crtc_set_cursor_colors,
 	.set_cursor_position = nv_crtc_set_cursor_position,
 	.show_cursor = nv_crtc_show_cursor,
 	.hide_cursor = nv_crtc_hide_cursor,
+	.load_cursor_image = nv_crtc_load_cursor_image,
 	.load_cursor_argb = nv_crtc_load_cursor_argb,
 	.gamma_set = nv_crtc_gamma_set,
 	.shadow_create = nv_crtc_shadow_create,
@@ -1280,12 +1186,8 @@ nv_crtc_init(ScrnInfoPtr pScrn, int crtc_num)
 
 	crtcfuncs = nv_crtc_funcs;
 
-	/* NV04-NV10 doesn't support alpha cursors */
-	if (pNv->NVArch < 0x11) {
-		crtcfuncs.set_cursor_colors = nv_crtc_set_cursor_colors;
-		crtcfuncs.load_cursor_image = nv_crtc_load_cursor_image;
+	if (!pNv->alphaCursor)
 		crtcfuncs.load_cursor_argb = NULL;
-	}
 	if (pNv->NoAccel) {
 		crtcfuncs.shadow_create = NULL;
 		crtcfuncs.shadow_allocate = NULL;
@@ -1386,7 +1288,6 @@ static void nv_crtc_load_state_ext(xf86CrtcPtr crtc, RIVA_HW_STATE *state)
 	}
 
 	NVCrtcWriteCRTC(crtc, NV_CRTC_CONFIG, regp->config);
-	NVCrtcWriteCRTC(crtc, NV_CRTC_GPIO, regp->gpio);
 
 	crtc_wr_cio_state(crtc, regp, NV_CIO_CRE_RPC0_INDEX);
 	crtc_wr_cio_state(crtc, regp, NV_CIO_CRE_RPC1_INDEX);
@@ -1413,7 +1314,7 @@ static void nv_crtc_load_state_ext(xf86CrtcPtr crtc, RIVA_HW_STATE *state)
 		crtc_wr_cio_state(crtc, regp, NV_CIO_CRE_EBR_INDEX);
 		crtc_wr_cio_state(crtc, regp, NV_CIO_CRE_CSB);
 		crtc_wr_cio_state(crtc, regp, NV_CIO_CRE_4B);
-		crtc_wr_cio_state(crtc, regp, NV_CIO_CRE_52);
+		crtc_wr_cio_state(crtc, regp, NV_CIO_CRE_TVOUT_LATENCY);
 	}
 	/* NV11 and NV20 stop at 0x52. */
 	if (pNv->NVArch >= 0x17 && pNv->twoHeads) {
@@ -1423,6 +1324,7 @@ static void nv_crtc_load_state_ext(xf86CrtcPtr crtc, RIVA_HW_STATE *state)
 		for (i = 0; i < 0x10; i++)
 			NVWriteVgaCrtc5758(pNv, nv_crtc->head, i, regp->CR58[i]);
 		crtc_wr_cio_state(crtc, regp, NV_CIO_CRE_59);
+		crtc_wr_cio_state(crtc, regp, NV_CIO_CRE_5B);
 
 		crtc_wr_cio_state(crtc, regp, NV_CIO_CRE_85);
 		crtc_wr_cio_state(crtc, regp, NV_CIO_CRE_86);
@@ -1500,7 +1402,6 @@ static void nv_crtc_save_state_ext(xf86CrtcPtr crtc, RIVA_HW_STATE *state)
 		regp->cursorConfig = NVCrtcReadCRTC(crtc, NV_CRTC_CURSOR_CONFIG);
 	}
 
-	regp->gpio = NVCrtcReadCRTC(crtc, NV_CRTC_GPIO);
 	regp->config = NVCrtcReadCRTC(crtc, NV_CRTC_CONFIG);
 
 	crtc_rd_cio_state(crtc, regp, NV_CIO_CRE_SCRATCH3__INDEX);
@@ -1509,16 +1410,17 @@ static void nv_crtc_save_state_ext(xf86CrtcPtr crtc, RIVA_HW_STATE *state)
 		crtc_rd_cio_state(crtc, regp, NV_CIO_CRE_EBR_INDEX);
 		crtc_rd_cio_state(crtc, regp, NV_CIO_CRE_CSB);
 		crtc_rd_cio_state(crtc, regp, NV_CIO_CRE_4B);
-		crtc_rd_cio_state(crtc, regp, NV_CIO_CRE_52);
+		crtc_rd_cio_state(crtc, regp, NV_CIO_CRE_TVOUT_LATENCY);
 	}
 	/* NV11 and NV20 don't have this, they stop at 0x52. */
 	if (pNv->NVArch >= 0x17 && pNv->twoHeads) {
-		for (i = 0; i < 0x10; i++)
-			regp->CR58[i] = NVReadVgaCrtc5758(pNv, nv_crtc->head, i);
-
-		crtc_rd_cio_state(crtc, regp, NV_CIO_CRE_59);
 		crtc_rd_cio_state(crtc, regp, NV_CIO_CRE_53);
 		crtc_rd_cio_state(crtc, regp, NV_CIO_CRE_54);
+
+		for (i = 0; i < 0x10; i++)
+			regp->CR58[i] = NVReadVgaCrtc5758(pNv, nv_crtc->head, i);
+		crtc_rd_cio_state(crtc, regp, NV_CIO_CRE_59);
+		crtc_rd_cio_state(crtc, regp, NV_CIO_CRE_5B);
 
 		crtc_rd_cio_state(crtc, regp, NV_CIO_CRE_85);
 		crtc_rd_cio_state(crtc, regp, NV_CIO_CRE_86);
@@ -1532,16 +1434,22 @@ static void nv_crtc_save_state_ramdac(xf86CrtcPtr crtc, RIVA_HW_STATE *state)
 	ScrnInfoPtr pScrn = crtc->scrn;
 	NVPtr pNv = NVPTR(pScrn);    
 	struct nouveau_crtc *nv_crtc = to_nouveau_crtc(crtc);
-	NVCrtcRegPtr regp;
+	NVCrtcRegPtr regp = &state->crtc_reg[nv_crtc->head];
+	enum pll_types plltype = nv_crtc->head ? VPLL2 : VPLL1;
 	int i;
 
-	regp = &state->crtc_reg[nv_crtc->head];
+	nouveau_hw_get_pllvals(crtc->scrn, plltype, &regp->pllvals);
+	if (pNv->twoHeads)
+		state->sel_clk = NVReadRAMDAC(pNv, 0, NV_RAMDAC_SEL_CLK);
+	state->pllsel = NVReadRAMDAC(pNv, 0, NV_RAMDAC_PLL_SELECT);
 
 	regp->general = NVCrtcReadRAMDAC(crtc, NV_RAMDAC_GENERAL_CONTROL);
 
 	if (pNv->twoHeads) {
 		if (pNv->NVArch >= 0x17)
 			regp->unk_630 = NVCrtcReadRAMDAC(crtc, NV_RAMDAC_630);
+		if (pNv->NVArch >= 0x30)
+			regp->unk_634 = NVCrtcReadRAMDAC(crtc, NV_RAMDAC_634);
 		regp->fp_control	= NVCrtcReadRAMDAC(crtc, NV_RAMDAC_FP_CONTROL);
 		regp->debug_0	= NVCrtcReadRAMDAC(crtc, NV_RAMDAC_FP_DEBUG_0);
 		regp->debug_1	= NVCrtcReadRAMDAC(crtc, NV_RAMDAC_FP_DEBUG_1);
@@ -1582,16 +1490,24 @@ static void nv_crtc_load_state_ramdac(xf86CrtcPtr crtc, RIVA_HW_STATE *state)
 	ScrnInfoPtr pScrn = crtc->scrn;
 	NVPtr pNv = NVPTR(pScrn);    
 	struct nouveau_crtc *nv_crtc = to_nouveau_crtc(crtc);
-	NVCrtcRegPtr regp;
+	NVCrtcRegPtr regp = &state->crtc_reg[nv_crtc->head];
+	uint32_t pllreg = nv_crtc->head ? NV_RAMDAC_VPLL2 : NV_RAMDAC_VPLL;
 	int i;
 
-	regp = &state->crtc_reg[nv_crtc->head];
+	/* This sequence is important, the NV28 is very sensitive in this area. */
+	/* Keep pllsel last and sel_clk first. */
+	if (pNv->twoHeads)
+		NVWriteRAMDAC(pNv, 0, NV_RAMDAC_SEL_CLK, state->sel_clk);
+	nouveau_bios_setpll(pScrn, pllreg, &regp->pllvals);
+	NVWriteRAMDAC(pNv, 0, NV_RAMDAC_PLL_SELECT, state->pllsel);
 
 	NVCrtcWriteRAMDAC(crtc, NV_RAMDAC_GENERAL_CONTROL, regp->general);
 
 	if (pNv->twoHeads) {
 		if (pNv->NVArch >= 0x17)
 			NVCrtcWriteRAMDAC(crtc, NV_RAMDAC_630, regp->unk_630);
+		if (pNv->NVArch >= 0x30)
+			NVCrtcWriteRAMDAC(crtc, NV_RAMDAC_634, regp->unk_634);
 		NVCrtcWriteRAMDAC(crtc, NV_RAMDAC_FP_CONTROL, regp->fp_control);
 		NVCrtcWriteRAMDAC(crtc, NV_RAMDAC_FP_DEBUG_0, regp->debug_0);
 		NVCrtcWriteRAMDAC(crtc, NV_RAMDAC_FP_DEBUG_1, regp->debug_1);

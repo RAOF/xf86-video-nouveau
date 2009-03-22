@@ -31,7 +31,7 @@
 #define LOC_ON_CHIP 0
 
 struct dcb_entry {
-	int index;
+	int index;	/* may not be raw dcb index if merging has happened */
 	uint8_t type;
 	uint8_t i2c_index;
 	uint8_t heads;
@@ -40,6 +40,9 @@ struct dcb_entry {
 	uint8_t or;
 	bool duallink_possible;
 	union {
+		struct {
+			int maxfreq;
+		} crtconf;
 		struct {
 			bool use_straps_for_mode;
 			bool use_power_scripts;
@@ -52,6 +55,22 @@ struct dcb_i2c_entry {
 	uint8_t port_type;
 	uint8_t read, write;
 	I2CBusPtr chan;
+};
+
+struct parsed_dcb {
+	int entries;
+	struct dcb_entry entry[MAX_NUM_DCB_ENTRIES];
+	struct dcb_i2c_entry i2c[MAX_NUM_DCB_ENTRIES];
+};
+
+struct bios_parsed_dcb {
+	uint8_t version;
+
+	struct parsed_dcb dcb;
+
+	uint16_t init8e_table_ptr;
+	uint8_t *i2c_table;
+	uint8_t i2c_default_indices;
 };
 
 enum nouveau_encoder_type
@@ -103,23 +122,31 @@ struct pll_lims {
 		uint8_t max_n;
 	} vco1, vco2;
 
-	uint8_t unk1c;
 	uint8_t max_log2p_bias;
 	uint8_t log2p_bias;
 	int refclk;
 };
 
-struct nouveau_bios {
+struct nouveau_bios_info {
+	struct parsed_dcb *dcb;
+
+	uint32_t dactestval;
+	uint8_t digital_min_front_porch;
+	bool fp_ddc_permitted;
+};
+
+struct nvbios {
+	struct nouveau_bios_info pub;
+
 	uint8_t data[NV_PROM_SIZE];
 	unsigned int length;
 	bool execute;
 
 	uint8_t major_version, chip_version;
 	uint8_t feature_byte;
+	bool is_mobile;
 
 	uint32_t fmaxvco, fminvco;
-
-	uint32_t dactestval;
 
 	bool old_style_init;
 	uint16_t init_script_tbls_ptr;
@@ -134,27 +161,27 @@ struct nouveau_bios {
 	uint16_t pll_limit_tbl_ptr;
 	uint16_t ram_restrict_tbl_ptr;
 
-	uint8_t digital_min_front_porch;
+	struct bios_parsed_dcb bdcb;
 
 	struct {
-		DisplayModePtr native_mode;
-		uint8_t *edid;
 		uint16_t fptablepointer;	/* also used by tmds */
 		uint16_t fpxlatetableptr;
 		int xlatwidth;
 		uint16_t lvdsmanufacturerpointer;
 		uint16_t fpxlatemanufacturertableptr;
+		uint16_t mode_ptr;
 		uint16_t xlated_entry;
 		bool power_off_for_reset;
 		bool reset_after_pclk_change;
 		bool dual_link;
 		bool link_c_increment;
-		bool if_is_24bit;
 		bool BITbit1;
 		int duallink_transition_clk;
-		/* lower nibble stores PEXTDEV_BOOT_0 strap
-		 * upper nibble stores xlated display strap */
-		uint8_t strapping;
+		uint8_t *edid;
+
+		/* will need resetting after suspend */
+		int last_script_invoc;
+		bool lvds_init_run;
 	} fp;
 
 	struct {

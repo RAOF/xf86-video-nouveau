@@ -1,5 +1,6 @@
 #!/usr/bin/make -f
 
+include /usr/share/quilt/quilt.make
 -include debian/xsfbs/xsfbs.mk
 
 CFLAGS = -Wall -g
@@ -34,18 +35,18 @@ get-orig-source:
 	tar czf $$PREFIX.orig.tar.gz --exclude=autom4te.cache xf86-video-nouveau && \
 	rm -rf xf86-video-nouveau
 
-build: build-stamp
+build: patch build-stamp
 build-stamp:
 	dh_testdir
 	test -d obj-$(DEB_BUILD_GNU_TYPE) || mkdir obj-$(DEB_BUILD_GNU_TYPE)
 	cd obj-$(DEB_BUILD_GNU_TYPE) && \
 	../configure --prefix=/usr --mandir=\$${prefix}/share/man \
 	             --infodir=\$${prefix}/share/info $(confflags) \
-	             CFLAGS="$(CFLAGS)"
+	             CFLAGS="$(CFLAGS)" --with-kms=no
 	cd obj-$(DEB_BUILD_GNU_TYPE) && $(MAKE)
 	touch $@
 
-clean:
+clean: unpatch
 	dh_testdir
 	dh_testroot
 	rm -f build-stamp

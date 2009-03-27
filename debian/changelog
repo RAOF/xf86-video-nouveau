@@ -164,6 +164,10 @@ xserver-xorg-video-nouveau (1:0.0.10~git+20090327+f1907dc-0ubuntu1) jaunty; urge
   * debian/patches/01_include_snapshot_date
     + Generate snapshot-date in get-orig-source, and use it rather than
       git log to define NV_DRIVER_DATE
+  * debian/control
+    + Remove reference to drm-modules-source package from long description.
+      Ubuntu ships a DKMS-ified nouveau-kernel-source package, which makes
+      this unnecessary.
 
  -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 27 Mar 2009 20:41:22 +1100
 

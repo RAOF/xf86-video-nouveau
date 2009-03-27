@@ -27,6 +27,3 @@ Description: X.Org X server -- Nouveau display driver (experimental)
  use the non-free "nvidia" driver.
  .
  This package is built from the FreeDesktop.org xf86-video-nouveau driver.
- .
- Users wishing to install these drivers should first use module-assistant to
- build the drm kernel modules (via ``module-assistant auto-install drm'').

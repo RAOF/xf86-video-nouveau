@@ -80,6 +80,9 @@
 #define SetBit(n) (1<<(n))
 #define Set8Bits(value) ((value)&0xff)
 
+#define MASK(field) ((0xffffffff >> (31 - ((1?field) - (0?field)))) << (0?field))
+#define XLATE(src, srclowbit, outfield) ((((src) >> (srclowbit)) << (0?outfield)) & MASK(outfield))
+
 /* NV50 */
 typedef enum Head {
 	HEAD0 = 0,
@@ -131,32 +134,34 @@ typedef struct _nv_crtc_reg
 	uint8_t Graphics[9];
 	uint8_t Attribute[21];
 	unsigned char DAC[768];       /* Internal Colorlookuptable */
-	uint32_t cursorConfig;
-	uint32_t gpio_ext;
-	uint32_t unk830;
-	uint32_t unk834;
-	uint32_t unk850;
-	uint32_t head;
-	uint32_t config;
-	uint32_t fb_start;
 
-	/* These are former output regs, but are believed to be crtc related */
-	uint32_t general;
-	uint32_t unk_630;
-	uint32_t unk_634;
-	uint32_t debug_0;
-	uint32_t debug_1;
-	uint32_t debug_2;
-	uint32_t unk_a20;
-	uint32_t unk_a24;
-	uint32_t unk_a34;
-	uint32_t dither_regs[6];
+	/* PCRTC regs */
+	uint32_t fb_start;
+	uint32_t crtc_cfg;
+	uint32_t cursor_cfg;
+	uint32_t gpio_ext;
+	uint32_t crtc_830;
+	uint32_t crtc_834;
+	uint32_t crtc_850;
+	uint32_t crtc_eng_ctrl;
+
+	/* PRAMDAC regs */
+	uint32_t nv10_cursync;
+	struct nouveau_pll_vals pllvals;
+	uint32_t ramdac_gen_ctrl;
+	uint32_t ramdac_630;
+	uint32_t ramdac_634;
 	uint32_t fp_horiz_regs[7];
 	uint32_t fp_vert_regs[7];
-	uint32_t nv10_cursync;
-	uint32_t fp_control;
 	uint32_t dither;
-	struct nouveau_pll_vals pllvals;
+	uint32_t fp_control;
+	uint32_t dither_regs[6];
+	uint32_t fp_debug_0;
+	uint32_t fp_debug_1;
+	uint32_t fp_debug_2;
+	uint32_t ramdac_a20;
+	uint32_t ramdac_a24;
+	uint32_t ramdac_a34;
 } NVCrtcRegRec, *NVCrtcRegPtr;
 
 typedef struct _nv_output_reg
@@ -346,7 +351,7 @@ typedef struct _NVRec {
 	Bool randr12_enable;
 	Bool kms_enable;
 
-	I2CBusPtr           pI2CBus[MAX_NUM_DCB_ENTRIES];
+	I2CBusPtr           pI2CBus[DCB_MAX_NUM_I2C_ENTRIES];
 	struct nouveau_encoder *encoders;
 
 #ifdef XF86DRM_MODE
@@ -357,7 +362,7 @@ typedef struct _NVRec {
 	nouveauCrtcPtr crtc[2];
 	nouveauOutputPtr output; /* this a linked list. */
 	/* Assume a connector can exist for each i2c bus. */
-	nouveauConnectorPtr connector[MAX_NUM_DCB_ENTRIES];
+	nouveauConnectorPtr connector[DCB_MAX_NUM_I2C_ENTRIES];
 
 	struct {
 		ORNum dac;

@@ -44,6 +44,7 @@ static Bool    NVEnterVT(int scrnIndex, int flags);
 static void    NVLeaveVT(int scrnIndex, int flags);
 static Bool    NVCloseScreen(int scrnIndex, ScreenPtr pScreen);
 static Bool    NVSaveScreen(ScreenPtr pScreen, int mode);
+static void    NVCloseDRM(ScrnInfoPtr);
 
 /* Optional functions */
 static Bool    NVSwitchMode(int scrnIndex, DisplayModePtr mode, int flags);
@@ -595,6 +596,9 @@ NVAdjustFrame(int scrnIndex, int x, int y, int flags)
 	ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
 	NVPtr pNv = NVPTR(pScrn);
 
+	if (pNv->kms_enable) {
+		drmmode_adjust_frame(pScrn, x, y, flags);
+	} else
 	if (pNv->randr12_enable) {
 		xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(pScrn);
 		xf86CrtcPtr crtc = config->output[config->compat_output]->crtc;
@@ -715,12 +719,10 @@ NVLeaveVT(int scrnIndex, int flags)
 	NVSync(pScrn);
 
 	if (!pNv->kms_enable) {
-		if (pNv->Architecture == NV_ARCH_50) {
+		if (pNv->Architecture < NV_ARCH_50)
+			NVRestore(pScrn);
+		else
 			NV50ReleaseDisplay(pScrn);
-			return;
-		}
-
-		NVRestore(pScrn);
 	}
 }
 
@@ -763,19 +765,8 @@ NVCloseScreen(int scrnIndex, ScreenPtr pScreen)
 	NVPtr pNv = NVPTR(pScrn);
 
 	if (pScrn->vtSema) {
-#ifdef XF86DRM_MODE
-		if (pNv->kms_enable) {
-			NVSync(pScrn);
-		} else
-#endif
-		if (pNv->Architecture == NV_ARCH_50) {
-			NV50ReleaseDisplay(pScrn);
-		} else {
-			if (pNv->randr12_enable)
-				xf86DrvMsg(pScrn->scrnIndex, X_INFO, "NVCloseScreen is called.\n");
-			NVSync(pScrn);
-			NVRestore(pScrn);
-		}
+		NVLeaveVT(scrnIndex, 0);
+		pScrn->vtSema = FALSE;
 	}
 
 	NVAccelFree(pScrn);
@@ -791,6 +782,8 @@ NVCloseScreen(int scrnIndex, ScreenPtr pScreen)
 	else
 		nouveau_dri2_fini(pScreen);
 #endif
+
+	NVCloseDRM(pScrn);
 
 	if (pNv->randr12_enable)
 		xf86_cursors_fini(pScreen);
@@ -908,6 +901,14 @@ static const xf86CrtcConfigFuncsRec nv_xf86crtc_config_funcs = {
 	return FALSE;                                                       \
 } while(0)
 
+static void
+NVCloseDRM(ScrnInfoPtr pScrn)
+{
+	NVPtr pNv = NVPTR(pScrn);
+
+	nouveau_device_close(&pNv->dev);
+}
+
 static Bool
 NVPreInitDRM(ScrnInfoPtr pScrn)
 {
@@ -948,7 +949,7 @@ NVPreInitDRM(ScrnInfoPtr pScrn)
 	}
 
 	/* Initialise libdrm_nouveau */
-	ret = nouveau_device_open_existing(&pNv->dev, 0, DRIMasterFD(pScrn), 0);
+	ret = nouveau_device_open_existing(&pNv->dev, 1, DRIMasterFD(pScrn), 0);
 	if (ret) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "[drm] error creating device, setting NoAccel\n");
@@ -1936,13 +1937,13 @@ static void NVBacklightEnable(NVPtr pNv,  Bool on)
        /* NV17,18,34 Apple iMac, iBook, PowerBook */
       CARD32 tmp_pmc, tmp_pcrt;
       tmp_pmc = nvReadMC(pNv, NV_PBUS_DEBUG_DUALHEAD_CTL) & 0x7FFFFFFF;
-      tmp_pcrt = NVReadCRTC(pNv, 0, NV_CRTC_GPIO_EXT) & 0xFFFFFFFC;
+      tmp_pcrt = NVReadCRTC(pNv, 0, NV_PCRTC_GPIO_EXT) & 0xFFFFFFFC;
       if(on) {
           tmp_pmc |= (1 << 31);
           tmp_pcrt |= 0x1;
       }
       nvWriteMC(pNv, NV_PBUS_DEBUG_DUALHEAD_CTL, tmp_pmc);
-      NVWriteCRTC(pNv, 0, NV_CRTC_GPIO_EXT, tmp_pcrt);
+      NVWriteCRTC(pNv, 0, NV_PCRTC_GPIO_EXT, tmp_pcrt);
     }
 #endif
     
@@ -1953,13 +1954,13 @@ static void NVBacklightEnable(NVPtr pNv,  Bool on)
     } else {
        CARD32 fpcontrol;
 
-       fpcontrol = nvReadCurRAMDAC(pNv, NV_RAMDAC_FP_CONTROL) & 0xCfffffCC;
+       fpcontrol = nvReadCurRAMDAC(pNv, NV_PRAMDAC_FP_TG_CONTROL) & 0xCfffffCC;
 
        /* cut the TMDS output */
        if(on) fpcontrol |= pNv->fpSyncs;
        else fpcontrol |= 0x20000022;
 
-       nvWriteCurRAMDAC(pNv, NV_RAMDAC_FP_CONTROL, fpcontrol);
+       nvWriteCurRAMDAC(pNv, NV_PRAMDAC_FP_TG_CONTROL, fpcontrol);
     }
 }
 
@@ -2171,7 +2172,11 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	xf86SetSilkenMouse(pScreen);
 
 	/* Finish DRI init */
-	NVDRIFinishScreenInit(pScrn);
+	if (!NVDRIFinishScreenInit(pScrn)) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			   "[dri] NVDRIFinishScreenInit failed, disbling DRI\n");
+		NVDRICloseScreen(pScrn);
+	}
 
 	/* 
 	 * Initialize software cursor.

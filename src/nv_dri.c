@@ -289,6 +289,8 @@ Bool NVDRIScreenInit(ScrnInfoPtr pScrn)
 	pDRIInfo->createDummyCtx     = FALSE;
 	pDRIInfo->createDummyCtxPriv = FALSE;
 
+	pDRIInfo->keepFDOpen = TRUE;
+
 	if (!DRIScreenInit(pScreen, pDRIInfo, &nouveau_device(pNv->dev)->fd)) {
 		xf86DrvMsg(pScreen->myNum, X_ERROR,
 				"[dri] DRIScreenInit failed.  Disabling DRI.\n");
@@ -320,7 +322,10 @@ Bool NVDRIFinishScreenInit(ScrnInfoPtr pScrn)
 	NOUVEAUDRIPtr  pNOUVEAUDRI;
 	int ret;
 
-	if (!pNv->pDRIInfo || !DRIFinishScreenInit(pScreen))
+	if (!pNv->pDRIInfo)
+		return TRUE;
+
+	if (!DRIFinishScreenInit(pScreen))
 		return FALSE;
 
 	pNOUVEAUDRI 			= (NOUVEAUDRIPtr)pNv->pDRIInfo->devPrivate;
@@ -359,15 +364,7 @@ void NVDRICloseScreen(ScrnInfoPtr pScrn)
 	if (pNv->NoAccel)
 		return;
 
-	nouveau_device_close(&pNv->dev);
-
 	DRICloseScreen(pScreen);
-
-	/* The channel should have been removed from the drm side, that still leaves a memory leak though. */
-	if (pNv->chan) {
-		free(pNv->chan);
-		pNv->chan = NULL;
-	}
 
 	if (pNv->pDRIInfo) {
 		if (pNv->pDRIInfo->devPrivate) {

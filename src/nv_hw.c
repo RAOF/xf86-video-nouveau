@@ -70,9 +70,9 @@ uint8_t nv_read_tmds(NVPtr pNv, int or, int dl, uint8_t address)
 {
 	int ramdac = (or & OUTPUT_C) >> 2;
 
-	NVWriteRAMDAC(pNv, ramdac, NV_RAMDAC_FP_TMDS_CONTROL + dl * 8,
-		      NV_RAMDAC_FP_TMDS_CONTROL_WRITE_DISABLE | address);
-	return NVReadRAMDAC(pNv, ramdac, NV_RAMDAC_FP_TMDS_DATA + dl * 8);
+	NVWriteRAMDAC(pNv, ramdac, NV_PRAMDAC_FP_TMDS_CONTROL + dl * 8,
+		      NV_PRAMDAC_FP_TMDS_CONTROL_WRITE_DISABLE | address);
+	return NVReadRAMDAC(pNv, ramdac, NV_PRAMDAC_FP_TMDS_DATA + dl * 8);
 }
 
 int nv_get_digital_bound_head(NVPtr pNv, int or)
@@ -83,17 +83,17 @@ int nv_get_digital_bound_head(NVPtr pNv, int or)
 	 */
 	int ramdac = (or & OUTPUT_C) >> 2;
 
-	NVWriteRAMDAC(pNv, ramdac, NV_RAMDAC_FP_TMDS_CONTROL,
-		      NV_RAMDAC_FP_TMDS_CONTROL_WRITE_DISABLE | 0x4);
-	return (((NVReadRAMDAC(pNv, ramdac, NV_RAMDAC_FP_TMDS_DATA) & 0x8) >> 3) ^ ramdac);
+	NVWriteRAMDAC(pNv, ramdac, NV_PRAMDAC_FP_TMDS_CONTROL,
+		      NV_PRAMDAC_FP_TMDS_CONTROL_WRITE_DISABLE | 0x4);
+	return (((NVReadRAMDAC(pNv, ramdac, NV_PRAMDAC_FP_TMDS_DATA) & 0x8) >> 3) ^ ramdac);
 }
 
 void nv_write_tmds(NVPtr pNv, int or, int dl, uint8_t address, uint8_t data)
 {
 	int ramdac = (or & OUTPUT_C) >> 2;
 
-	NVWriteRAMDAC(pNv, ramdac, NV_RAMDAC_FP_TMDS_DATA + dl * 8, data);
-	NVWriteRAMDAC(pNv, ramdac, NV_RAMDAC_FP_TMDS_CONTROL + dl * 8, address);
+	NVWriteRAMDAC(pNv, ramdac, NV_PRAMDAC_FP_TMDS_DATA + dl * 8, data);
+	NVWriteRAMDAC(pNv, ramdac, NV_PRAMDAC_FP_TMDS_CONTROL + dl * 8, address);
 }
 
 void NVWriteVgaCrtc(NVPtr pNv, int head, uint8_t index, uint8_t value)
@@ -303,7 +303,7 @@ bool NVLockVgaCrtcs(NVPtr pNv, bool lock)
 	NVWriteVgaCrtc(pNv, 0, NV_CIO_SR_LOCK_INDEX,
 		       lock ? NV_CIO_SR_LOCK_VALUE : NV_CIO_SR_UNLOCK_RW_VALUE);
 	/* NV11 has independently lockable extended crtcs, except when tied */
-	if (pNv->NVArch == 0x11 && !(nvReadMC(pNv, NV_PBUS_DEBUG_1) & (1 << 28)))
+	if (pNv->NVArch == 0x11 && !nv_heads_tied(pNv))
 		NVWriteVgaCrtc(pNv, 1, NV_CIO_SR_LOCK_INDEX,
 			       lock ? NV_CIO_SR_LOCK_VALUE : NV_CIO_SR_UNLOCK_RW_VALUE);
 
@@ -334,8 +334,8 @@ void nv_fix_nv40_hw_cursor(NVPtr pNv, int head)
 	 * for changes to the CRTC CURCTL regs to take effect, whether changing
 	 * the pixmap location, or just showing/hiding the cursor
 	 */
-	volatile uint32_t curpos = NVReadRAMDAC(pNv, head, NV_RAMDAC_CURSOR_POS);
-	NVWriteRAMDAC(pNv, head, NV_RAMDAC_CURSOR_POS, curpos);
+	volatile uint32_t curpos = NVReadRAMDAC(pNv, head, NV_PRAMDAC_CU_START_POS);
+	NVWriteRAMDAC(pNv, head, NV_PRAMDAC_CU_START_POS, curpos);
 }
 
 void nv_show_cursor(NVPtr pNv, int head, bool show)
@@ -343,9 +343,9 @@ void nv_show_cursor(NVPtr pNv, int head, bool show)
 	uint8_t *curctl1 = &pNv->ModeReg.crtc_reg[head].CRTC[NV_CIO_CRE_HCUR_ADDR1_INDEX];
 
 	if (show)
-		*curctl1 |= NV_CIO_CRE_HCUR_ADDR1_ENABLE;
+		*curctl1 |= MASK(NV_CIO_CRE_HCUR_ADDR1_ENABLE);
 	else
-		*curctl1 &= ~NV_CIO_CRE_HCUR_ADDR1_ENABLE;
+		*curctl1 &= ~MASK(NV_CIO_CRE_HCUR_ADDR1_ENABLE);
 	NVWriteVgaCrtc(pNv, head, NV_CIO_CRE_HCUR_ADDR1_INDEX, *curctl1);
 
 	if (pNv->Architecture == NV_ARCH_40)
@@ -375,8 +375,8 @@ static void nouveau_hw_decode_pll(NVPtr pNv, uint32_t reg1,
 			pllvals->M1 &= 0xf; /* only 4 bits */
 			if (pll1 & NV30_RAMDAC_ENABLE_VCO2) {
 				pllvals->M2 = (pll1 >> 4) & 0x7;
-				pllvals->N2 = ((pll2 >> 21) & 0x18) |
-					      ((pll2 >> 19) & 0x7);
+				pllvals->N2 = ((pll1 >> 21) & 0x18) |
+					      ((pll1 >> 19) & 0x7);
 			}
 		}
 	}
@@ -386,13 +386,13 @@ int nouveau_hw_get_pllvals(ScrnInfoPtr pScrn, enum pll_types plltype,
 			   struct nouveau_pll_vals *pllvals)
 {
 	NVPtr pNv = NVPTR(pScrn);
-	const uint32_t nv04_regs[MAX_PLL_TYPES] = { NV_RAMDAC_NVPLL,
-						    NV_RAMDAC_MPLL,
-						    NV_RAMDAC_VPLL,
+	const uint32_t nv04_regs[MAX_PLL_TYPES] = { NV_PRAMDAC_NVPLL_COEFF,
+						    NV_PRAMDAC_MPLL_COEFF,
+						    NV_PRAMDAC_VPLL_COEFF,
 						    NV_RAMDAC_VPLL2 };
 	const uint32_t nv40_regs[MAX_PLL_TYPES] = { 0x4000,
 						    0x4020,
-						    NV_RAMDAC_VPLL,
+						    NV_PRAMDAC_VPLL_COEFF,
 						    NV_RAMDAC_VPLL2 };
 	uint32_t reg1, pll1, pll2 = 0;
 	struct pll_lims pll_lim;
@@ -413,11 +413,11 @@ int nouveau_hw_get_pllvals(ScrnInfoPtr pScrn, enum pll_types plltype,
 		pll2 = nvReadMC(pNv, reg2);
 	}
 
-	if (pNv->Architecture == 0x40 && reg1 >= NV_RAMDAC_VPLL) {
-		uint32_t ramdac580 = NVReadRAMDAC(pNv, 0, NV_RAMDAC_580);
+	if (pNv->Architecture == 0x40 && reg1 >= NV_PRAMDAC_VPLL_COEFF) {
+		uint32_t ramdac580 = NVReadRAMDAC(pNv, 0, NV_PRAMDAC_580);
 
 		/* check whether vpll has been forced into single stage mode */
-		if (reg1 == NV_RAMDAC_VPLL) {
+		if (reg1 == NV_PRAMDAC_VPLL_COEFF) {
 			if (ramdac580 & NV_RAMDAC_580_VPLL1_ACTIVE)
 				pll2 = 0;
 		} else
@@ -1029,8 +1029,8 @@ void NVLoadStateExt (
         case CHIPSET_G72:
         case CHIPSET_G73:
         case CHIPSET_C512:
-             temp = nvReadCurRAMDAC(pNv, NV_RAMDAC_TEST_CONTROL);
-             nvWriteCurRAMDAC(pNv, NV_RAMDAC_TEST_CONTROL, temp | 0x00100000);
+             temp = nvReadCurRAMDAC(pNv, NV_PRAMDAC_TEST_CONTROL);
+             nvWriteCurRAMDAC(pNv, NV_PRAMDAC_TEST_CONTROL, temp | 0x00100000);
              break;
         default:
              break;
@@ -1039,8 +1039,8 @@ void NVLoadStateExt (
 
     if(pNv->Architecture >= NV_ARCH_10) {
         if(pNv->twoHeads) {
-           NVWriteCRTC(pNv, 0, NV_CRTC_FSEL, state->head);
-           NVWriteCRTC(pNv, 1, NV_CRTC_FSEL, state->head2);
+           NVWriteCRTC(pNv, 0, NV_PCRTC_ENGINE_CTRL, state->head);
+           NVWriteCRTC(pNv, 1, NV_PCRTC_ENGINE_CTRL, state->head2);
         }
         temp = nvReadCurRAMDAC(pNv, NV_RAMDAC_NV10_CURSYNC);
         nvWriteCurRAMDAC(pNv, NV_RAMDAC_NV10_CURSYNC, temp | (1 << 25));
@@ -1055,9 +1055,9 @@ void NVLoadStateExt (
         nvWriteVIDEO(pNv, NV_PVIDEO_UVPLANE_LIMIT(1), pNv->VRAMPhysicalSize - 1);
         nvWriteMC(pNv, NV_PBUS_POWERCTRL_2, 0);
 
-        nvWriteCurCRTC(pNv, NV_CRTC_CURSOR_CONFIG, state->cursorConfig);
-        nvWriteCurCRTC(pNv, NV_CRTC_0830, state->displayV - 3);
-        nvWriteCurCRTC(pNv, NV_CRTC_0834, state->displayV - 1);
+        nvWriteCurCRTC(pNv, NV_PCRTC_CURSOR_CONFIG, state->cursorConfig);
+        nvWriteCurCRTC(pNv, NV_PCRTC_830, state->displayV - 3);
+        nvWriteCurCRTC(pNv, NV_PCRTC_834, state->displayV - 1);
     
         if(pNv->FlatPanel) {
            if((pNv->Chipset & 0x0ff0) == CHIPSET_NV11) {
@@ -1090,15 +1090,15 @@ void NVLoadStateExt (
     nvWriteCurVGA(pNv, NV_CIO_CRE_HCUR_ADDR0_INDEX, state->cursor0);
     nvWriteCurVGA(pNv, NV_CIO_CRE_HCUR_ADDR1_INDEX, state->cursor1);
     if(pNv->Architecture == NV_ARCH_40) {  /* HW bug */
-       volatile CARD32 curpos = nvReadCurRAMDAC(pNv, NV_RAMDAC_CURSOR_POS);
-       nvWriteCurRAMDAC(pNv, NV_RAMDAC_CURSOR_POS, curpos);
+       volatile CARD32 curpos = nvReadCurRAMDAC(pNv, NV_PRAMDAC_CU_START_POS);
+       nvWriteCurRAMDAC(pNv, NV_PRAMDAC_CU_START_POS, curpos);
     }
     nvWriteCurVGA(pNv, NV_CIO_CRE_HCUR_ADDR2_INDEX, state->cursor2);
     nvWriteCurVGA(pNv, NV_CIO_CRE_ILACE__INDEX, state->interlace);
 
     if(!pNv->FlatPanel) {
-       NVWriteRAMDAC(pNv, 0, NV_RAMDAC_PLL_SELECT, state->pllsel);
-       NVWriteRAMDAC(pNv, 0, NV_RAMDAC_VPLL, state->vpll);
+       NVWriteRAMDAC(pNv, 0, NV_PRAMDAC_PLL_COEFF_SELECT, state->pllsel);
+       NVWriteRAMDAC(pNv, 0, NV_PRAMDAC_VPLL_COEFF, state->vpll);
        if(pNv->twoHeads)
           NVWriteRAMDAC(pNv, 0, NV_RAMDAC_VPLL2, state->vpll2);
        if(pNv->two_reg_pll) {
@@ -1106,13 +1106,13 @@ void NVLoadStateExt (
           NVWriteRAMDAC(pNv, 0, NV_RAMDAC_VPLL2_B, state->vpll2B);
        }
     } else {
-       nvWriteCurRAMDAC(pNv, NV_RAMDAC_FP_CONTROL, state->scale);
-       nvWriteCurRAMDAC(pNv, NV_RAMDAC_FP_HCRTC, state->crtcSync);
+       nvWriteCurRAMDAC(pNv, NV_PRAMDAC_FP_TG_CONTROL, state->scale);
+       nvWriteCurRAMDAC(pNv, NV_PRAMDAC_FP_HCRTC, state->crtcSync);
     }
-    nvWriteCurRAMDAC(pNv, NV_RAMDAC_GENERAL_CONTROL, state->general);
+    nvWriteCurRAMDAC(pNv, NV_PRAMDAC_GENERAL_CONTROL, state->general);
 
-    nvWriteCurCRTC(pNv, NV_CRTC_INTR_EN_0, 0);
-    nvWriteCurCRTC(pNv, NV_CRTC_INTR_0, NV_CRTC_INTR_VBLANK);
+    nvWriteCurCRTC(pNv, NV_PCRTC_INTR_EN_0, 0);
+    nvWriteCurCRTC(pNv, NV_PCRTC_INTR_0, NV_PCRTC_INTR_0_VBLANK);
 }
 
 void NVUnloadStateExt
@@ -1137,26 +1137,26 @@ void NVUnloadStateExt
     state->cursor2      = nvReadCurVGA(pNv, NV_CIO_CRE_HCUR_ADDR2_INDEX);
     state->interlace    = nvReadCurVGA(pNv, NV_CIO_CRE_ILACE__INDEX);
 
-    state->vpll         = NVReadRAMDAC(pNv, 0, NV_RAMDAC_VPLL);
+    state->vpll         = NVReadRAMDAC(pNv, 0, NV_PRAMDAC_VPLL_COEFF);
     if(pNv->twoHeads)
        state->vpll2     = NVReadRAMDAC(pNv, 0, NV_RAMDAC_VPLL2);
     if(pNv->two_reg_pll) {
         state->vpllB    = NVReadRAMDAC(pNv, 0, NV_RAMDAC_VPLL_B);
         state->vpll2B   = NVReadRAMDAC(pNv, 0, NV_RAMDAC_VPLL2_B);
     }
-    state->pllsel       = NVReadRAMDAC(pNv, 0, NV_RAMDAC_PLL_SELECT);
-    state->general      = nvReadCurRAMDAC(pNv, NV_RAMDAC_GENERAL_CONTROL);
-    state->scale        = nvReadCurRAMDAC(pNv, NV_RAMDAC_FP_CONTROL);
+    state->pllsel       = NVReadRAMDAC(pNv, 0, NV_PRAMDAC_PLL_COEFF_SELECT);
+    state->general      = nvReadCurRAMDAC(pNv, NV_PRAMDAC_GENERAL_CONTROL);
+    state->scale        = nvReadCurRAMDAC(pNv, NV_PRAMDAC_FP_TG_CONTROL);
 
     if(pNv->Architecture >= NV_ARCH_10) {
         if(pNv->twoHeads) {
-           state->head     = NVReadCRTC(pNv, 0, NV_CRTC_FSEL);
-           state->head2    = NVReadCRTC(pNv, 1, NV_CRTC_FSEL);
+           state->head     = NVReadCRTC(pNv, 0, NV_PCRTC_ENGINE_CTRL);
+           state->head2    = NVReadCRTC(pNv, 1, NV_PCRTC_ENGINE_CTRL);
            state->crtcOwner = nvReadCurVGA(pNv, NV_CIO_CRE_44);
         }
         state->extra = nvReadCurVGA(pNv, NV_CIO_CRE_EBR_INDEX);
 
-        state->cursorConfig = nvReadCurCRTC(pNv, NV_CRTC_CURSOR_CONFIG);
+        state->cursorConfig = nvReadCurCRTC(pNv, NV_PCRTC_CURSOR_CONFIG);
 
         if((pNv->Chipset & 0x0ff0) == CHIPSET_NV11) {
            state->dither = nvReadCurRAMDAC(pNv, NV_RAMDAC_DITHER_NV11);
@@ -1172,7 +1172,7 @@ void NVUnloadStateExt
     }
 
     if(pNv->FlatPanel) {
-       state->crtcSync = nvReadCurRAMDAC(pNv, NV_RAMDAC_FP_HCRTC);
+       state->crtcSync = nvReadCurRAMDAC(pNv, NV_PRAMDAC_FP_HCRTC);
     }
 }
 
@@ -1181,7 +1181,7 @@ void NVSetStartAddress (
     CARD32 start
 )
 {
-    nvWriteCurCRTC(pNv, NV_CRTC_START, start);
+    nvWriteCurCRTC(pNv, NV_PCRTC_START, start);
 }
 
 uint32_t nv_pitch_align(NVPtr pNv, uint32_t width, int bpp)

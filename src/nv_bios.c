@@ -787,11 +787,11 @@ static int powerctrl_1_shift(int chip_version, int reg)
 	switch (reg) {
 	case NV_RAMDAC_VPLL2:
 		shift += 4;
-	case NV_RAMDAC_VPLL:
+	case NV_PRAMDAC_VPLL_COEFF:
 		shift += 4;
-	case NV_RAMDAC_MPLL:
+	case NV_PRAMDAC_MPLL_COEFF:
 		shift += 4;
-	case NV_RAMDAC_NVPLL:
+	case NV_PRAMDAC_NVPLL_COEFF:
 		shift += 4;
 	}
 
@@ -847,7 +847,7 @@ static void setPLL_single(ScrnInfoPtr pScrn, uint32_t reg,
 
 static uint32_t new_ramdac580(uint32_t reg1, bool ss, uint32_t ramdac580)
 {
-	bool head_a = (reg1 == NV_RAMDAC_VPLL);
+	bool head_a = (reg1 == NV_PRAMDAC_VPLL_COEFF);
 
 	if (ss)	/* single stage pll mode */
 		ramdac580 |= head_a ? NV_RAMDAC_580_VPLL1_ACTIVE :
@@ -880,8 +880,8 @@ static void setPLL_double_highregs(ScrnInfoPtr pScrn, uint32_t reg1,
 		       (pv->N2 & 0x7) << 19 | 8 << 4 | (pv->M2 & 7) << 4;
 		pll2 = 0;
 	}
-	if (chip_version > 0x40 && reg1 >= NV_RAMDAC_VPLL) { /* not on nv40 */
-		oldramdac580 = bios_rd32(pScrn, NV_RAMDAC_580);
+	if (chip_version > 0x40 && reg1 >= NV_PRAMDAC_VPLL_COEFF) { /* !nv40 */
+		oldramdac580 = bios_rd32(pScrn, NV_PRAMDAC_580);
 		ramdac580 = new_ramdac580(reg1, single_stage, oldramdac580);
 		if (oldramdac580 != ramdac580)
 			oldpll1 = ~0;	/* force mismatch */
@@ -907,13 +907,13 @@ static void setPLL_double_highregs(ScrnInfoPtr pScrn, uint32_t reg1,
 		int shift_c040 = 14;
 
 		switch (reg1) {
-		case NV_RAMDAC_MPLL:
+		case NV_PRAMDAC_MPLL_COEFF:
 			shift_c040 += 2;
-		case NV_RAMDAC_NVPLL:
+		case NV_PRAMDAC_NVPLL_COEFF:
 			shift_c040 += 2;
 		case NV_RAMDAC_VPLL2:
 			shift_c040 += 2;
-		case NV_RAMDAC_VPLL:
+		case NV_PRAMDAC_VPLL_COEFF:
 			shift_c040 += 2;
 		}
 
@@ -923,7 +923,7 @@ static void setPLL_double_highregs(ScrnInfoPtr pScrn, uint32_t reg1,
 	}
 
 	if (oldramdac580 != ramdac580)
-		bios_wr32(pScrn, NV_RAMDAC_580, ramdac580);
+		bios_wr32(pScrn, NV_PRAMDAC_580, ramdac580);
 
 	if (!nv3035)
 		bios_wr32(pScrn, reg2, pll2);
@@ -1706,7 +1706,7 @@ static bool init_tmds(ScrnInfoPtr pScrn, struct nvbios *bios, uint16_t offset, i
 	if (!(reg = get_tmds_index_reg(pScrn, mlv)))
 		return false;
 
-	bios_wr32(pScrn, reg, tmdsaddr | NV_RAMDAC_FP_TMDS_CONTROL_WRITE_DISABLE);
+	bios_wr32(pScrn, reg, tmdsaddr | NV_PRAMDAC_FP_TMDS_CONTROL_WRITE_DISABLE);
 	value = (bios_rd32(pScrn, reg + 4) & mask) | data;
 	bios_wr32(pScrn, reg + 4, value);
 	bios_wr32(pScrn, reg, tmdsaddr);
@@ -2212,12 +2212,12 @@ static bool init_configure_clk(ScrnInfoPtr pScrn, struct nvbios *bios, uint16_t 
 		return false;
 
 	clock = ROM16(bios->data[meminitoffs + 4]) * 10;
-	setPLL(pScrn, bios, NV_RAMDAC_NVPLL, clock);
+	setPLL(pScrn, bios, NV_PRAMDAC_NVPLL_COEFF, clock);
 
 	clock = ROM16(bios->data[meminitoffs + 2]) * 10;
 	if (bios->data[meminitoffs] & 1) /* DDR */
 		clock *= 2;
-	setPLL(pScrn, bios, NV_RAMDAC_MPLL, clock);
+	setPLL(pScrn, bios, NV_PRAMDAC_MPLL_COEFF, clock);
 
 	return true;
 }
@@ -3021,11 +3021,11 @@ static int call_lvds_manufacturer_script(ScrnInfoPtr pScrn, struct dcb_entry *dc
 	if ((pNv->Chipset & 0xffff) == 0x0179 || (pNv->Chipset & 0xffff) == 0x0189 || (pNv->Chipset & 0xffff) == 0x0329) {
 		if (script == LVDS_PANEL_ON) {
 			bios_wr32(pScrn, NV_PBUS_DEBUG_DUALHEAD_CTL, bios_rd32(pScrn, NV_PBUS_DEBUG_DUALHEAD_CTL) | (1 << 31));
-			bios_wr32(pScrn, NV_CRTC_GPIO_EXT, bios_rd32(pScrn, NV_CRTC_GPIO_EXT) | 1);
+			bios_wr32(pScrn, NV_PCRTC_GPIO_EXT, bios_rd32(pScrn, NV_PCRTC_GPIO_EXT) | 1);
 		}
 		if (script == LVDS_PANEL_OFF) {
 			bios_wr32(pScrn, NV_PBUS_DEBUG_DUALHEAD_CTL, bios_rd32(pScrn, NV_PBUS_DEBUG_DUALHEAD_CTL) & ~(1 << 31));
-			bios_wr32(pScrn, NV_CRTC_GPIO_EXT, bios_rd32(pScrn, NV_CRTC_GPIO_EXT) & ~3);
+			bios_wr32(pScrn, NV_PCRTC_GPIO_EXT, bios_rd32(pScrn, NV_PCRTC_GPIO_EXT) & ~3);
 		}
 	}
 #endif
@@ -3130,7 +3130,7 @@ int call_lvds_script(ScrnInfoPtr pScrn, struct dcb_entry *dcbent, int head, enum
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Calling LVDS script %d:\n", script);
 
 	/* don't let script change pll->head binding */
-	sel_clk_binding = bios_rd32(pScrn, NV_RAMDAC_SEL_CLK) & 0x50000;
+	sel_clk_binding = bios_rd32(pScrn, NV_PRAMDAC_SEL_CLK) & 0x50000;
 
 	if (lvds_ver < 0x30)
 		ret = call_lvds_manufacturer_script(pScrn, dcbent, head, script);
@@ -3139,8 +3139,8 @@ int call_lvds_script(ScrnInfoPtr pScrn, struct dcb_entry *dcbent, int head, enum
 
 	bios->fp.last_script_invoc = (script << 1 | head);
 
-	sel_clk = NVReadRAMDAC(pNv, 0, NV_RAMDAC_SEL_CLK) & ~0x50000;
-	NVWriteRAMDAC(pNv, 0, NV_RAMDAC_SEL_CLK, sel_clk | sel_clk_binding);
+	sel_clk = NVReadRAMDAC(pNv, 0, NV_PRAMDAC_SEL_CLK) & ~0x50000;
+	NVWriteRAMDAC(pNv, 0, NV_PRAMDAC_SEL_CLK, sel_clk | sel_clk_binding);
 	/* some scripts set a value in NV_PBUS_POWERCTRL_2 and break video overlay */
 	nvWriteMC(pNv, NV_PBUS_POWERCTRL_2, 0);
 
@@ -3231,18 +3231,13 @@ static int parse_fp_mode_table(ScrnInfoPtr pScrn, struct nvbios *bios)
 	struct lvdstableheader lth;
 
 	if (bios->fp.fptablepointer == 0x0) {
-#ifdef __powerpc__
 		/* Apple cards don't have the fp table; the laptops use DDC */
-		bios->pub.fp_ddc_permitted = true;
-		goto missingok;
-#else
+#ifndef __powerpc__
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "Pointer to flat panel table invalid\n");
-		if (bios->chip_version == 0x67)	/* sigh, IGPs */
-			goto missingok;
-		return -EINVAL;
+		if (bios->chip_version != 0x67)	/* sigh, IGPs */
+			return -EINVAL;
 #endif
-missingok:
 		bios->pub.digital_min_front_porch = 0x4b;
 		return 0;
 	}
@@ -3335,12 +3330,9 @@ missingok:
 		return -ENOENT;
 	}
 
-	/* a strap value of 0xf is sufficient to indicate DDC use on BMP era
-	 * cards; nv4x cards need an fpindex of 0xf too
-	 */
-	if (fpstrapping == 0xf &&
-	    (lth.lvds_ver == 0x0a || fpindex == 0xf))
-		bios->pub.fp_ddc_permitted = true;
+	/* nv4x cards need both a strap value and fpindex of 0xf to use DDC */
+	if (lth.lvds_ver > 0x10)
+		bios->pub.fp_no_ddc = fpstrapping != 0xf || fpindex != 0xf;
 
 	/* if either the strap or xlated fpindex value are 0xf there is no
 	 * panel using a strap-derived bios mode present.  this condition
@@ -3436,7 +3428,7 @@ int nouveau_bios_parse_lvds_table(ScrnInfoPtr pScrn, int pxclk, bool *dl, bool *
 		lvdsmanufacturerindex = bios->data[bios->fp.fpxlatemanufacturertableptr + fpstrapping];
 
 		/* we're done if this isn't the EDID panel case */
-		if (!bios->pub.fp_ddc_permitted)
+		if (!pxclk)
 			break;
 
 		/* change in behaviour guessed at nv30; see datapoints below */
@@ -3506,7 +3498,7 @@ int nouveau_bios_parse_lvds_table(ScrnInfoPtr pScrn, int pxclk, bool *dl, bool *
 	}
 
 	/* set dual_link flag for EDID case */
-	if (bios->pub.fp_ddc_permitted)
+	if (pxclk)
 		bios->fp.dual_link = (pxclk >= bios->fp.duallink_transition_clk);
 
 	*dl = bios->fp.dual_link;
@@ -3529,7 +3521,7 @@ int run_tmds_table(ScrnInfoPtr pScrn, struct dcb_entry *dcbent, int head, int px
 	uint16_t clktable = 0, scriptptr;
 	uint32_t sel_clk_binding, sel_clk;
 
-	if (dcbent->location != LOC_ON_CHIP)
+	if (dcbent->location != DCB_LOC_ON_CHIP)
 		return 0;
 
 	switch (ffs(dcbent->or)) {
@@ -3555,10 +3547,10 @@ int run_tmds_table(ScrnInfoPtr pScrn, struct dcb_entry *dcbent, int head, int px
 	}
 
 	/* don't let script change pll->head binding */
-	sel_clk_binding = bios_rd32(pScrn, NV_RAMDAC_SEL_CLK) & 0x50000;
+	sel_clk_binding = bios_rd32(pScrn, NV_PRAMDAC_SEL_CLK) & 0x50000;
 	run_digital_op_script(pScrn, scriptptr, dcbent, head, pxclk >= 165000);
-	sel_clk = NVReadRAMDAC(pNv, 0, NV_RAMDAC_SEL_CLK) & ~0x50000;
-	NVWriteRAMDAC(pNv, 0, NV_RAMDAC_SEL_CLK, sel_clk | sel_clk_binding);
+	sel_clk = NVReadRAMDAC(pNv, 0, NV_PRAMDAC_SEL_CLK) & ~0x50000;
+	NVWriteRAMDAC(pNv, 0, NV_PRAMDAC_SEL_CLK, sel_clk | sel_clk_binding);
 
 	return 0;
 }
@@ -3674,13 +3666,17 @@ int get_pll_limits(ScrnInfoPtr pScrn, uint32_t limit_match, struct pll_lims *pll
 			for (i = 1; i < entries && !reg; i++) {
 				uint32_t cmpreg = ROM32(bios->data[plloffs + recordlen * i]);
 
-				if (limit_match == NVPLL && (cmpreg == NV_RAMDAC_NVPLL || cmpreg == 0x4000))
+				if (limit_match == NVPLL &&
+				    (cmpreg == NV_PRAMDAC_NVPLL_COEFF || cmpreg == 0x4000))
 					reg = cmpreg;
-				if (limit_match == MPLL && (cmpreg == NV_RAMDAC_MPLL || cmpreg == 0x4020))
+				if (limit_match == MPLL &&
+				    (cmpreg == NV_PRAMDAC_MPLL_COEFF || cmpreg == 0x4020))
 					reg = cmpreg;
-				if (limit_match == VPLL1 && (cmpreg == NV_RAMDAC_VPLL || cmpreg == 0x4010))
+				if (limit_match == VPLL1 &&
+				    (cmpreg == NV_PRAMDAC_VPLL_COEFF || cmpreg == 0x4010))
 					reg = cmpreg;
-				if (limit_match == VPLL2 && (cmpreg == NV_RAMDAC_VPLL2 || cmpreg == 0x4018))
+				if (limit_match == VPLL2 &&
+				    (cmpreg == NV_RAMDAC_VPLL2 || cmpreg == 0x4018))
 					reg = cmpreg;
 			}
 
@@ -3731,9 +3727,9 @@ int get_pll_limits(ScrnInfoPtr pScrn, uint32_t limit_match, struct pll_lims *pll
 
 		/* C51 special not seen elsewhere */
 		if (cv == 0x51 && !pll_lim->refclk) {
-			uint32_t sel_clk = bios_rd32(pScrn, NV_RAMDAC_SEL_CLK);
+			uint32_t sel_clk = bios_rd32(pScrn, NV_PRAMDAC_SEL_CLK);
 
-			if (((limit_match == NV_RAMDAC_VPLL || limit_match == VPLL1) && sel_clk & 0x20) ||
+			if (((limit_match == NV_PRAMDAC_VPLL_COEFF || limit_match == VPLL1) && sel_clk & 0x20) ||
 			    ((limit_match == NV_RAMDAC_VPLL2 || limit_match == VPLL2) && sel_clk & 0x80)) {
 				if (bios_idxprt_rd(pScrn, NV_CIO_CRX__COLOR, NV_CIO_CRE_CHIP_ID_INDEX) < 0xa3)
 					pll_lim->refclk = 200000;
@@ -4355,7 +4351,7 @@ static int
 read_dcb_i2c_entry(ScrnInfoPtr pScrn, int dcb_version, uint8_t *i2ctable, int index, struct dcb_i2c_entry *i2c)
 {
 	uint8_t dcb_i2c_ver = dcb_version, headerlen = 0, entry_len = 4;
-	int i2c_entries = MAX_NUM_DCB_ENTRIES;
+	int i2c_entries = DCB_MAX_NUM_I2C_ENTRIES;
 	int recordoffset = 0, rdofs = 1, wrofs = 0;
 	uint8_t port_type = 0;
 
@@ -4369,7 +4365,12 @@ read_dcb_i2c_entry(ScrnInfoPtr pScrn, int dcb_version, uint8_t *i2ctable, int in
 				   i2ctable[0], dcb_version);
 		dcb_i2c_ver = i2ctable[0];
 		headerlen = i2ctable[1];
-		i2c_entries = i2ctable[2];
+		if (i2ctable[2] <= DCB_MAX_NUM_I2C_ENTRIES)
+			i2c_entries = i2ctable[2];
+		else
+			xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
+				   "DCB I2C table has more entries than indexable "
+				   "(%d entries, max index 15)\n", i2ctable[2]);
 		entry_len = i2ctable[3];
 		/* [4] is i2c_default_indices, read in parse_dcb_table() */
 	}
@@ -4457,7 +4458,7 @@ parse_dcb_entry(ScrnInfoPtr pScrn, struct bios_parsed_dcb *bdcb, int index, uint
 	entry->i2c_index = 0;
 	entry->heads = 1;
 	entry->bus = 0;
-	entry->location = LOC_ON_CHIP;
+	entry->location = DCB_LOC_ON_CHIP;
 	entry->or = 1;
 	entry->duallink_possible = false;
 
@@ -4533,6 +4534,7 @@ parse_dcb_entry(ScrnInfoPtr pScrn, struct bios_parsed_dcb *bdcb, int index, uint
 	} else if (bdcb->version >= 0x14 ) {
 		if (conn != 0xf0003f00 && conn != 0xf2247f10 &&
 		    conn != 0xf2204001 && conn != 0xf2204301 && conn != 0xf2204311 && conn != 0xf2208001 && conn != 0xf2244001 && conn != 0xf2244301 && conn != 0xf2244311 && conn != 0xf4204011 && conn != 0xf4208011 && conn != 0xf4248011 &&
+		    conn != 0xf2045ff2 &&
 		    conn != 0xf2045f14 && conn != 0xf207df14 && conn != 0xf2205004) {
 			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 				   "Unknown DCB 1.4 / 1.5 entry, please report\n");
@@ -4545,6 +4547,9 @@ parse_dcb_entry(ScrnInfoPtr pScrn, struct bios_parsed_dcb *bdcb, int index, uint
 		}
 		/* most of the below is a "best guess" atm */
 		entry->type = conn & 0xf;
+		if (entry->type == 2)
+			/* another way of specifying straps based lvds... */
+			entry->type = OUTPUT_LVDS;
 		if (entry->type == 4) { /* digital */
 			if (conn & 0x10)
 				entry->type = OUTPUT_LVDS;
@@ -4653,7 +4658,7 @@ static int parse_dcb_table(ScrnInfoPtr pScrn, struct nvbios *bios)
 	struct parsed_dcb *dcb;
 	uint16_t dcbptr, i2ctabptr = 0;
 	uint8_t *dcbtable;
-	uint8_t headerlen = 0x4, entries = MAX_NUM_DCB_ENTRIES;
+	uint8_t headerlen = 0x4, entries = DCB_MAX_NUM_ENTRIES;
 	bool configblock = true;
 	int recordlength = 8, confofs = 4;
 	int i;
@@ -4734,8 +4739,8 @@ static int parse_dcb_table(ScrnInfoPtr pScrn, struct nvbios *bios)
 			bdcb->i2c_default_indices = bdcb->i2c_table[4];
 	}
 
-	if (entries >= MAX_NUM_DCB_ENTRIES)
-		entries = MAX_NUM_DCB_ENTRIES;
+	if (entries > DCB_MAX_NUM_ENTRIES)
+		entries = DCB_MAX_NUM_ENTRIES;
 
 	for (i = 0; i < entries; i++) {
 		uint32_t connection, config = 0;

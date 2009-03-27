@@ -1,0 +1,13 @@
+Index: xserver-xorg-video-nouveau/configure
+===================================================================
+--- xserver-xorg-video-nouveau.orig/configure	2009-03-27 19:14:01.435615848 +1100
++++ xserver-xorg-video-nouveau/configure	2009-03-27 19:14:27.175615987 +1100
+@@ -2084,7 +2084,7 @@
+ 
+ 
+ cat >>confdefs.h <<_ACEOF
+-#define NV_DRIVER_DATE $(echo -n \";git log |head -3|tail -1|tr -d '\n';echo -n \")
++#define NV_DRIVER_DATE $(echo -n \";cat snapshot-date;echo -n \")
+ _ACEOF
+ 
+ 

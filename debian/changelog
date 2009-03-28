@@ -1,11 +1,15 @@
 xserver-xorg-video-nouveau (1:0.0.10~git+20090327+f1907dc-0ubuntu1) jaunty; urgency=low
 
-  * New upstream snapshot
+  * New upstream snapshot.  Standing FFe is (LP: #346621).
+    - New snapshot fixes crash in NoAccel code path (LP: #345530)
+    - New snapshot fixes incorrect resolution after exit from some
+      fullscreen applications, such as Battle for Westnoth (LP: #323619)
     - f1907dc... nv50: add default modes to mode pool for LVDS panel
     - 7da6fdb... kms: fix bug which prevented getting edid from the kernel
     - f431e20... randr: fix crash when rotation requested
     - 36dedd0... kms: check for mm_enabled as an additional test for kms
       presence
+    - a923bc1... nv50/xv: correct rendering to partically obscured windows
     - 01cee29... nv50: call NVSync() in CloseScreen() before restoring
       video mode
     - aa7c037... kms: implement AdjustFrame, should fix crash in fdo#24236
@@ -161,6 +165,7 @@ xserver-xorg-video-nouveau (1:0.0.10~git+20090327+f1907dc-0ubuntu1) jaunty; urge
     - ba1f897... keep resources around after leavevt, far too problematic
     currently
   * debian/rules
+    + Remove stampdir/ on clean; fixes build-twice-in-a-row.
   * debian/patches/01_include_snapshot_date
     + Generate snapshot-date in get-orig-source, and use it rather than
       git log to define NV_DRIVER_DATE

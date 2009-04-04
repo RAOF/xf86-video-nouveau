@@ -313,23 +313,6 @@ static void nv4GetConfig (NVPtr pNv)
 	pNv->MaxVClockFreqKHz = 350000;
 }
 
-static void nForce_check_dimms(ScrnInfoPtr pScrn)
-{
-	uint16_t mem_ctrlr_pciid = PCI_SLOT_READ_LONG(3, 0x00) >> 16;
-
-	if ((mem_ctrlr_pciid == 0x1a9) || (mem_ctrlr_pciid == 0x1ab) || (mem_ctrlr_pciid == 0x1ed)) {
-		uint32_t dimm[3];
-
-		dimm[0] = (PCI_SLOT_READ_LONG(2, 0x40) >> 8) & 0x4f;
-		dimm[1] = (PCI_SLOT_READ_LONG(2, 0x44) >> 8) & 0x4f;
-		dimm[2] = (PCI_SLOT_READ_LONG(2, 0x48) >> 8) & 0x4f;
-
-		if (dimm[0] + dimm[1] != dimm[2])
-			xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
-				   "Your nForce DIMMs are not arranged in optimal banks!\n");
-	}
-}
-
 static void nv10GetConfig(ScrnInfoPtr pScrn)
 {
 	NVPtr pNv = NVPTR(pScrn);
@@ -341,20 +324,18 @@ static void nv10GetConfig(ScrnInfoPtr pScrn)
 			   "Card is in big endian mode, something is very wrong !\n");
 #endif
 
-	if (implementation == CHIPSET_NFORCE) {
+	if (implementation == CHIPSET_NFORCE)
 		pNv->RamAmountKBytes = (((PCI_SLOT_READ_LONG(1, 0x7c) >> 6) & 31) + 1) * 1024;
-		nForce_check_dimms(pScrn);
-	} else if (implementation == CHIPSET_NFORCE2) {
+	else if (implementation == CHIPSET_NFORCE2)
 		pNv->RamAmountKBytes = (((PCI_SLOT_READ_LONG(1, 0x84) >> 4) & 127) + 1) * 1024;
-		nForce_check_dimms(pScrn);
-	} else
+	else
 		pNv->RamAmountKBytes = (nvReadFB(pNv, NV_PFB_CSTATUS) & 0xFFF00000) >> 10;
 
 	if (pNv->RamAmountKBytes > 256*1024)
 		pNv->RamAmountKBytes = 256*1024;
 
 	pNv->CrystalFreqKHz = (nvReadEXTDEV(pNv, NV_PEXTDEV_BOOT_0) & (1 << 6)) ? 14318 : 13500;
-	if (pNv->twoHeads && implementation != CHIPSET_NV11)
+	if (pNv->gf4_disp_arch)
 		if (nvReadEXTDEV(pNv, NV_PEXTDEV_BOOT_0) & (1 << 22))
 			pNv->CrystalFreqKHz = 27000;
 
@@ -433,7 +414,9 @@ NVCommonSetup(ScrnInfoPtr pScrn)
 			(implementation != CHIPSET_NFORCE) &&
 			(implementation != CHIPSET_NV20);
 
-	pNv->fpScaler = (pNv->FpScale && pNv->twoHeads && implementation != CHIPSET_NV11);
+	pNv->gf4_disp_arch = pNv->twoHeads && implementation != CHIPSET_NV11;
+
+	pNv->fpScaler = pNv->FpScale && pNv->gf4_disp_arch;
 
 	/* nv30 and nv35 have two stage PLLs, but use only one register; they are dealt with separately */
 	pNv->two_reg_pll = (implementation == CHIPSET_NV31) ||

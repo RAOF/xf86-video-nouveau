@@ -247,7 +247,7 @@
 #		define NV_CIO_SR_UNLOCK_RW_VALUE	0x57
 #		define NV_CIO_SR_LOCK_VALUE		0x99
 #	define NV_CIO_CRE_FFLWM__INDEX		0x20	/* fifo low water mark */
-#	define NV_CIO_CRE_21			0x21	/* referred to by some .scp as `shadow lock' */
+#	define NV_CIO_CRE_21			0x21	/* vga shadow crtc lock */
 #	define NV_CIO_CRE_LSR_INDEX		0x25	/* ? */
 #		define NV_CIO_CRE_LSR_VDT_10		0:0
 #		define NV_CIO_CRE_LSR_VDE_10		1:1
@@ -387,6 +387,7 @@
 #	define NV_PRAMDAC_FP_DEBUG_0_YINTERP_BILINEAR		(1 << 12)
 #	define NV_PRAMDAC_FP_DEBUG_0_XWEIGHT_ROUND		(1 << 20)
 #	define NV_PRAMDAC_FP_DEBUG_0_YWEIGHT_ROUND		(1 << 24)
+#	define NV_PRAMDAC_FP_DEBUG_0_PWRDOWN_FPCLK		(1 << 28)
 #define NV_PRAMDAC_FP_DEBUG_1				0x00680884
 #	define NV_PRAMDAC_FP_DEBUG_1_XSCALE_VALUE		11:0
 #	define NV_PRAMDAC_FP_DEBUG_1_XSCALE_TESTMODE_ENABLE	(1 << 12)
@@ -394,10 +395,6 @@
 #	define NV_PRAMDAC_FP_DEBUG_1_YSCALE_TESTMODE_ENABLE	(1 << 28)
 #define NV_PRAMDAC_FP_DEBUG_2				0x00680888
 #define NV_PRAMDAC_FP_DEBUG_3				0x0068088C
-
-/* Some unknown regs, purely for NV30 it seems. */
-#define NV_PRAMDAC_890					0x00680890
-#define NV_PRAMDAC_89C					0x0068089C
 
 /* see NV_PRAMDAC_INDIR_TMDS in rules.xml */
 #define NV_PRAMDAC_FP_TMDS_CONTROL			0x006808b0

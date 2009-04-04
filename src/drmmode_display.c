@@ -569,6 +569,7 @@ drmmode_output_get_modes(xf86OutputPtr output)
 	int i;
 	DisplayModePtr Modes = NULL, Mode;
 	drmModePropertyPtr props;
+	xf86MonPtr ddc_mon = NULL;
 
 	/* look for an EDID property */
 	for (i = 0; i < koutput->count_props; i++) {
@@ -587,13 +588,9 @@ drmmode_output_get_modes(xf86OutputPtr output)
 	}
 
 	if (drmmode_output->edid_blob)
-		xf86OutputSetEDID(output,
-				  xf86InterpretEDID(output->scrn->scrnIndex,
-						    drmmode_output->edid_blob->data));
-	else
-		xf86OutputSetEDID(output,
-				  xf86InterpretEDID(output->scrn->scrnIndex,
-						    NULL));
+		ddc_mon = xf86InterpretEDID(output->scrn->scrnIndex,
+					    drmmode_output->edid_blob->data);
+	xf86OutputSetEDID(output, ddc_mon);
 
 	/* modes should already be available */
 	for (i = 0; i < koutput->count_modes; i++) {
@@ -900,7 +897,7 @@ drmmode_output_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int num)
 		return;
 	}
 
-	snprintf(name, 32, "%s%d", output_names[koutput->connector_type],
+	snprintf(name, 32, "%s-%d", output_names[koutput->connector_type],
 		 koutput->connector_type_id);
 
 	output = xf86OutputCreate (pScrn, &drmmode_output_funcs, name);

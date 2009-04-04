@@ -1,3 +1,50 @@
+xserver-xorg-video-nouveau (1:0.0.10~git+20090404+11be9a9-0ubuntu1) jaunty; urgency=low
+
+  * New upstream snapshot.  Standing FFe is (LP: #346621).
+    - 11be9a9... nv50: fix i2c port addresses
+    - e2aa037... randr12: fall back to standard timings when finding
+      native mode (rh#492819)  
+    - 6965663... randr12: fix hw cursor for fully transparent pixels
+    - d12f70c... randr12: pre-nv17 digital fixes
+    - ea567db... randr12: fix restore for cards where CR21 is not left
+      unlocked at POST 
+    - bd263d8... randr12: make nv11 dvi work for both crtcs
+    - 52c287d... Every card since nv5 can do panels
+    - 3d371a7... randr12: enable tmds reg access on pre-nv17
+    - 1bb85c8... randr12: reorder ramdac reg access
+    - 4465fdd... randr12: remove nv30 special case
+    - 72eced5... randr12: fix/improve a load of version/feature tests
+    - 37c6916... bios: fix chips with pll limits table version 0
+    - 76c5a05... bios: xf86DrvMsg->NV_ERROR
+    - b1b9bcb... bios: support for pll limits table v3.0
+    - 8c85b4b... kms: CONNECTORn -> CONNECTOR-n
+    - 4e1c323... Restore call to NVDRIGetVersion, to ensure the dri
+      module is loaded 
+    - c973f75... Abstract logging in nv_bios.c
+    - b17bebd... nForce DIMM check is now in DRM
+    - 9c991d3... randr12: FP_TG_CONTROL 2: dpms improvements
+    - 5fb2888... randr12: FP_TG_CONTROL 1: turn off digital path when
+      using VGA encoder 
+    - 8023dc3... Split DCB 1.5 parsing from 2.0+, get closer to 80 cols
+    - ea027b3... The dcb prior to v1.5 is pretty hopeless, just add a crt.
+    - 921fbcc... randr12: avoid nv11 chip lockup when saving palette regs
+    - 9d46930... xv: oops
+    - 9213c39... xv: post damage after we draw (rh#492239)
+    - d68a052... kms: small cleanup
+    - c9cb6a6... rh#492511 has a CRTC_OWNER of 0x7 for some reason
+    - 95bff61... randr12: fix LVDS legitimately disconnected case
+    - f86e395... randr12: permit vga outputs to be force enabled in xorg.conf
+    - 8427b39... randr12: move a load of hw mode programming into nouveau_hw.c
+    - 163bdce... Turn the smaller mmio wrappers into static inline
+    - 21ee927... Put arbitration and mnp calcs in separate file
+    - 83dc890... nv50: use E-EDID when available + apply edid quirks  
+  * debian/control:
+    - Bump dependency on libdrm-dev to ensure rebuild with fixed
+      libdrm-nouveau1.symbols file.  Fixes missing Depends: on
+      libdrm-nouveau1
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sat, 04 Apr 2009 14:35:12 +1100
+
 xserver-xorg-video-nouveau (1:0.0.10~git+20090327+f1907dc-0ubuntu1) jaunty; urgency=low
 
   * New upstream snapshot.  Standing FFe is (LP: #346621).

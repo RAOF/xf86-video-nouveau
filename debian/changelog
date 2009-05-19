@@ -253,6 +253,7 @@ xserver-xorg-video-nouveau (1:0.0.10~git+20090519+9656762-1) UNRELEASED; urgency
     - 945f0cb... kms: update drmmode_display
     - ba1f897... keep resources around after leavevt, far too problematic 
       currently
+  * Bump Standards-Version to 3.8.1.
 
  -- Chris Lamb <lamby@debian.org>  Tue, 19 May 2009 23:16:52 +0100
 

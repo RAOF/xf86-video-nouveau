@@ -1,6 +1,6 @@
 xserver-xorg-video-nouveau (1:0.0.10~git+20090519+9656762-1) UNRELEASED; urgency=low
 
-  * New upstream snapshot (Closes: #526144)
+  * New upstream snapshot (Closes: #526144, #524456)
     - 9656762... nv50: fix multiple-display hangs when encoders swap crtcs
     - d70eed9... randr12: fix digital dpms regression
     - 1072103... exa: use exaDriverAlloc() to prevent issues across exa 

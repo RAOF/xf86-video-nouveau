@@ -39,9 +39,6 @@
 static Bool
 nv50_xv_check_image_put(PixmapPtr ppix)
 {
-	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
-	NVPtr pNv = NVPTR(pScrn);
-
 	switch (ppix->drawable.depth) {
 	case 32:
 	case 24:
@@ -51,7 +48,7 @@ nv50_xv_check_image_put(PixmapPtr ppix)
 		return FALSE;
 	}
 
-	if (exaGetPixmapOffset(ppix) < pNv->EXADriverPtr->offScreenBase)
+	if (!nouveau_exa_pixmap_is_tiled(ppix))
 		return FALSE;
 
 	return TRUE;
@@ -65,13 +62,15 @@ nv50_xv_state_emit(PixmapPtr ppix, int id, struct nouveau_bo *src,
 	NVPtr pNv = NVPTR(pScrn);
 	struct nouveau_channel *chan = pNv->chan;
 	struct nouveau_grobj *tesla = pNv->Nv3D;
+	struct nouveau_bo *bo = nouveau_pixmap_bo(ppix);
+	unsigned delta = nouveau_pixmap_offset(ppix);
 	const unsigned shd_flags = NOUVEAU_BO_RD | NOUVEAU_BO_VRAM;
 	const unsigned tcb_flags = NOUVEAU_BO_RDWR | NOUVEAU_BO_VRAM;
 
 	WAIT_RING (chan, 256);
 	BEGIN_RING(chan, tesla, NV50TCL_RT_ADDRESS_HIGH(0), 5);
-	OUT_PIXMAPh(chan, ppix, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
-	OUT_PIXMAPl(chan, ppix, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
+	OUT_RELOCh(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
+	OUT_RELOCl(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
 	switch (ppix->drawable.depth) {
 	case 32: OUT_RING  (chan, NV50TCL_RT_FORMAT_32BPP); break;
 	case 24: OUT_RING  (chan, NV50TCL_RT_FORMAT_24BPP); break;
@@ -226,7 +225,7 @@ nv50_xv_image_put(ScrnInfoPtr pScrn,
 
 	if (!nv50_xv_check_image_put(ppix))
 		return BadMatch;
-	nv50_xv_state_emit(ppix, id, src, packed_y, uv, src_w, src_h);
+	nv50_xv_state_emit(ppix, id, src, packed_y, uv, width, height);
 
 	/* These are fixed point values in the 16.16 format. */
 	X1 = (float)(x1>>16)+(float)(x1&0xFFFF)/(float)0x10000;
@@ -246,10 +245,10 @@ nv50_xv_image_put(ScrnInfoPtr pScrn,
 		int sy1=pbox->y1;
 		int sy2=pbox->y2;
 
-		tx1 = tx1 / src_w;
-		tx2 = tx2 / src_w;
-		ty1 = ty1 / src_h;
-		ty2 = ty2 / src_h;
+		tx1 = tx1 / width;
+		tx2 = tx2 / width;
+		ty1 = ty1 / height;
+		ty2 = ty2 / height;
 
 		if (AVAIL_RING(chan) < 64) {
 			nv50_xv_state_emit(ppix, id, src, packed_y, uv,

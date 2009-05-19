@@ -30,8 +30,10 @@ nouveau_drv_ladir = @moduledir@/drivers
 
 nouveau_drv_la_SOURCES = \
 			 nouveau_bios.h \
+			 nouveau_calc.c \
+			 nouveau_hw.c nouveau_hw.h \
 			 nouveau_local.h \
-			 nouveau_exa.c nouveau_xv.c \
+			 nouveau_exa.c nouveau_xv.c nouveau_dri2.c \
 			 nv_accel_common.c \
 			 nv_bios.c \
 			 nv_const.h \
@@ -84,7 +86,6 @@ nouveau_drv_la_SOURCES = \
 			 nouveau_connector.h \
 			 nouveau_modeset.h \
 			 drmmode_display.c \
-			 drmmode_display.h \
 			 nv_pcicompat.h \
 			 vl_hwmc.c \
 			 vl_hwmc.h

@@ -253,6 +253,8 @@ NV30PutTextureImage(ScrnInfoPtr pScrn, struct nouveau_bo *src, int src_offset,
 	NVPtr pNv = NVPTR(pScrn);
 	struct nouveau_channel *chan = pNv->chan;
 	struct nouveau_grobj *rankine = pNv->Nv3D;
+	struct nouveau_bo *bo = nouveau_pixmap_bo(ppix);
+	unsigned delta = nouveau_pixmap_offset(ppix);
 	Bool redirected = FALSE;
 	float X1, X2, Y1, Y2;
 	BoxPtr pbox;
@@ -288,7 +290,7 @@ NV30PutTextureImage(ScrnInfoPtr pScrn, struct nouveau_bo *src, int src_offset,
 			 dst_format);
 	OUT_RING  (chan, (exaGetPixmapPitch(ppix) << 16) |
 			  exaGetPixmapPitch(ppix));
-	OUT_PIXMAPl(chan, ppix, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
+	OUT_RELOCl(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
 
 	if (pNv->NVArch == 0x30) {
 		int x = 0;
@@ -369,6 +371,17 @@ NV30PutTextureImage(ScrnInfoPtr pScrn, struct nouveau_bo *src, int src_offset,
 
 	BEGIN_RING(chan, rankine, NV34TCL_VERTEX_BEGIN_END, 1);
 	OUT_RING  (chan, NV34TCL_VERTEX_BEGIN_END_STOP);
+
+	if (pNv->NVArch == 0x30) {
+		BEGIN_RING(chan, rankine, NV34TCL_VIEWPORT_HORIZ, 2);
+		OUT_RING  (chan, 4096 << 16);
+		OUT_RING  (chan, 4096 << 16);
+		BEGIN_RING(chan, rankine, NV34TCL_VIEWPORT_CLIP_HORIZ(0), 2);
+		OUT_RING  (chan, 4095 << 16);
+		OUT_RING  (chan, 4095 << 16);
+		BEGIN_RING(chan, rankine, NV34TCL_VIEWPORT_TX_ORIGIN, 1);
+		OUT_RING  (chan, 0);
+	}
 
 	FIRE_RING (chan);
 

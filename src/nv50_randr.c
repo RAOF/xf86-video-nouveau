@@ -67,16 +67,34 @@ nv50_crtc_mode_fixup(xf86CrtcPtr crtc, DisplayModePtr mode,
 static void
 nv50_crtc_prepare(xf86CrtcPtr crtc)
 {
-	ScrnInfoPtr pScrn = crtc->scrn;
 	NV50CrtcPrivatePtr nv_crtc = crtc->driver_private;
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "nv50_crtc_prepare is called for %s.\n", nv_crtc->crtc->index ? "CRTC1" : "CRTC0");
-
+	ScrnInfoPtr pScrn = crtc->scrn;
 	NVPtr pNv = NVPTR(pScrn);
+	xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
+	nouveauOutputPtr output;
+	int i;
+
+	/* Rewire internal stucts to match randr-1.2... yet again.. */
+	for (i = 0; i < xf86_config->num_output; i++) {
+		xf86OutputPtr output = xf86_config->output[i];
+		NV50OutputPrivatePtr nv50_output = output->driver_private;
+		nouveauOutputPtr nv_output = nv50_output->output;
+
+		if (output->crtc) {
+			NV50CrtcPrivatePtr nv50_crtc =
+				output->crtc->driver_private;
+			nv_output->crtc = nv50_crtc->crtc;
+		} else {
+			nv_output->crtc = NULL;
+		}
+	}
+
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+		   "nv50_crtc_prepare is called for %s.\n",
+		   nv_crtc->crtc->index ? "CRTC1" : "CRTC0");
 
 	nv_crtc->crtc->active = TRUE;
 	nv_crtc->crtc->modeset_lock = TRUE;
-
-	nouveauOutputPtr output;
 
 	/* Detach any unused outputs. */
 	for (output = pNv->output; output != NULL; output = output->next) {
@@ -129,7 +147,7 @@ nv50_crtc_commit(xf86CrtcPtr crtc)
 	int i, j;
 	nouveauOutputPtr output;
 
-	for (i = 0; i < MAX_NUM_DCB_ENTRIES; i++) {
+	for (i = 0; i < DCB_MAX_NUM_I2C_ENTRIES; i++) {
 		Bool connector_active = FALSE;
 		for (j = 0; j < MAX_OUTPUTS_PER_CONNECTOR; j++) {
 			output = pNv->connector[i]->outputs[j];
@@ -171,7 +189,8 @@ nv50_crtc_show_cursor(xf86CrtcPtr crtc)
 	NV50CrtcPrivatePtr nv_crtc = crtc->driver_private;
 	//xf86DrvMsg(pScrn->scrnIndex, X_INFO, "nv50_crtc_show_cursor is called for %s.\n", nv_crtc->crtc->index ? "CRTC1" : "CRTC0");
 
-	nv_crtc->crtc->ShowCursor(nv_crtc->crtc, FALSE);
+	if (!nv_crtc->crtc->blanked)
+		nv_crtc->crtc->ShowCursor(nv_crtc->crtc, FALSE);
 }
 
 static void
@@ -379,7 +398,8 @@ nv50_output_dpms(xf86OutputPtr output, int mode)
 	}
 
 	/* Set dpms on all outputs for ths connector, just to be safe. */
-	nouveauConnectorPtr connector = pNv->connector[nv_output->output->dcb->bus];
+	nouveauConnectorPtr connector =
+		pNv->connector[nv_output->output->dcb->i2c_index];
 	int i;
 	for (i = 0; i < MAX_OUTPUTS_PER_CONNECTOR; i++) {
 		if (connector->outputs[i])
@@ -423,7 +443,8 @@ nv50_output_detect(xf86OutputPtr output)
 
 	NVPtr pNv = NVPTR(pScrn);
 	NV50OutputPrivatePtr nv_output = output->driver_private;
-	nouveauConnectorPtr connector = pNv->connector[nv_output->output->dcb->bus];
+	nouveauConnectorPtr connector =
+		pNv->connector[nv_output->output->dcb->i2c_index];
 
 	if (!connector)
 		return XF86OutputStatusDisconnected;
@@ -500,13 +521,15 @@ nv50_output_get_modes(xf86OutputPtr output)
 
 	NVPtr pNv = NVPTR(pScrn);
 	NV50OutputPrivatePtr nv_output = output->driver_private;
-	nouveauConnectorPtr connector = pNv->connector[nv_output->output->dcb->bus];
+	nouveauConnectorPtr connector =
+		pNv->connector[nv_output->output->dcb->i2c_index];
 
 	xf86MonPtr ddc_mon = connector->DDCDetect(connector);
 
 	xf86OutputSetEDID(output, ddc_mon);
 
 	DisplayModePtr ddc_modes = connector->GetDDCModes(connector);
+	DisplayModePtr default_modes = NULL;
 
 	xf86DeleteMode(&nv_output->output->native_mode, nv_output->output->native_mode);
 	nv_output->output->native_mode = NULL;
@@ -515,9 +538,17 @@ nv50_output_get_modes(xf86OutputPtr output)
 
 	/* typically only LVDS will hit this code path. */
 	if (!ddc_modes) {
-		if (pNv->VBIOS.fp.native_mode && nv_output->output->type == OUTPUT_LVDS) {
-			ddc_modes = xf86DuplicateMode(pNv->VBIOS.fp.native_mode);
-			xf86DrvMsg(pScrn->scrnIndex, X_WARNING, "LVDS: Using a bios mode, which should work, if it doesn't please report.\n");
+		DisplayModeRec mode = {};
+
+		if (nv_output->output->type == OUTPUT_LVDS &&
+		      nouveau_bios_fp_mode(pScrn, &mode)) {
+			mode.status = MODE_OK;
+			mode.type = M_T_DRIVER | M_T_PREFERRED;
+			xf86SetModeDefaultName(&mode);
+
+			ddc_modes = xf86DuplicateMode(&mode);
+			xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
+				   "LVDS: Using a bios mode, which should work, if it doesn't please report.\n");
 		}
 	}
 
@@ -561,6 +592,17 @@ nv50_output_get_modes(xf86OutputPtr output)
 	if (nv_output->output->crtc)
 		nv_output->output->crtc->native_mode = nv_output->output->native_mode;
 
+	if (nv_output->output->type == OUTPUT_LVDS && 
+	    (!ddc_mon ||!GTF_SUPPORTED(ddc_mon->features.msc))) {
+#if XORG_VERSION_CURRENT < XORG_VERSION_NUMERIC(1,6,99,1,0)
+		default_modes = xf86GetDefaultModes(output->interlaceAllowed,
+						    output->doubleScanAllowed);
+#else
+		default_modes = xf86GetDefaultModes();
+#endif
+	}
+
+	xf86ModesAdd(ddc_modes, default_modes);
 	return ddc_modes;
 }
 
@@ -812,7 +854,7 @@ nv50_output_create(ScrnInfoPtr pScrn)
 	int i;
 
 	/* this is a 1:1 hookup of the connectors. */
-	for (i = 0; i < MAX_NUM_DCB_ENTRIES; i++) {
+	for (i = 0; i < DCB_MAX_NUM_I2C_ENTRIES; i++) {
 		if (!(pNv->connector[i]->outputs[0]))
 			continue; /* An empty connector is not useful. */
 

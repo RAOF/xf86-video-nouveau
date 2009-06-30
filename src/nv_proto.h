@@ -26,7 +26,6 @@ Bool   NVI2CInit(ScrnInfoPtr pScrn);
 Bool NVDRIScreenInit(ScrnInfoPtr pScrn);
 Bool NVDRIFinishScreenInit(ScrnInfoPtr pScrn);
 void NVDRICloseScreen(ScrnInfoPtr pScrn);
-extern const char *drmSymbols[], *driSymbols[];
 Bool NVDRIGetVersion(ScrnInfoPtr pScrn);
 
 /* in nouveau_dri2.c */
@@ -73,10 +72,16 @@ Bool nouveau_exa_init(ScreenPtr pScreen);
 Bool nouveau_exa_pixmap_is_onscreen(PixmapPtr pPixmap);
 bool nouveau_exa_pixmap_is_tiled(PixmapPtr ppix);
 
+/* in nouveau_wfb.c */
+void nouveau_wfb_setup_wrap(ReadMemoryProcPtr *, WriteMemoryProcPtr *,
+			    DrawablePtr);
+void nouveau_wfb_finish_wrap(DrawablePtr);
+void nouveau_wfb_init();
+
 /* in nv_hw.c */
-void NVCalcStateExt(ScrnInfoPtr,struct nouveau_mode_state *,int,int,int,int,int,int);
-void NVLoadStateExt(ScrnInfoPtr pScrn,struct nouveau_mode_state *);
-void NVUnloadStateExt(NVPtr,struct nouveau_mode_state *);
+void NVCalcStateExt(ScrnInfoPtr,NVRegPtr,int,int,int,int,int,int);
+void NVLoadStateExt(ScrnInfoPtr pScrn,NVRegPtr);
+void NVUnloadStateExt(NVPtr,NVRegPtr);
 void NVSetStartAddress(NVPtr,CARD32);
 
 /* in nv_shadow.c */
@@ -109,6 +114,7 @@ uint8_t NVReadVgaSeq(NVPtr pNv, int head, uint8_t index);
 void NVWriteVgaGr(NVPtr pNv, int head, uint8_t index, uint8_t value);
 uint8_t NVReadVgaGr(NVPtr pNv, int head, uint8_t index);
 void NVSetOwner(NVPtr pNv, int owner);
+int nouveau_hw_get_current_head(ScrnInfoPtr pScrn);
 void NVBlankScreen(NVPtr pNv, int head, bool blank);
 void nouveau_hw_setpll(ScrnInfoPtr pScrn, uint32_t reg1,
 		       struct nouveau_pll_vals *pv);
@@ -271,6 +277,8 @@ int nv50_xv_port_attribute_get(ScrnInfoPtr, Atom, INT32 *, pointer);
 #ifndef exaMoveInPixmap
 extern void exaMoveInPixmap(PixmapPtr pPixmap);
 #endif
+
+extern Bool wfbPictureInit(ScreenPtr, PictFormatPtr, int);
 
 #endif /* __NV_PROTO_H__ */
 

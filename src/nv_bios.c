@@ -187,42 +187,64 @@ static void load_vbios_pci(NVPtr pNv, uint8_t *data)
 #endif
 }
 
+struct methods {
+	const char desc[8];
+	void (*loadbios)(NVPtr, uint8_t *);
+	const bool rw;
+	int score;
+};
+
+static struct methods nv04_methods[] = {
+	{ "PROM", load_vbios_prom, false },
+	{ "PRAMIN", load_vbios_pramin, true },
+	{ "PCI ROM", load_vbios_pci, true },
+	{ }
+};
+
+static struct methods nv50_methods[] = {
+	{ "PRAMIN", load_vbios_pramin, true },
+	{ "PROM", load_vbios_prom, false },
+	{ "PCI ROM", load_vbios_pci, true },
+	{ }
+};
+
 static bool NVShadowVBIOS(ScrnInfoPtr pScrn, uint8_t *data)
 {
 	NVPtr pNv = NVPTR(pScrn);
-	struct methods {
-		const char desc[8];
-		void (*loadbios)(NVPtr, uint8_t *);
-		const bool rw;
-		int score;
-	} method[] = {
-		{ "PROM", load_vbios_prom, false },
-		{ "PRAMIN", load_vbios_pramin, true },
-		{ "PCI ROM", load_vbios_pci, true }
-	};
-	int i, testscore = 3;
+	struct methods *methods, *method;
+	int testscore = 3;
 
-	for (i = 0; i < sizeof(method) / sizeof(struct methods); i++) {
+	if (pNv->Architecture < NV_ARCH_50)
+		methods = nv04_methods;
+	else
+		methods = nv50_methods;
+
+	method = methods;
+	while (method->loadbios) {
 		NV_TRACE(pScrn, "Attempting to load BIOS image from %s\n",
-			 method[i].desc);
+			 method->desc);
 		data[0] = data[1] = 0;	/* avoid reuse of previous image */
-		method[i].loadbios(pNv, data);
-		method[i].score = score_vbios(pScrn, data, method[i].rw);
-		if (method[i].score == testscore)
+		method->loadbios(pNv, data);
+		method->score = score_vbios(pScrn, data, method->rw);
+		if (method->score == testscore)
 			return true;
+		method++;
 	}
 
-	while (--testscore > 0)
-		for (i = 0; i < sizeof(method) / sizeof(struct methods); i++)
-			if (method[i].score == testscore) {
+	while (--testscore > 0) {
+		method = methods;
+		while (method->loadbios) {
+			if (method->score == testscore) {
 				NV_TRACE(pScrn, "Using BIOS image from %s\n",
-					 method[i].desc);
-				method[i].loadbios(pNv, data);
+					 method->desc);
+				method->loadbios(pNv, data);
 				return true;
 			}
+			method++;
+		}
+	}
 
 	NV_ERROR(pScrn, "No valid BIOS image found\n");
-
 	return false;
 }
 
@@ -1207,7 +1229,7 @@ static bool init_zm_i2c(ScrnInfoPtr pScrn, struct nvbios *bios, uint16_t offset,
 	uint8_t i2c_address = bios->data[offset + 2];
 	uint8_t count = bios->data[offset + 3];
 	I2CDevRec i2cdev;
-	uint8_t data[UINT8_MAX];
+	uint8_t data[256];	/* 256 is max "count" could specify */
 	int i;
 
 	if (!iexec->execute)
@@ -2788,11 +2810,9 @@ static int parse_fp_mode_table(ScrnInfoPtr pScrn, struct nvbios *bios)
 
 	if (bios->fp.fptablepointer == 0x0) {
 		/* Apple cards don't have the fp table; the laptops use DDC */
+		/* The table is also missing on some x86 IGPs */
 #ifndef __powerpc__
-		NV_ERROR(pScrn, "Pointer to flat panel table invalid\n");
-		if (bios->pub.chip_version != 0x67 && /* sigh, IGPs */
-		    bios->pub.chip_version != 0x73)
-			return -EINVAL;
+		NV_WARN(pScrn, "Pointer to flat panel table invalid\n");
 #endif
 		bios->pub.digital_min_front_porch = 0x4b;
 		return 0;
@@ -3796,8 +3816,8 @@ static int parse_bit_tmds_tbl_entry(ScrnInfoPtr pScrn, struct nvbios *bios, bit_
 	 * characteristic signature of 0x11,0x13 (1.1 being version, 0x13 being
 	 * length?)
 	 *
-	 * At offset +7 is a pointer to a script, which I don't know how to run yet
-	 * At offset +9 is a pointer to another script, likewise
+	 * At offsets +7 and +9 are pointers to scripts, which (when not
+	 * stubbed) seem to be called from the main init tables at POST
 	 * Offset +11 has a pointer to a table where the first word is a pxclk
 	 * frequency and the second word a pointer to a script, which should be
 	 * run if the comparison pxclk frequency is less than the pxclk desired.
@@ -3807,7 +3827,7 @@ static int parse_bit_tmds_tbl_entry(ScrnInfoPtr pScrn, struct nvbios *bios, bit_
 	 * "or" from the DCB.
 	 */
 
-	uint16_t tmdstableptr, script1, script2;
+	uint16_t tmdstableptr;
 
 	if (bitentry->length != 2) {
 		NV_ERROR(pScrn, "Do not understand BIT TMDS table\n");
@@ -3828,12 +3848,6 @@ static int parse_bit_tmds_tbl_entry(ScrnInfoPtr pScrn, struct nvbios *bios, bit_
 			bios->data[tmdstableptr] >> 4, bios->data[tmdstableptr] & 0xf);
 		return -ENOSYS;
 	}
-
-	/* These two scripts are odd: they don't seem to get run even when they are not stubbed */
-	script1 = ROM16(bios->data[tmdstableptr + 7]);
-	script2 = ROM16(bios->data[tmdstableptr + 9]);
-	if (bios->data[script1] != 'q' || bios->data[script2] != 'q')
-		NV_WARN(pScrn, "TMDS table script pointers not stubbed\n");
 
 	bios->tmds.output0_script_ptr = ROM16(bios->data[tmdstableptr + 11]);
 	bios->tmds.output1_script_ptr = ROM16(bios->data[tmdstableptr + 13]);
@@ -4058,10 +4072,15 @@ static int parse_bmp_structure(ScrnInfoPtr pScrn, struct nvbios *bios, unsigned 
 	bios->legacy.i2c_indices.crt = bios->data[legacy_i2c_offset];
 	bios->legacy.i2c_indices.tv = bios->data[legacy_i2c_offset + 1];
 	bios->legacy.i2c_indices.panel = bios->data[legacy_i2c_offset + 2];
-	bios->bdcb.dcb.i2c[0].write = bios->data[legacy_i2c_offset + 4];
-	bios->bdcb.dcb.i2c[0].read = bios->data[legacy_i2c_offset + 5];
-	bios->bdcb.dcb.i2c[1].write = bios->data[legacy_i2c_offset + 6];
-	bios->bdcb.dcb.i2c[1].read = bios->data[legacy_i2c_offset + 7];
+	/* don't overwrite defaults with zero (mac braindamage) */
+	if (bios->data[legacy_i2c_offset + 4])
+		bios->bdcb.dcb.i2c[0].write = bios->data[legacy_i2c_offset + 4];
+	if (bios->data[legacy_i2c_offset + 5])
+		bios->bdcb.dcb.i2c[0].read = bios->data[legacy_i2c_offset + 5];
+	if (bios->data[legacy_i2c_offset + 6])
+		bios->bdcb.dcb.i2c[1].write = bios->data[legacy_i2c_offset + 6];
+	if (bios->data[legacy_i2c_offset + 7])
+		bios->bdcb.dcb.i2c[1].read = bios->data[legacy_i2c_offset + 7];
 
 	if (bmplength > 74) {
 		bios->fmaxvco = ROM32(bmp[67]);
@@ -4213,7 +4232,8 @@ static struct dcb_entry * new_dcb_entry(struct parsed_dcb *dcb)
 	return entry;
 }
 
-static void fabricate_vga_output(struct parsed_dcb *dcb, int i2c, int heads)
+static void
+fabricate_vga_output(struct parsed_dcb *dcb, int i2c, int heads, int or)
 {
 	struct dcb_entry *entry = new_dcb_entry(dcb);
 
@@ -4221,7 +4241,8 @@ static void fabricate_vga_output(struct parsed_dcb *dcb, int i2c, int heads)
 	entry->i2c_index = i2c;
 	entry->heads = heads;
 	entry->location = DCB_LOC_ON_CHIP;
-	/* "or" mostly unused in early gen crt modesetting, 0 is fine */
+	/* setting "or" to 0 for early gen crt modesetting is fine (unused) */
+	entry->or = or;
 }
 
 static void fabricate_dvi_i_output(struct parsed_dcb *dcb, bool twoHeads)
@@ -4246,7 +4267,7 @@ static void fabricate_dvi_i_output(struct parsed_dcb *dcb, bool twoHeads)
 	 *
 	 * with this introduction, dvi-a left as an exercise for the reader.
 	 */
-	fabricate_vga_output(dcb, LEGACY_I2C_PANEL, entry->heads);
+	fabricate_vga_output(dcb, LEGACY_I2C_PANEL, entry->heads, 0);
 #endif
 }
 
@@ -4373,7 +4394,7 @@ parse_dcb15_entry(ScrnInfoPtr pScrn, struct parsed_dcb *dcb,
 	case OUTPUT_TMDS:
 		/* invent a DVI-A output, by copying the fields of the DVI-D
 		 * output; reported to work by math_b on an NV20(!) */
-		fabricate_vga_output(dcb, entry->i2c_index, entry->heads);
+		fabricate_vga_output(dcb, entry->i2c_index, entry->heads, 0);
 	}
 
 	return true;
@@ -4462,10 +4483,19 @@ static int parse_dcb_table(ScrnInfoPtr pScrn, struct nvbios *bios, bool twoHeads
 	dcbptr = ROM16(bios->data[0x36]);
 
 	if (dcbptr == 0x0) {
+#ifdef __powerpc__
+		if ((NVPTR(pScrn)->Chipset & 0xffff) == 0x0172) {
+			/* retarded PowerMac G4 has DVI and ADC (#21273) */
+			NV_WARN(pScrn, "Working around missing output tables\n");
+			/* this is the dvi-a */
+			fabricate_vga_output(dcb, LEGACY_I2C_PANEL, 0x3, 2);
+			return 0;
+		}
+#endif
 		NV_WARN(pScrn, "No output data (DCB) found in BIOS, "
 			       "assuming a CRT output exists\n");
 		/* this situation likely means a really old card, pre DCB */
-		fabricate_vga_output(dcb, LEGACY_I2C_CRT, 1);
+		fabricate_vga_output(dcb, LEGACY_I2C_CRT, 1, 0);
 		return 0;
 	}
 
@@ -4525,7 +4555,7 @@ static int parse_dcb_table(ScrnInfoPtr pScrn, struct nvbios *bios, bool twoHeads
 		 */
 		NV_TRACEWARN(pScrn, "No useful information in BIOS output table; "
 				    "adding all possible outputs\n");
-		fabricate_vga_output(dcb, LEGACY_I2C_CRT, 1);
+		fabricate_vga_output(dcb, LEGACY_I2C_CRT, 1, 0);
 		if (bios->tmds.output0_script_ptr ||
 		    bios->tmds.output1_script_ptr)
 			fabricate_dvi_i_output(dcb, twoHeads);

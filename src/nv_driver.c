@@ -131,118 +131,6 @@ static struct NvFamily NVKnownFamilies[] =
   { NULL, NULL}
 };
 
-/*
- * List of symbols from other modules that this module references.  This
- * list is used to tell the loader that it is OK for symbols here to be
- * unresolved providing that it hasn't been told that they haven't been
- * told that they are essential via a call to xf86LoaderReqSymbols() or
- * xf86LoaderReqSymLists().  The purpose is this is to avoid warnings about
- * unresolved symbols that are not required.
- */
-
-static const char *vgahwSymbols[] = {
-    "vgaHWUnmapMem",
-    "vgaHWDPMSSet",
-    "vgaHWFreeHWRec",
-    "vgaHWGetHWRec",
-    "vgaHWGetIndex",
-    "vgaHWInit",
-    "vgaHWMapMem",
-    "vgaHWProtect",
-    "vgaHWRestore",
-    "vgaHWSave",
-    "vgaHWSaveScreen",
-    NULL
-};
-
-static const char *fbSymbols[] = {
-    "fbPictureInit",
-    "fbScreenInit",
-    NULL
-};
-
-static const char *exaSymbols[] = {
-    "exaDriverInit",
-    "exaOffscreenInit",
-    NULL
-};
-
-static const char *ddcSymbols[] = {
-    "xf86PrintEDID",
-    "xf86DoEDID_DDC2",
-    "xf86SetDDCproperties",
-    NULL
-};
-
-static const char *vbeSymbols[] = {
-    "VBEInit",
-    "vbeFree",
-    "vbeDoEDID",
-    NULL
-};
-
-static const char *i2cSymbols[] = {
-    "xf86CreateI2CBusRec",
-    "xf86I2CBusInit",
-    NULL
-};
-
-static const char *shadowSymbols[] = {
-    "ShadowFBInit",
-    NULL
-};
-
-static const char *int10Symbols[] = {
-    "xf86FreeInt10",
-    "xf86InitInt10",
-    "xf86ExecX86int10",
-    NULL
-};
-
-const char *drmSymbols[] = {
-    "drmOpen", 
-    "drmAddBufs",
-    "drmAddMap",
-    "drmAgpAcquire",
-    "drmAgpVersionMajor",
-    "drmAgpVersionMinor",
-    "drmAgpAlloc",
-    "drmAgpBind",
-    "drmAgpEnable",
-    "drmAgpFree",
-    "drmAgpRelease",
-    "drmAgpUnbind",
-    "drmAuthMagic",
-    "drmCommandNone",
-    "drmCommandWrite",
-    "drmCommandWriteRead",
-    "drmCreateContext",
-    "drmCtlInstHandler",
-    "drmCtlUninstHandler",
-    "drmDestroyContext",
-    "drmFreeVersion",
-    "drmGetInterruptFromBusID",
-    "drmGetLibVersion",
-    "drmGetVersion",
-    NULL
-};
-
-const char *driSymbols[] = {
-    "DRICloseScreen",
-    "DRICreateInfoRec",
-    "DRIDestroyInfoRec",
-    "DRIFinishScreenInit",
-    "DRIGetSAREAPrivate",
-    "DRILock",
-    "DRIQueryVersion",
-    "DRIScreenInit",
-    "DRIUnlock",
-    "GlxSetVisualConfigs",
-    "DRICreatePCIBusID",
-    NULL
-};
-
-
 static MODULESETUPPROTO(nouveauSetup);
 
 static XF86ModuleVersionInfo nouveauVersRec =
@@ -273,19 +161,6 @@ nouveauSetup(pointer module, pointer opts, int *errmaj, int *errmin)
 		/* The 1 here is needed to turn off a backwards compatibility mode */
 		/* Otherwise NVPciProbe() is not called */
 		xf86AddDriver(&NV, module, 1);
-
-		/*
-		 * Modules that this driver always requires may be loaded here
-		 * by calling LoadSubModule().
-		 */
-		/*
-		 * Tell the loader about symbols from other modules that this module
-		 * might refer to.
-		 */
-		LoaderRefSymLists(vgahwSymbols, exaSymbols, fbSymbols,
-				shadowSymbols, drmSymbols,
-				i2cSymbols, ddcSymbols, vbeSymbols,
-				int10Symbols, NULL);
 
 		/*
 		 * The return value must be non-NULL on success even though there
@@ -874,9 +749,6 @@ NVValidMode(int scrnIndex, DisplayModePtr mode, Bool verbose, int flags)
 
 Bool NVI2CInit(ScrnInfoPtr pScrn)
 {
-	xf86LoaderReqSymLists(i2cSymbols,NULL);
-	xf86LoaderReqSymLists(ddcSymbols, NULL);
-
 	if (!NVPTR(pScrn)->randr12_enable)
 		return NVDACi2cInit(pScrn);
 	return TRUE;
@@ -1109,7 +981,6 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 
 	/* Initialize the card through int10 interface if needed */
 	if (xf86LoadSubModule(pScrn, "int10")) {
-		xf86LoaderReqSymLists(int10Symbols, NULL);
 #if !defined(__alpha__) && !defined(__powerpc__)
 		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Initializing int10\n");
 		pNv->pInt10 = xf86InitInt10(pNv->pEnt->index);
@@ -1192,8 +1063,6 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 		NVPreInitFail("\n");
 	}
 
-	xf86LoaderReqSymLists(vgahwSymbols, NULL);
-
 	/*
 	 * Allocate a vgaHWRec
 	 */
@@ -1259,8 +1128,13 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 			"Using \"Shadow Framebuffer\" - acceleration disabled\n");
 	}
 
-	if (xf86ReturnOptValBool(pNv->Options, OPTION_EXA_PIXMAPS, FALSE))
+	if (xf86ReturnOptValBool(pNv->Options, OPTION_EXA_PIXMAPS, FALSE)) {
 		pNv->exa_driver_pixmaps = TRUE;
+#if XORG_VERSION_CURRENT >= XORG_VERSION_NUMERIC(1,6,99,0,0)
+		if (pNv->Architecture >= NV_50)
+			pNv->wfb_enabled = TRUE;
+#endif
+	}
 
 	if(xf86GetOptValInteger(pNv->Options, OPTION_VIDEO_KEY, &(pNv->videoKey))) {
 		xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, "video key set to 0x%x\n",
@@ -1527,23 +1401,24 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 	 * section.
 	 */
 
+	if (pNv->wfb_enabled) {
+		if (xf86LoadSubModule(pScrn, "wfb") == NULL)
+			NVPreInitFail("\n");
+	}
+
 	if (xf86LoadSubModule(pScrn, "fb") == NULL)
 		NVPreInitFail("\n");
-
-	xf86LoaderReqSymLists(fbSymbols, NULL);
 
 	/* Load EXA if needed */
 	if (!pNv->NoAccel) {
 		if (!xf86LoadSubModule(pScrn, "exa")) {
 			NVPreInitFail("\n");
 		}
-		xf86LoaderReqSymLists(exaSymbols, NULL);
 	}
 
 	/* Load shadowfb */
 	if (!xf86LoadSubModule(pScrn, "shadowfb"))
 		NVPreInitFail("\n");
-	xf86LoaderReqSymLists(shadowSymbols, NULL);
 
 	return TRUE;
 }
@@ -1636,6 +1511,7 @@ NVMapMem(ScrnInfoPtr pScrn)
 {
 	NVPtr pNv = NVPTR(pScrn);
 	uint64_t res;
+	uint32_t tile_mode = 0, tile_flags = 0;
 	int size;
 
 	if (!pNv->dev)
@@ -1649,15 +1525,24 @@ NVMapMem(ScrnInfoPtr pScrn)
 	pNv->AGPSize=res;
 
 	if (pNv->exa_driver_pixmaps) {
+		uint32_t height = pScrn->virtualY;
+
+		if (pNv->Architecture == NV_ARCH_50 && pNv->kms_enable) {
+			tile_mode = 4;
+			tile_flags = 0x7a00;
+			height = NOUVEAU_ALIGN(height, 64);
+		}
+
 		size = NOUVEAU_ALIGN(pScrn->virtualX, 64);
 		size = size * (pScrn->bitsPerPixel >> 3);
-		size = size * pScrn->virtualY;
+		size = size * height;
 	} else {
 		size = pNv->VRAMPhysicalSize / 2;
 	}
 
-	if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN,
-			   0, size, &pNv->FB)) {
+	if (nouveau_bo_new_tile(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN |
+				NOUVEAU_BO_MAP, 0, size, tile_mode,
+				tile_flags, &pNv->FB)) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "Failed to allocate framebuffer memory\n");
 		return FALSE;
@@ -1683,8 +1568,8 @@ NVMapMem(ScrnInfoPtr pScrn)
 			   size >> 10);
 	}
 
-	if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_GART | NOUVEAU_BO_PIN, 0,
-			   size, &pNv->GART)) {
+	if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_GART | NOUVEAU_BO_PIN |
+			   NOUVEAU_BO_MAP, 0, size, &pNv->GART)) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "Unable to allocate GART memory\n");
 	}
@@ -1700,15 +1585,15 @@ NVMapMem(ScrnInfoPtr pScrn)
 	if (pNv->kms_enable)
 		return TRUE;
 
-	if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN, 0,
-			   64 * 64 * 4, &pNv->Cursor)) {
+	if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN |
+			   NOUVEAU_BO_MAP, 0, 64 * 64 * 4, &pNv->Cursor)) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "Failed to allocate memory for hardware cursor\n");
 		return FALSE;
 	}
 
-	if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN, 0,
-		64 * 64 * 4, &pNv->Cursor2)) {
+	if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN |
+			   NOUVEAU_BO_MAP, 0, 64 * 64 * 4, &pNv->Cursor2)) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			"Failed to allocate memory for hardware cursor\n");
 		return FALSE;
@@ -1725,7 +1610,8 @@ NVMapMem(ScrnInfoPtr pScrn)
 			nouveauCrtcPtr crtc = pNv->crtc[i];
 
 			if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM |
-					   NOUVEAU_BO_PIN, 0, 0x1000,
+					   NOUVEAU_BO_PIN |
+					   NOUVEAU_BO_MAP, 0, 0x1000,
 					   &crtc->lut)) {
 				xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 				   "Failed to allocate memory for lut %d\n", i);
@@ -2033,7 +1919,6 @@ NVDPMSSet(ScrnInfoPtr pScrn, int PowerManagementMode, int flags)
 /* Mandatory */
 
 /* This gets called at the start of each server generation */
-
 static Bool
 NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 {
@@ -2132,18 +2017,26 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	}
 
 	switch (pScrn->bitsPerPixel) {
-		case 16:
-		case 32:
-			ret = fbScreenInit(pScreen, FBStart, pScrn->virtualX, pScrn->virtualY,
-				pScrn->xDpi, pScrn->yDpi,
-				displayWidth, pScrn->bitsPerPixel);
-			break;
-		default:
-			xf86DrvMsg(scrnIndex, X_ERROR,
-				"Internal error: invalid bpp (%d) in NVScreenInit\n",
-				pScrn->bitsPerPixel);
-			ret = FALSE;
-			break;
+	case 16:
+	case 32:
+	if (pNv->wfb_enabled) {
+		ret = wfbScreenInit(pScreen, FBStart, pScrn->virtualX,
+				    pScrn->virtualY, pScrn->xDpi, pScrn->yDpi,
+				    displayWidth, pScrn->bitsPerPixel,
+				    nouveau_wfb_setup_wrap,
+				    nouveau_wfb_finish_wrap);
+	} else {
+		ret = fbScreenInit(pScreen, FBStart, pScrn->virtualX,
+				   pScrn->virtualY, pScrn->xDpi, pScrn->yDpi,
+				   displayWidth, pScrn->bitsPerPixel);
+	}
+		break;
+	default:
+		xf86DrvMsg(scrnIndex, X_ERROR,
+			   "Internal error: invalid bpp (%d) in NVScreenInit\n",
+			   pScrn->bitsPerPixel);
+		ret = FALSE;
+		break;
 	}
 	if (!ret)
 		return FALSE;
@@ -2161,7 +2054,10 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 		}
 	}
 
-	fbPictureInit (pScreen, 0, 0);
+	if (pNv->wfb_enabled)
+		wfbPictureInit (pScreen, 0, 0);
+	else
+		fbPictureInit (pScreen, 0, 0);
 
 	xf86SetBlackWhitePixels(pScreen);
 
@@ -2220,6 +2116,14 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
 	NVInitVideo(pScreen);
 
+	/* Wrap the block handler here, if we do it after the EnterVT we
+	 * can end up in the unfortunate case where we've wrapped the
+	 * xf86RotateBlockHandler which sometimes is not expecting to
+	 * be in the wrap chain and calls a NULL pointer...
+	 */
+	pNv->BlockHandler = pScreen->BlockHandler;
+	pScreen->BlockHandler = NVBlockHandler;
+
 	pScrn->vtSema = TRUE;
 	pScrn->pScreen = pScreen;
 	if (!NVEnterVT(pScrn->scrnIndex, 0))
@@ -2263,9 +2167,6 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	pNv->CloseScreen = pScreen->CloseScreen;
 	pScreen->CloseScreen = NVCloseScreen;
 
-	pNv->BlockHandler = pScreen->BlockHandler;
-	pScreen->BlockHandler = NVBlockHandler;
-
 	/* Report any unused options (only for the first generation) */
 	if (serverGeneration == 1)
 		xf86ShowUnusedOptions(pScrn->scrnIndex, pScrn->options);
@@ -2302,7 +2203,6 @@ static void
 NVSave(ScrnInfoPtr pScrn)
 {
 	NVPtr pNv = NVPTR(pScrn);
-	NVRegPtr nvReg = &pNv->SavedReg;
 
 	if (pNv->Architecture == NV_ARCH_50)
 		return;
@@ -2325,6 +2225,7 @@ NVSave(ScrnInfoPtr pScrn)
 	} else {
 		vgaHWPtr pVga = VGAHWPTR(pScrn);
 		vgaRegPtr vgaReg = &pVga->SavedReg;
+		NVRegPtr nvReg = &pNv->SavedReg;
 		if (pNv->twoHeads)
 			nvWriteCurVGA(pNv, NV_CIO_CRE_44, pNv->crtc_active[1] * 0x3);
 

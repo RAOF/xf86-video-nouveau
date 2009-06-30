@@ -82,6 +82,52 @@ void NVSetOwner(NVPtr pNv, int owner)
 	}
 }
 
+/*
+ * on nv11 this may not be reliable
+ * returned value is suitable for directly programming back into cr44
+ */
+int nouveau_hw_get_current_head(ScrnInfoPtr pScrn)
+{
+	NVPtr pNv = NVPTR(pScrn);
+	int cr44;
+
+	if (pNv->NVArch != 0x11)
+		return NVReadVgaCrtc(pNv, 0, NV_CIO_CRE_44);
+
+	/* reading CR44 is broken on nv11, so we attempt to infer it */
+	if (nvReadMC(pNv, NV_PBUS_DEBUG_1) & (1 << 28))	/* heads tied, restore both */
+		cr44 = 0x4;
+	else {
+		bool waslocked, slaved_on_A, tvA, slaved_on_B, tvB;
+
+		waslocked = NVLockVgaCrtcs(pNv, false);
+
+		slaved_on_A = NVReadVgaCrtc(pNv, 0, NV_CIO_CRE_PIXEL_INDEX) & 0x80;
+		if (slaved_on_A)
+			tvA = !(NVReadVgaCrtc(pNv, 0, NV_CIO_CRE_LCD__INDEX) & MASK(NV_CIO_CRE_LCD_LCD_SELECT));
+
+		slaved_on_B = NVReadVgaCrtc(pNv, 1, NV_CIO_CRE_PIXEL_INDEX) & 0x80;
+		if (slaved_on_B)
+			tvB = !(NVReadVgaCrtc(pNv, 1, NV_CIO_CRE_LCD__INDEX) & MASK(NV_CIO_CRE_LCD_LCD_SELECT));
+
+		if (waslocked)
+			NVLockVgaCrtcs(pNv, true);
+
+		if (slaved_on_A && !tvA)
+			cr44 = 0x0;
+		else if (slaved_on_B && !tvB)
+			cr44 = 0x3;
+		else if (slaved_on_A)
+			cr44 = 0x0;
+		else if (slaved_on_B)
+			cr44 = 0x3;
+		else
+			cr44 = 0x0;
+	}
+
+	return cr44;
+}
+
 void NVBlankScreen(NVPtr pNv, int head, bool blank)
 {
 	unsigned char seq1;
@@ -595,12 +641,14 @@ void nouveau_hw_save_vga_fonts(ScrnInfoPtr pScrn, bool save)
  * mode state save/load
  */
 
-static void rd_cio_state(NVPtr pNv, int head, NVCrtcRegPtr crtcstate, int index)
+static void rd_cio_state(NVPtr pNv, int head,
+			 struct nouveau_crtc_state *crtcstate, int index)
 {
 	crtcstate->CRTC[index] = NVReadVgaCrtc(pNv, head, index);
 }
 
-static void wr_cio_state(NVPtr pNv, int head, NVCrtcRegPtr crtcstate, int index)
+static void wr_cio_state(NVPtr pNv, int head,
+			 struct nouveau_crtc_state *crtcstate, int index)
 {
 	NVWriteVgaCrtc(pNv, head, index, crtcstate->CRTC[index]);
 }
@@ -609,7 +657,7 @@ static void
 nv_save_state_ramdac(ScrnInfoPtr pScrn, int head, struct nouveau_mode_state *state)
 {
 	NVPtr pNv = NVPTR(pScrn);
-	NVCrtcRegPtr regp = &state->crtc_reg[head];
+	struct nouveau_crtc_state *regp = &state->head[head];
 	int i;
 
 	if (pNv->Architecture >= NV_ARCH_10)
@@ -664,7 +712,7 @@ nv_save_state_ramdac(ScrnInfoPtr pScrn, int head, struct nouveau_mode_state *sta
 static void nv_load_state_ramdac(ScrnInfoPtr pScrn, int head, struct nouveau_mode_state *state)
 {
 	NVPtr pNv = NVPTR(pScrn);
-	NVCrtcRegPtr regp = &state->crtc_reg[head];
+	struct nouveau_crtc_state *regp = &state->head[head];
 	uint32_t pllreg = head ? NV_RAMDAC_VPLL2 : NV_PRAMDAC_VPLL_COEFF;
 	int i;
 
@@ -715,7 +763,7 @@ static void nv_load_state_ramdac(ScrnInfoPtr pScrn, int head, struct nouveau_mod
 static void
 nv_save_state_vga(NVPtr pNv, int head, struct nouveau_mode_state *state)
 {
-	NVCrtcRegPtr regp = &state->crtc_reg[head];
+	struct nouveau_crtc_state *regp = &state->head[head];
 	int i;
 
 	regp->MiscOutReg = NVReadPRMVIO(pNv, head, NV_PRMVIO_MISC__READ);
@@ -737,7 +785,7 @@ nv_save_state_vga(NVPtr pNv, int head, struct nouveau_mode_state *state)
 
 static void nv_load_state_vga(NVPtr pNv, int head, struct nouveau_mode_state *state)
 {
-	NVCrtcRegPtr regp = &state->crtc_reg[head];
+	struct nouveau_crtc_state *regp = &state->head[head];
 	int i;
 
 	NVWritePRMVIO(pNv, head, NV_PRMVIO_MISC__WRITE, regp->MiscOutReg);
@@ -762,7 +810,7 @@ static void nv_load_state_vga(NVPtr pNv, int head, struct nouveau_mode_state *st
 static void
 nv_save_state_ext(NVPtr pNv, int head, struct nouveau_mode_state *state)
 {
-	NVCrtcRegPtr regp = &state->crtc_reg[head];
+	struct nouveau_crtc_state *regp = &state->head[head];
 	int i;
 
 	rd_cio_state(pNv, head, regp, NV_CIO_CRE_LCD__INDEX);
@@ -823,7 +871,7 @@ nv_save_state_ext(NVPtr pNv, int head, struct nouveau_mode_state *state)
 
 static void nv_load_state_ext(NVPtr pNv, int head, struct nouveau_mode_state *state)
 {
-	NVCrtcRegPtr regp = &state->crtc_reg[head];
+	struct nouveau_crtc_state *regp = &state->head[head];
 	int i;
 
 	if (pNv->Architecture >= NV_ARCH_10) {
@@ -919,8 +967,8 @@ nv_save_state_palette(NVPtr pNv, int head, struct nouveau_mode_state *state)
 	VGA_WR08(pNv->REGS, NV_PRMDIO_READ_MODE_ADDRESS + head_offset, 0x0);
 
 	for (i = 0; i < 768; i++) {
-		state->crtc_reg[head].DAC[i] = NV_RD08(pNv->REGS, NV_PRMDIO_PALETTE_DATA + head_offset);
-		DDXMMIOH("nv_save_state_palette: head %d reg 0x%04x data 0x%02x\n", head, NV_PRMDIO_PALETTE_DATA + head_offset, state->crtc_reg[head].DAC[i]);
+		state->head[head].DAC[i] = NV_RD08(pNv->REGS, NV_PRMDIO_PALETTE_DATA + head_offset);
+		DDXMMIOH("nv_save_state_palette: head %d reg 0x%04x data 0x%02x\n", head, NV_PRMDIO_PALETTE_DATA + head_offset, state->head[head].DAC[i]);
 	}
 
 	NVSetEnablePalette(pNv, head, false);
@@ -935,8 +983,8 @@ void nouveau_hw_load_state_palette(NVPtr pNv, int head,
 	VGA_WR08(pNv->REGS, NV_PRMDIO_WRITE_MODE_ADDRESS + head_offset, 0x0);
 
 	for (i = 0; i < 768; i++) {
-		DDXMMIOH("nouveau_mode_state_load_palette: head %d reg 0x%04x data 0x%02x\n", head, NV_PRMDIO_PALETTE_DATA + head_offset, state->crtc_reg[head].DAC[i]);
-		NV_WR08(pNv->REGS, NV_PRMDIO_PALETTE_DATA + head_offset, state->crtc_reg[head].DAC[i]);
+		DDXMMIOH("nouveau_mode_state_load_palette: head %d reg 0x%04x data 0x%02x\n", head, NV_PRMDIO_PALETTE_DATA + head_offset, state->head[head].DAC[i]);
+		NV_WR08(pNv->REGS, NV_PRMDIO_PALETTE_DATA + head_offset, state->head[head].DAC[i]);
 	}
 
 	NVSetEnablePalette(pNv, head, false);

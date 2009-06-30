@@ -264,7 +264,8 @@ nouveau_xv_bo_realloc(ScrnInfoPtr pScrn, unsigned flags, unsigned size,
 	if (pNv->Architecture >= NV_ARCH_50 && (flags & NOUVEAU_BO_VRAM))
 		flags |= NOUVEAU_BO_TILED;
 
-	ret = nouveau_bo_new(pNv->dev, flags | NOUVEAU_BO_PIN, 0, size, pbo);
+	ret = nouveau_bo_new(pNv->dev, flags | NOUVEAU_BO_PIN |
+			     NOUVEAU_BO_MAP, 0, size, pbo);
 	if (ret)
 		return ret;
 
@@ -1124,7 +1125,7 @@ NVPutImage(ScrnInfoPtr pScrn, short src_x, short src_y, short drw_x,
 
 			BEGIN_RING(chan, m2mf, 0x021c, 7);
 			OUT_RING  (chan, 0);
-			OUT_RING  (chan, 0);
+			OUT_RING  (chan, destination_buffer->tile_mode << 4);
 			OUT_RING  (chan, dstPitch);
 			OUT_RING  (chan, nlines);
 			OUT_RING  (chan, 1);
@@ -1249,18 +1250,16 @@ CPU_copy:
 		ppix = NVGetDrawablePixmap(pDraw);
 
 		/* Ensure pixmap is in offscreen memory */
-		exaMoveInPixmap(ppix);
+		if (!pNv->exa_driver_pixmaps) {
+			exaMoveInPixmap(ppix);
 
-		/* check if it made it offscreen */
-#if NOUVEAU_EXA_PIXMAPS
-		if (!pNv->EXADriverPtr->PixmapIsOffscreen(ppix))
-#else
-		if (exaGetPixmapOffset(ppix) >= pNv->EXADriverPtr->memorySize)
-#endif
-			/* we lost, insufficient space probably */
-			return BadAlloc;
+			/* check if it made it offscreen */
+			if (exaGetPixmapOffset(ppix) >= pNv->EXADriverPtr->memorySize)
+				/* we lost, insufficient space probably */
+				return BadAlloc;
 
-		ExaOffscreenMarkUsed(ppix);
+			ExaOffscreenMarkUsed(ppix);
+		}
 
 #ifdef COMPOSITE
 		/* Convert screen coords to pixmap coords */

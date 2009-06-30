@@ -1,3 +1,9 @@
+xserver-xorg-video-nouveau (1:0.0.10~git+20090701+c0bf670-1) UNRELEASED; urgency=low
+
+  * New upstream snapshot.
+
+ -- Chris Lamb <lamby@debian.org>  Wed, 01 Jul 2009 00:24:20 +0100
+
 xserver-xorg-video-nouveau (1:0.0.10~git+20090519+9656762-1) experimental; urgency=low
 
   * New upstream snapshot (Closes: #526144, #524456)

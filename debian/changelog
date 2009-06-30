@@ -1,6 +1,55 @@
 xserver-xorg-video-nouveau (1:0.0.10~git+20090701+c0bf670-1) UNRELEASED; urgency=low
 
   * New upstream snapshot.
+    - c0bf670... wfb: fix stupid thinko + more safety
+    - a12cb5c... bios: oops
+    - e66867e... bios: use image from PRAMIN in preference to PROM on NV50
+    - 42c5730... wrap BlockHandler a little earlier
+    - 09e663a... kms: safer fb resize func
+    - 90be5d5... wfb: use straight memcpy hook if no tiled wraps present
+    - 86d905d... wfb: be more cautious in a few places
+    - 1bcbc4b... kms: small cleanup
+    - c2d3550... kms: fix rotation buffer pitch
+    - 6fd9829... kms: point rotation pixmap at correct buffer
+    - 67f8ebe... nv50: create non-linear scanout buffers for rotation
+    - b7e3306... Add DVI-A output info for Mac card missing bios tables 
+      (#21273)
+    - 01b19c9... nv50: sigh
+    - 4d9e63b... wfb: "mode0" tiles have the same pitch as the others
+    - 02ed6b6... wfb: work-around wfb suckage
+    - 669c59e... wfb: need a 64-bit datatype for multiply_factor
+    - 86dedb7... fix some pitch issues
+    - 794a277... nv50: use libwfb for pixmap access when driver pixmaps 
+      enabled
+    - 11d9690... exa: use the sane CreatePixmap hook, if available
+    - 6ee4533... xv: fix some issues with driver pixmaps
+    - 67c5287... exa: wait_marker becomes a NOP with driver pixmaps
+    - f44e528... nv50: make use of larger tile sizes
+    - 30c44ce... exa: create unacceleratable pixmaps (ie. 1bpp) in system 
+      memory
+    - 1aa22d5... nv50: use non-linear scanout buffer when driver pixmaps 
+      enabled
+    - 13d8d49... nv50: use tile_mode from bo
+    - bd9f5f2... exa: fix compile against latest libdrm_nouveau
+    - 5f97afe... randr12: split from pre-randr12 structs into new header, 
+      de-typedef
+    - 0c17b87... Move head getting into nouveau_hw.c
+    - 12314fa... randr12: improve uniformity of props code
+    - b541c1c... Remove "TMDS table script pointers not stubbed" bios warning
+    - 8af5028... Remove useless loader symbol lists.
+    - 317b581... randr12: disable lvds (invalidate all modes) if bios lvds 
+      parsing fails
+    - e897191... randr12: better behaviour (avoid crash) when fp native mode 
+      can't be found
+    - 0316748... randr12: line length improvements
+    - b60c16c... Simplify tests for digital fp outputs
+    - 992d4b5... randr12: a bunch of trivial improvements and tidyups
+    - 6f0a324... Fix oopsy from 81bbdd4e causing broken framebuffer
+    - c579918... randr12: fix two colour cursor on second head
+    - 81bbdd4... explicitly mark buffers mappable
+    - 6c09ad5... Tolerate missing fp bios table (rh#502371)
+    - db9ff95... kms: clip sw transition dims to smallest common area
+    - 2688c97... don't run vbios parser when kms enabled
 
  -- Chris Lamb <lamby@debian.org>  Wed, 01 Jul 2009 00:24:20 +0100
 

@@ -51,6 +51,7 @@ xserver-xorg-video-nouveau (1:0.0.10~git+20090701+c0bf670-1) UNRELEASED; urgency
     - db9ff95... kms: clip sw transition dims to smallest common area
     - 2688c97... don't run vbios parser when kms enabled
   * Bump Build-Depends on libdrm-dev.
+  * Bump Standards-Version to 3.8.2.
 
  -- Chris Lamb <lamby@debian.org>  Wed, 01 Jul 2009 00:24:20 +0100
 

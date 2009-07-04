@@ -1,4 +1,4 @@
-xserver-xorg-video-nouveau (1:0.0.10~git+20090701+c0bf670-1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:0.0.10~git+20090701+c0bf670-1) experimental; urgency=low
 
   * New upstream snapshot.
     - c0bf670... wfb: fix stupid thinko + more safety
@@ -53,7 +53,7 @@ xserver-xorg-video-nouveau (1:0.0.10~git+20090701+c0bf670-1) UNRELEASED; urgency
   * Bump Build-Depends on libdrm-dev.
   * Bump Standards-Version to 3.8.2.
 
- -- Chris Lamb <lamby@debian.org>  Wed, 01 Jul 2009 00:24:20 +0100
+ -- Chris Lamb <lamby@debian.org>  Sat, 04 Jul 2009 21:00:34 +0100
 
 xserver-xorg-video-nouveau (1:0.0.10~git+20090519+9656762-1) experimental; urgency=low
 

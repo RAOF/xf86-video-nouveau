@@ -109,13 +109,19 @@ score_vbios(ScrnInfoPtr pScrn, const uint8_t *data, const bool writeable)
 
 static void load_vbios_prom(NVPtr pNv, uint8_t *data)
 {
-	uint32_t pci_nv_20 = nvReadMC(pNv, NV_PBUS_PCI_NV_20);
+	uint32_t pci_nv_20, save_pci_nv_20;
 	int pcir_ptr;
 	int i;
 
+	if (pNv->Architecture >= NV_ARCH_50)
+		pci_nv_20 = 0x88050;
+	else
+		pci_nv_20 = NV_PBUS_PCI_NV_20;
+
 	/* enable ROM access */
-	nvWriteMC(pNv, NV_PBUS_PCI_NV_20,
-		  pci_nv_20 & ~NV_PBUS_PCI_NV_20_ROM_SHADOW_ENABLED);
+	save_pci_nv_20 = nvReadMC(pNv, pci_nv_20);
+	nvWriteMC(pNv, pci_nv_20,
+		  save_pci_nv_20 & ~NV_PBUS_PCI_NV_20_ROM_SHADOW_ENABLED);
 
 	/* bail if no rom signature */
 	if (NV_RD08(pNv->REGS, NV_PROM_OFFSET) != 0x55 ||
@@ -140,8 +146,8 @@ static void load_vbios_prom(NVPtr pNv, uint8_t *data)
 
 out:
 	/* disable ROM access */
-	nvWriteMC(pNv, NV_PBUS_PCI_NV_20,
-		  pci_nv_20 | NV_PBUS_PCI_NV_20_ROM_SHADOW_ENABLED);
+	nvWriteMC(pNv, pci_nv_20,
+		  save_pci_nv_20 | NV_PBUS_PCI_NV_20_ROM_SHADOW_ENABLED);
 }
 
 static void load_vbios_pramin(NVPtr pNv, uint8_t *data)
@@ -174,49 +180,67 @@ out:
 
 static void load_vbios_pci(NVPtr pNv, uint8_t *data)
 {
-#if XSERVER_LIBPCIACCESS
 	pci_device_read_rom(pNv->PciInfo, data);
-#else
-	xf86ReadPciBIOS(0, pNv->PciTag, 0, data, NV_PROM_SIZE);
-#endif
 }
+
+struct methods {
+	const char desc[8];
+	void (*loadbios)(NVPtr, uint8_t *);
+	const bool rw;
+	int score;
+};
+
+static struct methods nv04_methods[] = {
+	{ "PROM", load_vbios_prom, false },
+	{ "PRAMIN", load_vbios_pramin, true },
+	{ "PCI ROM", load_vbios_pci, true },
+	{ }
+};
+
+static struct methods nv50_methods[] = {
+	{ "PRAMIN", load_vbios_pramin, true },
+	{ "PROM", load_vbios_prom, false },
+	{ "PCI ROM", load_vbios_pci, true },
+	{ }
+};
 
 static bool NVShadowVBIOS(ScrnInfoPtr pScrn, uint8_t *data)
 {
 	NVPtr pNv = NVPTR(pScrn);
-	struct methods {
-		const char desc[8];
-		void (*loadbios)(NVPtr, uint8_t *);
-		const bool rw;
-		int score;
-	} method[] = {
-		{ "PROM", load_vbios_prom, false },
-		{ "PRAMIN", load_vbios_pramin, true },
-		{ "PCI ROM", load_vbios_pci, true }
-	};
-	int i, testscore = 3;
+	struct methods *methods, *method;
+	int testscore = 3;
 
-	for (i = 0; i < sizeof(method) / sizeof(struct methods); i++) {
+	if (pNv->Architecture < NV_ARCH_50)
+		methods = nv04_methods;
+	else
+		methods = nv50_methods;
+
+	method = methods;
+	while (method->loadbios) {
 		NV_TRACE(pScrn, "Attempting to load BIOS image from %s\n",
-			 method[i].desc);
+			 method->desc);
 		data[0] = data[1] = 0;	/* avoid reuse of previous image */
-		method[i].loadbios(pNv, data);
-		method[i].score = score_vbios(pScrn, data, method[i].rw);
-		if (method[i].score == testscore)
+		method->loadbios(pNv, data);
+		method->score = score_vbios(pScrn, data, method->rw);
+		if (method->score == testscore)
 			return true;
+		method++;
 	}
 
-	while (--testscore > 0)
-		for (i = 0; i < sizeof(method) / sizeof(struct methods); i++)
-			if (method[i].score == testscore) {
+	while (--testscore > 0) {
+		method = methods;
+		while (method->loadbios) {
+			if (method->score == testscore) {
 				NV_TRACE(pScrn, "Using BIOS image from %s\n",
-					 method[i].desc);
-				method[i].loadbios(pNv, data);
+					 method->desc);
+				method->loadbios(pNv, data);
 				return true;
 			}
+			method++;
+		}
+	}
 
 	NV_ERROR(pScrn, "No valid BIOS image found\n");
-
 	return false;
 }
 
@@ -250,6 +274,21 @@ static void still_alive(void)
 //	BIOS_USLEEP(2000);
 }
 
+static uint32_t
+munge_reg(ScrnInfoPtr pScrn, uint32_t reg)
+{
+	NVPtr pNv = NVPTR(pScrn);
+
+	if (pNv->Architecture < NV_ARCH_50)
+		return reg;
+
+	if (reg & 0x40000000)
+		reg += pNv->VBIOS.display.head * 0x800;
+
+	reg &= ~(0x40000000);
+	return reg;
+}
+
 static int valid_reg(ScrnInfoPtr pScrn, uint32_t reg)
 {
 	NVPtr pNv = NVPTR(pScrn);
@@ -274,7 +313,7 @@ static int valid_reg(ScrnInfoPtr pScrn, uint32_t reg)
 	if (WITHIN(reg,NV_PFIFO_OFFSET,NV_PFIFO_SIZE))
 		return 1;
 	/* maybe a little large, but it will do for the moment. */
-	if (pNv->VBIOS.pub.chip_version >= 0x80 && WITHIN(reg, 0x1000, 0xEFFF))
+	if (pNv->Architecture == NV_ARCH_50 && WITHIN(reg, 0x1000, 0xEFFF))
 		return 1;
 	if (pNv->VBIOS.pub.chip_version >= 0x30 && WITHIN(reg,0x4000,0x600))
 		return 1;
@@ -288,12 +327,13 @@ static int valid_reg(ScrnInfoPtr pScrn, uint32_t reg)
 		if (WITHIN(reg,0x88000,NV_PBUS_SIZE)) /* new PBUS */
 			return 1;
 	}
-	if (pNv->VBIOS.pub.chip_version >= 0x80) {
-		/* No clue what they do, but because they are outside normal ranges we'd
-		 * better list them seperately. */
-		if (reg == 0x00020018 || reg == 0x0002004C || reg == 0x00020060 ||
-			reg == 0x00021218 || reg == 0x0002130C || reg == 0x00089008 ||
-			reg == 0x00089028)
+	if (pNv->Architecture == NV_ARCH_50) {
+		/* No clue what they do, but because they are outside normal
+		 * ranges we' better list them seperately. */
+		if (reg == 0x00020018 || reg == 0x0002004C ||
+		    reg == 0x00020060 || reg == 0x00021218 ||
+		    reg == 0x0002130C || reg == 0x00089008 ||
+		    reg == 0x00089028)
 			return 1;
 	}
 	if (WITHIN(reg,NV_PFB_OFFSET,NV_PFB_SIZE))
@@ -302,7 +342,8 @@ static int valid_reg(ScrnInfoPtr pScrn, uint32_t reg)
 		return 1;
 	if (WITHIN(reg,NV_PCRTC0_OFFSET,NV_PCRTC0_SIZE * 2))
 		return 1;
-	if (pNv->VBIOS.pub.chip_version >= 0x80 && WITHIN(reg, NV50_DISPLAY_OFFSET, NV50_DISPLAY_SIZE))
+	if (pNv->Architecture == NV_ARCH_50 &&
+	    WITHIN(reg, NV50_DISPLAY_OFFSET, NV50_DISPLAY_SIZE))
 		return 1;
 	if (WITHIN(reg,NV_PRAMDAC0_OFFSET,NV_PRAMDAC0_SIZE * 2))
 		return 1;
@@ -353,6 +394,7 @@ static uint32_t bios_rd32(ScrnInfoPtr pScrn, uint32_t reg)
 	NVPtr pNv = NVPTR(pScrn);
 	uint32_t data;
 
+	reg = munge_reg(pScrn, reg);
 	if (!valid_reg(pScrn, reg))
 		return 0;
 
@@ -381,6 +423,7 @@ static void bios_wr32(ScrnInfoPtr pScrn, uint32_t reg, uint32_t data)
 {
 	NVPtr pNv = NVPTR(pScrn);
 
+	reg = munge_reg(pScrn, reg);
 	if (!valid_reg(pScrn, reg))
 		return;
 
@@ -1182,7 +1225,7 @@ static bool init_zm_i2c(ScrnInfoPtr pScrn, struct nvbios *bios, uint16_t offset,
 	uint8_t i2c_address = bios->data[offset + 2];
 	uint8_t count = bios->data[offset + 3];
 	I2CDevRec i2cdev;
-	uint8_t data[UINT8_MAX];
+	uint8_t data[256];	/* 256 is max "count" could specify */
 	int i;
 
 	if (!iexec->execute)
@@ -2743,11 +2786,15 @@ static int get_fp_strap(ScrnInfoPtr pScrn, struct nvbios *bios)
 	 * strap has been committed to CR58 for CR57=0xf on head A, which may be
 	 * read and used instead
 	 */
+	NVPtr pNv = NVPTR(pScrn);
 
 	if (bios->major_version < 5 && bios->data[0x48] & 0x4)
 		return (NVReadVgaCrtc5758(NVPTR(pScrn), 0, 0xf) & 0xf);
 
-	return ((bios_rd32(pScrn, NV_PEXTDEV_BOOT_0) >> 16) & 0xf);
+	if (pNv->Architecture >= NV_ARCH_50)
+		return ((bios_rd32(pScrn, NV_PEXTDEV_BOOT_0) >> 24) & 0xf);
+	else
+		return ((bios_rd32(pScrn, NV_PEXTDEV_BOOT_0) >> 16) & 0xf);
 }
 
 static int parse_fp_mode_table(ScrnInfoPtr pScrn, struct nvbios *bios)
@@ -2759,10 +2806,9 @@ static int parse_fp_mode_table(ScrnInfoPtr pScrn, struct nvbios *bios)
 
 	if (bios->fp.fptablepointer == 0x0) {
 		/* Apple cards don't have the fp table; the laptops use DDC */
+		/* The table is also missing on some x86 IGPs */
 #ifndef __powerpc__
-		NV_ERROR(pScrn, "Pointer to flat panel table invalid\n");
-		if (bios->pub.chip_version != 0x67)	/* sigh, IGPs */
-			return -EINVAL;
+		NV_WARN(pScrn, "Pointer to flat panel table invalid\n");
 #endif
 		bios->pub.digital_min_front_porch = 0x4b;
 		return 0;
@@ -2818,36 +2864,7 @@ static int parse_fp_mode_table(ScrnInfoPtr pScrn, struct nvbios *bios)
 
 	fpstrapping = get_fp_strap(pScrn, bios);
 
-	if (lth.lvds_ver == 0x40) {
-		/* Query all modes and find one with a matching clock. */
-		/* Note that this only serves as a backup solution if ddc fails. */
-
-		uint32_t clock, needed_clock;
-		int i, index = 0xf, matches = 0;
-		needed_clock = bios_rd32(pScrn, 0x00616404) & 0xFFFFF;
-		NV_TRACE(pScrn, "LVDS clock seems to be %d KHz.\n", needed_clock);
-
-		for (i = 0; i < fpentries; i++) {
-			clock = ROM16(fptable[headerlen + recordlen * i]) * 10;
-			if (clock == needed_clock) {
-				matches++;
-				index = i;
-			}
-		}
-
-		if (matches == 1)
-			NV_TRACE(pScrn, "Found a mode with matching clock\n");
-		else
-			NV_TRACE(pScrn, "Found %d modes, this is not useful\n", matches);
-
-		if (matches != 1)
-			index = 0xF;
-
-		fpindex = bios->data[bios->fp.fpxlatetableptr + index * bios->fp.xlatwidth];
-		/* strapping only set as a hack for DDC test below */
-		fpstrapping = fpindex & 0xf;
-	} else
-		fpindex = bios->data[bios->fp.fpxlatetableptr + fpstrapping * bios->fp.xlatwidth];
+	fpindex = bios->data[bios->fp.fpxlatetableptr + fpstrapping * bios->fp.xlatwidth];
 
 	if (fpindex > fpentries) {
 		NV_ERROR(pScrn, "Bad flat panel table index\n");
@@ -2941,7 +2958,7 @@ int nouveau_bios_parse_lvds_table(ScrnInfoPtr pScrn, int pxclk, bool *dl, bool *
 	int fpstrapping = get_fp_strap(pScrn, bios), lvdsmanufacturerindex = 0;
 	struct lvdstableheader lth;
 	uint16_t lvdsofs;
-	int ret;
+	int ret, chip_version = bios->pub.chip_version;
 
 	if ((ret = parse_lvds_manufacturer_table_header(pScrn, bios, &lth)))
 		return ret;
@@ -2954,14 +2971,23 @@ int nouveau_bios_parse_lvds_table(ScrnInfoPtr pScrn, int pxclk, bool *dl, bool *
 		if (!pxclk)
 			break;
 
-		/* change in behaviour guessed at nv30; see datapoints below */
-		if (bios->pub.chip_version < 0x30) {
+		if (chip_version < 0x25) {
 			/* nv17 behaviour */
 			/* it seems the old style lvds script pointer is reused
 			 * to select 18/24 bit colour depth for EDID panels */
 			lvdsmanufacturerindex = (bios->legacy.lvds_single_a_script_ptr & 1) ? 2 : 0;
 			if (pxclk >= bios->fp.duallink_transition_clk)
 				lvdsmanufacturerindex++;
+		} else if (chip_version < 0x30) {
+			/* nv28 behaviour (off-chip encoder) */
+			/* nv28 does a complex dance of first using byte 121 of
+			 * the EDID to choose the lvdsmanufacturerindex, then
+			 * later attempting to match the EDID manufacturer and
+			 * product IDs in a table (signature 'pidt' (panel id
+			 * table?)), setting an lvdsmanufacturerindex of 0 and
+			 * an fp strap of the match index (or 0xf if none)
+			 */
+			lvdsmanufacturerindex = 0;
 		} else {
 			/* nv31, nv34 behaviour */
 			lvdsmanufacturerindex = 0;
@@ -3020,12 +3046,160 @@ int nouveau_bios_parse_lvds_table(ScrnInfoPtr pScrn, int pxclk, bool *dl, bool *
 	}
 
 	/* set dual_link flag for EDID case */
-	if (pxclk)
+	if (pxclk && (chip_version < 0x25 || chip_version > 0x28))
 		bios->fp.dual_link = (pxclk >= bios->fp.duallink_transition_clk);
 
 	*dl = bios->fp.dual_link;
 
 	return 0;
+}
+
+static int
+find_script_pointers(ScrnInfoPtr pScrn, uint8_t *table, uint16_t *script0,
+		     uint16_t *script1, uint16_t headerlen, int pxclk)
+{
+	/* The output script tables describing a particular output type
+	 * look as follows:
+	 *
+	 * offset + 0   (32 bits): output this table matches (hash of DCB)
+	 * offset + 4   ( 8 bits): unknown
+	 * offset + 5   ( 8 bits): number of configurations
+	 * offset + 6   (16 bits): pointer to some script
+	 * offset + 8   (16 bits): pointer to some script
+	 *
+	 * headerlen == 10
+	 * offset + 10           : configuration 0
+	 *
+	 * headerlen == 12
+	 * offset + 10           : pointer to some script
+	 * offset + 12           : configuration 0
+	 *
+	 * Each config entry is as follows:
+	 *
+	 * offset + 0   (16 bits): unknown, assumed to be a match value
+	 * offset + 2   (16 bits): pointer to script table (clock set?)
+	 * offset + 4   (16 bits): pointer to script table (reset?)
+	 *
+	 * There doesn't appear to be a count value to say how many
+	 * entries exist in each script table, instead, a 0 value in
+	 * the first 16-bit word seems to indicate both the end of the
+	 * list and the default entry.  The second 16-bit word in the
+	 * script tables is a pointer to the script to execute.
+	 */
+
+	struct nvbios *bios = &NVPTR(pScrn)->VBIOS;
+	int i, cmpval = 0x0100;
+
+	*script0 = *script1 = 0;
+	for (i = 0; i < table[5]; i++) {
+		uint16_t offset;
+
+		if (ROM16(table[headerlen + i*6 + 0]) != cmpval)
+			continue;
+
+		offset = ROM16(table[headerlen + i*6 + 2]);
+		if (offset)
+			*script0 = clkcmptable(bios, offset, pxclk);
+
+		if (!*script0)
+			NV_WARN(pScrn, "script0 missing!\n");
+
+		offset = ROM16(table[headerlen + i*6 + 4]);
+		if (offset)
+			*script1 = clkcmptable(bios, offset, pxclk);
+
+		return 0;
+	}
+
+	NV_ERROR(pScrn, "couldn't find suitable output scripts\n");
+	return 1;
+}
+
+int
+nouveau_bios_run_display_table(ScrnInfoPtr pScrn, struct dcb_entry *dcbent,
+			       int pxclk)
+{
+	/* The display script table is located by the BIT 'U' table.
+	 *
+	 * It contains an array of pointers to various tables describing
+	 * a particular output type.  The first 32-bits of the output
+	 * tables contains similar information to a DCB entry, and is
+	 * used to decide whether that particular table is suitable for
+	 * the output you want to access.
+	 *
+	 * The "record header length" field here seems to indicate the
+	 * offset of the first configuration entry in the output tables.
+	 * This is 10 on most cards I've seen, but 12 has been witnessed
+	 * on DP cards, and there's another script pointer within the
+	 * header.
+	 *
+	 * offset + 0   ( 8 bits): version
+	 * offset + 1   ( 8 bits): header length
+	 * offset + 2   ( 8 bits): record length
+	 * offset + 3   ( 8 bits): number of records
+	 * offset + 4   ( 8 bits): record header length
+	 * offset + 5   (16 bits): pointer to first output script table
+	 */
+
+	NVPtr pNv = NVPTR(pScrn);
+	init_exec_t iexec = {true, false};
+	struct nvbios *bios = &pNv->VBIOS;
+	uint8_t *table = &bios->data[bios->display.script_table_ptr];
+	uint8_t *entry, *otable = NULL;
+	uint16_t script0, script1;
+	int i;
+	bool run_scripts = false;
+
+	if (!bios->display.script_table_ptr) {
+		NV_ERROR(pScrn, "No pointer to output script table\n");
+		return 1;
+	}
+
+	if (table[0] != 0x20) {
+		NV_ERROR(pScrn, "Output script table version 0x%02x unknown\n", table[0]);
+		return 1;
+	}
+
+	NV_DEBUG(pScrn, "Searching for output entry for %d %d %d\n",
+			dcbent->type, dcbent->location, dcbent->or);
+	entry = table + table[1];
+	for (i = 0; i < table[3]; i++, entry += table[2]) {
+		uint32_t match;
+
+		if (ROM16(entry[0]) == 0)
+			continue;
+		otable = &bios->data[ROM16(entry[0])];
+		match = ROM32(otable[0]);
+
+		NV_DEBUG(pScrn, " %d: 0x%08x\n", i, match);
+		if ((((match & 0x000f0000) >> 16)  & dcbent->or) &&
+		     ((match & 0x0000000f) >>  0) == dcbent->type &&
+		     ((match & 0x000000f0) >>  4) == dcbent->location)
+			break;
+	}
+
+	if (i == table[3]) {
+		NV_ERROR(pScrn, "Couldn't find matching output script table\n");
+		return 1;
+	}
+
+	if (find_script_pointers(pScrn, otable, &script0, &script1, table[4], pxclk))
+		return 1;
+	bios->display.head = ffs(dcbent->or) - 1;
+
+	if (script0) {
+		NV_TRACE(pScrn, "0x%04X: Parsing output Script0\n", script0);
+		if (run_scripts)
+		parse_init_table(pScrn, bios, script0, &iexec);
+	}
+
+	if (script1) {
+		NV_TRACE(pScrn, "0x%04X: Parsing output Script1\n", script1);
+		if (run_scripts)
+		parse_init_table(pScrn, bios, script1, &iexec);
+	}
+
+	return run_scripts ? 0 : 1;
 }
 
 int run_tmds_table(ScrnInfoPtr pScrn, struct dcb_entry *dcbent, int head, int pxclk)
@@ -3176,6 +3350,8 @@ int get_pll_limits(ScrnInfoPtr pScrn, uint32_t limit_match, struct pll_lims *pll
 			pll_lim->vco2.max_n = 0x1f;
 		pll_lim->vco2.min_m = 0x1;
 		pll_lim->vco2.max_m = 0x4;
+		pll_lim->max_log2p = 0x7;
+		pll_lim->max_usable_log2p = 0x6;
 	} else if (pll_lim_ver == 0x20 || pll_lim_ver == 0x21) {
 		uint16_t plloffs = bios->pll_limit_tbl_ptr + headerlen;
 		uint32_t reg = 0; /* default match */
@@ -3242,7 +3418,13 @@ int get_pll_limits(ScrnInfoPtr pScrn, uint32_t limit_match, struct pll_lims *pll
 		pll_lim->vco2.min_m = pll_rec[26];
 		pll_lim->vco2.max_m = pll_rec[27];
 
-		pll_lim->max_log2p_bias = pll_rec[29];
+		pll_lim->max_usable_log2p = pll_lim->max_log2p = pll_rec[29];
+		if (pll_lim->max_log2p > 0x7)
+			/* pll decoding in nv_hw.c assumes never > 7 */
+			NV_WARN(pScrn, "Max log2 P value greater than 7 (%d)\n",
+				pll_lim->max_log2p);
+		if (cv < 0x60)
+			pll_lim->max_usable_log2p = 0x6;
 		pll_lim->log2p_bias = pll_rec[30];
 
 		if (recordlen > 0x22)
@@ -3302,7 +3484,7 @@ int get_pll_limits(ScrnInfoPtr pScrn, uint32_t limit_match, struct pll_lims *pll
 		pll_lim->vco2.max_n = record[21];
 		pll_lim->vco2.min_m = record[22];
 		pll_lim->vco2.max_m = record[23];
-		pll_lim->max_log2p_bias = record[25];
+		pll_lim->max_usable_log2p = pll_lim->max_log2p = record[25];
 		pll_lim->log2p_bias = record[27];
 		pll_lim->refclk = ROM32(record[28]);
 	}
@@ -3329,6 +3511,11 @@ int get_pll_limits(ScrnInfoPtr pScrn, uint32_t limit_match, struct pll_lims *pll
 				pll_lim->vco1.min_m = 0x8;
 			pll_lim->vco1.max_m = 0xe;
 		}
+		if (cv < 0x17 || cv == 0x1a || cv == 0x20)
+			pll_lim->max_log2p = 4;
+		else
+			pll_lim->max_log2p = 5;
+		pll_lim->max_usable_log2p = pll_lim->max_log2p;
 	}
 
 	if (!pll_lim->refclk)
@@ -3367,7 +3554,7 @@ int get_pll_limits(ScrnInfoPtr pScrn, uint32_t limit_match, struct pll_lims *pll
 	ErrorF("pll.vco2.min_m: %d\n", pll_lim->vco2.min_m);
 	ErrorF("pll.vco2.max_m: %d\n", pll_lim->vco2.max_m);
 
-	ErrorF("pll.max_log2p_bias: %d\n", pll_lim->max_log2p_bias);
+	ErrorF("pll.max_log2p: %d\n", pll_lim->max_log2p);
 	ErrorF("pll.log2p_bias: %d\n", pll_lim->log2p_bias);
 
 	ErrorF("pll.refclk: %d\n", pll_lim->refclk);
@@ -3625,8 +3812,8 @@ static int parse_bit_tmds_tbl_entry(ScrnInfoPtr pScrn, struct nvbios *bios, bit_
 	 * characteristic signature of 0x11,0x13 (1.1 being version, 0x13 being
 	 * length?)
 	 *
-	 * At offset +7 is a pointer to a script, which I don't know how to run yet
-	 * At offset +9 is a pointer to another script, likewise
+	 * At offsets +7 and +9 are pointers to scripts, which (when not
+	 * stubbed) seem to be called from the main init tables at POST
 	 * Offset +11 has a pointer to a table where the first word is a pxclk
 	 * frequency and the second word a pointer to a script, which should be
 	 * run if the comparison pxclk frequency is less than the pxclk desired.
@@ -3636,7 +3823,7 @@ static int parse_bit_tmds_tbl_entry(ScrnInfoPtr pScrn, struct nvbios *bios, bit_
 	 * "or" from the DCB.
 	 */
 
-	uint16_t tmdstableptr, script1, script2;
+	uint16_t tmdstableptr;
 
 	if (bitentry->length != 2) {
 		NV_ERROR(pScrn, "Do not understand BIT TMDS table\n");
@@ -3658,15 +3845,32 @@ static int parse_bit_tmds_tbl_entry(ScrnInfoPtr pScrn, struct nvbios *bios, bit_
 		return -ENOSYS;
 	}
 
-	/* These two scripts are odd: they don't seem to get run even when they are not stubbed */
-	script1 = ROM16(bios->data[tmdstableptr + 7]);
-	script2 = ROM16(bios->data[tmdstableptr + 9]);
-	if (bios->data[script1] != 'q' || bios->data[script2] != 'q')
-		NV_WARN(pScrn, "TMDS table script pointers not stubbed\n");
-
 	bios->tmds.output0_script_ptr = ROM16(bios->data[tmdstableptr + 11]);
 	bios->tmds.output1_script_ptr = ROM16(bios->data[tmdstableptr + 13]);
 
+	return 0;
+}
+
+static int
+parse_bit_U_tbl_entry(ScrnInfoPtr pScrn, struct nvbios *bios,
+		      bit_entry_t *bitentry)
+{
+	/* Parses the pointer to the G80 output script tables
+	 *
+	 * Starting at bitentry->offset:
+	 *
+	 * offset + 0  (16 bits): output script table pointer
+	 */
+
+	uint16_t outputscripttableptr;
+
+	if (bitentry->length != 3) {
+		NV_ERROR(pScrn, "Do not understand BIT U table\n");
+		return -EINVAL;
+	}
+
+	outputscripttableptr = ROM16(bios->data[bitentry->offset]);
+	bios->display.script_table_ptr = outputscripttableptr;
 	return 0;
 }
 
@@ -3722,6 +3926,7 @@ static int parse_bit_structure(ScrnInfoPtr pScrn, struct nvbios *bios, const uin
 	parse_bit_table(pScrn, bios, bitoffset, &BIT_TABLE('M', M)); /* memory? */
 	parse_bit_table(pScrn, bios, bitoffset, &BIT_TABLE('L', lvds));
 	parse_bit_table(pScrn, bios, bitoffset, &BIT_TABLE('T', tmds));
+	parse_bit_table(pScrn, bios, bitoffset, &BIT_TABLE('U', U));
 
 	return 0;
 }
@@ -3863,10 +4068,15 @@ static int parse_bmp_structure(ScrnInfoPtr pScrn, struct nvbios *bios, unsigned 
 	bios->legacy.i2c_indices.crt = bios->data[legacy_i2c_offset];
 	bios->legacy.i2c_indices.tv = bios->data[legacy_i2c_offset + 1];
 	bios->legacy.i2c_indices.panel = bios->data[legacy_i2c_offset + 2];
-	bios->bdcb.dcb.i2c[0].write = bios->data[legacy_i2c_offset + 4];
-	bios->bdcb.dcb.i2c[0].read = bios->data[legacy_i2c_offset + 5];
-	bios->bdcb.dcb.i2c[1].write = bios->data[legacy_i2c_offset + 6];
-	bios->bdcb.dcb.i2c[1].read = bios->data[legacy_i2c_offset + 7];
+	/* don't overwrite defaults with zero (mac braindamage) */
+	if (bios->data[legacy_i2c_offset + 4])
+		bios->bdcb.dcb.i2c[0].write = bios->data[legacy_i2c_offset + 4];
+	if (bios->data[legacy_i2c_offset + 5])
+		bios->bdcb.dcb.i2c[0].read = bios->data[legacy_i2c_offset + 5];
+	if (bios->data[legacy_i2c_offset + 6])
+		bios->bdcb.dcb.i2c[1].write = bios->data[legacy_i2c_offset + 6];
+	if (bios->data[legacy_i2c_offset + 7])
+		bios->bdcb.dcb.i2c[1].read = bios->data[legacy_i2c_offset + 7];
 
 	if (bmplength > 74) {
 		bios->fmaxvco = ROM32(bmp[67]);
@@ -4018,7 +4228,8 @@ static struct dcb_entry * new_dcb_entry(struct parsed_dcb *dcb)
 	return entry;
 }
 
-static void fabricate_vga_output(struct parsed_dcb *dcb, int i2c, int heads)
+static void
+fabricate_vga_output(struct parsed_dcb *dcb, int i2c, int heads, int or)
 {
 	struct dcb_entry *entry = new_dcb_entry(dcb);
 
@@ -4026,7 +4237,8 @@ static void fabricate_vga_output(struct parsed_dcb *dcb, int i2c, int heads)
 	entry->i2c_index = i2c;
 	entry->heads = heads;
 	entry->location = DCB_LOC_ON_CHIP;
-	/* "or" mostly unused in early gen crt modesetting, 0 is fine */
+	/* setting "or" to 0 for early gen crt modesetting is fine (unused) */
+	entry->or = or;
 }
 
 static void fabricate_dvi_i_output(struct parsed_dcb *dcb, bool twoHeads)
@@ -4037,7 +4249,7 @@ static void fabricate_dvi_i_output(struct parsed_dcb *dcb, bool twoHeads)
 	entry->i2c_index = LEGACY_I2C_PANEL;
 	entry->heads = twoHeads ? 3 : 1;
 	entry->location = !DCB_LOC_ON_CHIP;	/* ie OFF CHIP */
-	entry->or = 1;	/* naturally on head A; see setting of CRE_LCD__INDEX */
+	entry->or = 1;	/* means |0x10 gets set on CRE_LCD__INDEX */
 	entry->duallink_possible = false; /* SiI164 and co. are single link */
 
 #if 0
@@ -4051,7 +4263,7 @@ static void fabricate_dvi_i_output(struct parsed_dcb *dcb, bool twoHeads)
 	 *
 	 * with this introduction, dvi-a left as an exercise for the reader.
 	 */
-	fabricate_vga_output(dcb, LEGACY_I2C_PANEL, entry->heads);
+	fabricate_vga_output(dcb, LEGACY_I2C_PANEL, entry->heads, 0);
 #endif
 }
 
@@ -4063,7 +4275,7 @@ parse_dcb20_entry(ScrnInfoPtr pScrn, struct bios_parsed_dcb *bdcb,
 	entry->i2c_index = (conn >> 4) & 0xf;
 	entry->heads = (conn >> 8) & 0xf;
 	entry->bus = (conn >> 16) & 0xf;
-	entry->location = (conn >> 20) & 0xf;
+	entry->location = (conn >> 20) & 0x3;
 	entry->or = (conn >> 24) & 0xf;
 	/* Normal entries consist of a single bit, but dual link has the
 	 * next most significant bit set too
@@ -4178,7 +4390,7 @@ parse_dcb15_entry(ScrnInfoPtr pScrn, struct parsed_dcb *dcb,
 	case OUTPUT_TMDS:
 		/* invent a DVI-A output, by copying the fields of the DVI-D
 		 * output; reported to work by math_b on an NV20(!) */
-		fabricate_vga_output(dcb, entry->i2c_index, entry->heads);
+		fabricate_vga_output(dcb, entry->i2c_index, entry->heads, 0);
 	}
 
 	return true;
@@ -4267,10 +4479,19 @@ static int parse_dcb_table(ScrnInfoPtr pScrn, struct nvbios *bios, bool twoHeads
 	dcbptr = ROM16(bios->data[0x36]);
 
 	if (dcbptr == 0x0) {
+#ifdef __powerpc__
+		if ((NVPTR(pScrn)->Chipset & 0xffff) == 0x0172) {
+			/* retarded PowerMac G4 has DVI and ADC (#21273) */
+			NV_WARN(pScrn, "Working around missing output tables\n");
+			/* this is the dvi-a */
+			fabricate_vga_output(dcb, LEGACY_I2C_PANEL, 0x3, 2);
+			return 0;
+		}
+#endif
 		NV_WARN(pScrn, "No output data (DCB) found in BIOS, "
 			       "assuming a CRT output exists\n");
 		/* this situation likely means a really old card, pre DCB */
-		fabricate_vga_output(dcb, LEGACY_I2C_CRT, 1);
+		fabricate_vga_output(dcb, LEGACY_I2C_CRT, 1, 0);
 		return 0;
 	}
 
@@ -4330,7 +4551,7 @@ static int parse_dcb_table(ScrnInfoPtr pScrn, struct nvbios *bios, bool twoHeads
 		 */
 		NV_TRACEWARN(pScrn, "No useful information in BIOS output table; "
 				    "adding all possible outputs\n");
-		fabricate_vga_output(dcb, LEGACY_I2C_CRT, 1);
+		fabricate_vga_output(dcb, LEGACY_I2C_CRT, 1, 0);
 		if (bios->tmds.output0_script_ptr ||
 		    bios->tmds.output1_script_ptr)
 			fabricate_dvi_i_output(dcb, twoHeads);

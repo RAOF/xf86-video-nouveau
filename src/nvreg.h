@@ -195,6 +195,7 @@
 #	define NV_CIO_AR_PLANE_INDEX		0x12
 #	define NV_CIO_AR_HPP_INDEX		0x13
 #	define NV_CIO_AR_CSEL_INDEX		0x14
+#define NV_PRMCIO_INP0			0x006013c2
 #define NV_PRMCIO_CRX__COLOR		0x006013d4
 #define NV_PRMCIO_CR__COLOR		0x006013d5
 	/* Standard VGA CRTC registers */
@@ -257,6 +258,7 @@
 #	define NV_CIO_CR_ARX_INDEX		0x26	/* attribute index -- ro copy of 0x60.3c0 */
 #	define NV_CIO_CRE_CHIP_ID_INDEX		0x27	/* chip revision */
 #	define NV_CIO_CRE_PIXEL_INDEX		0x28
+#		define NV_CIO_CRE_PIXEL_FORMAT		1:0
 #	define NV_CIO_CRE_HEB__INDEX		0x2d	/* horizontal extra bits? */
 #		define NV_CIO_CRE_HEB_HDT_8		0:0
 #		define NV_CIO_CRE_HEB_HDE_8		1:1
@@ -297,7 +299,7 @@
 #	define NV_CIO_CRE_54			0x54	/* `fp_vtiming' according to Haiku */
 #	define NV_CIO_CRE_57			0x57	/* index reg for cr58 */
 #	define NV_CIO_CRE_58			0x58	/* data reg for cr57 */
-#	define NV_CIO_CRE_59			0x59
+#	define NV_CIO_CRE_59			0x59	/* related to on/off-chip-ness of digital outputs */
 #	define NV_CIO_CRE_5B			0x5B	/* newer colour saturation reg */
 #	define NV_CIO_CRE_85			0x85
 #	define NV_CIO_CRE_86			0x86
@@ -339,6 +341,12 @@
 #	define NV_RAMDAC_580_VPLL2_ACTIVE			(1 << 28)
 
 #define NV_PRAMDAC_GENERAL_CONTROL			0x00680600
+#	define NV_PRAMDAC_GENERAL_CONTROL_PIXMIX_ON		(3 << 4)
+#	define NV_PRAMDAC_GENERAL_CONTROL_VGA_STATE_SEL		(1 << 8)
+#	define NV_PRAMDAC_GENERAL_CONTROL_ALT_MODE_SEL		(1 << 12)
+#	define NV_PRAMDAC_GENERAL_CONTROL_TERMINATION_75OHM	(2 << 16)
+#	define NV_PRAMDAC_GENERAL_CONTROL_BPC_8BITS		(1 << 20)
+#	define NV_PRAMDAC_GENERAL_CONTROL_PIPE_LONG		(2 << 28)
 #define NV_PRAMDAC_TEST_CONTROL				0x00680608
 #	define NV_PRAMDAC_TEST_CONTROL_TP_INS_EN_ASSERTED	(1 << 12)
 #	define NV_PRAMDAC_TEST_CONTROL_PWRDWN_DAC_OFF		(1 << 16)

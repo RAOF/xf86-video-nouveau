@@ -67,16 +67,34 @@ nv50_crtc_mode_fixup(xf86CrtcPtr crtc, DisplayModePtr mode,
 static void
 nv50_crtc_prepare(xf86CrtcPtr crtc)
 {
-	ScrnInfoPtr pScrn = crtc->scrn;
 	NV50CrtcPrivatePtr nv_crtc = crtc->driver_private;
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "nv50_crtc_prepare is called for %s.\n", nv_crtc->crtc->index ? "CRTC1" : "CRTC0");
-
+	ScrnInfoPtr pScrn = crtc->scrn;
 	NVPtr pNv = NVPTR(pScrn);
+	xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
+	nouveauOutputPtr output;
+	int i;
+
+	/* Rewire internal stucts to match randr-1.2... yet again.. */
+	for (i = 0; i < xf86_config->num_output; i++) {
+		xf86OutputPtr output = xf86_config->output[i];
+		NV50OutputPrivatePtr nv50_output = output->driver_private;
+		nouveauOutputPtr nv_output = nv50_output->output;
+
+		if (output->crtc) {
+			NV50CrtcPrivatePtr nv50_crtc =
+				output->crtc->driver_private;
+			nv_output->crtc = nv50_crtc->crtc;
+		} else {
+			nv_output->crtc = NULL;
+		}
+	}
+
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+		   "nv50_crtc_prepare is called for %s.\n",
+		   nv_crtc->crtc->index ? "CRTC1" : "CRTC0");
 
 	nv_crtc->crtc->active = TRUE;
 	nv_crtc->crtc->modeset_lock = TRUE;
-
-	nouveauOutputPtr output;
 
 	/* Detach any unused outputs. */
 	for (output = pNv->output; output != NULL; output = output->next) {
@@ -171,7 +189,8 @@ nv50_crtc_show_cursor(xf86CrtcPtr crtc)
 	NV50CrtcPrivatePtr nv_crtc = crtc->driver_private;
 	//xf86DrvMsg(pScrn->scrnIndex, X_INFO, "nv50_crtc_show_cursor is called for %s.\n", nv_crtc->crtc->index ? "CRTC1" : "CRTC0");
 
-	nv_crtc->crtc->ShowCursor(nv_crtc->crtc, FALSE);
+	if (!nv_crtc->crtc->blanked)
+		nv_crtc->crtc->ShowCursor(nv_crtc->crtc, FALSE);
 }
 
 static void
@@ -216,8 +235,8 @@ nv50_crtc_shadow_allocate (xf86CrtcPtr crtc, int width, int height)
 	pitch = pScrn->displayWidth * (pScrn->bitsPerPixel/8);
 	size = pitch * height;
 
-	if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN,
-			64, size, &nv_crtc->shadow)) {
+	if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN |
+			   NOUVEAU_BO_MAP, 64, size, &nv_crtc->shadow)) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Failed to allocate memory for shadow buffer!\n");
 		return NULL;
 	}
@@ -379,7 +398,8 @@ nv50_output_dpms(xf86OutputPtr output, int mode)
 	}
 
 	/* Set dpms on all outputs for ths connector, just to be safe. */
-	nouveauConnectorPtr connector = pNv->connector[nv_output->output->dcb->bus];
+	nouveauConnectorPtr connector =
+		pNv->connector[nv_output->output->dcb->i2c_index];
 	int i;
 	for (i = 0; i < MAX_OUTPUTS_PER_CONNECTOR; i++) {
 		if (connector->outputs[i])
@@ -423,7 +443,8 @@ nv50_output_detect(xf86OutputPtr output)
 
 	NVPtr pNv = NVPTR(pScrn);
 	NV50OutputPrivatePtr nv_output = output->driver_private;
-	nouveauConnectorPtr connector = pNv->connector[nv_output->output->dcb->bus];
+	nouveauConnectorPtr connector =
+		pNv->connector[nv_output->output->dcb->i2c_index];
 
 	if (!connector)
 		return XF86OutputStatusDisconnected;
@@ -500,7 +521,8 @@ nv50_output_get_modes(xf86OutputPtr output)
 
 	NVPtr pNv = NVPTR(pScrn);
 	NV50OutputPrivatePtr nv_output = output->driver_private;
-	nouveauConnectorPtr connector = pNv->connector[nv_output->output->dcb->bus];
+	nouveauConnectorPtr connector =
+		pNv->connector[nv_output->output->dcb->i2c_index];
 
 	xf86MonPtr ddc_mon = connector->DDCDetect(connector);
 
@@ -516,15 +538,17 @@ nv50_output_get_modes(xf86OutputPtr output)
 
 	/* typically only LVDS will hit this code path. */
 	if (!ddc_modes) {
-		DisplayModeRec mode;
+		DisplayModeRec mode = {};
 
-		if (nouveau_bios_fp_mode(pScrn, &mode) && nv_output->output->type == OUTPUT_LVDS) {
+		if (nv_output->output->type == OUTPUT_LVDS &&
+		      nouveau_bios_fp_mode(pScrn, &mode)) {
 			mode.status = MODE_OK;
 			mode.type = M_T_DRIVER | M_T_PREFERRED;
 			xf86SetModeDefaultName(&mode);
 
 			ddc_modes = xf86DuplicateMode(&mode);
-			xf86DrvMsg(pScrn->scrnIndex, X_WARNING, "LVDS: Using a bios mode, which should work, if it doesn't please report.\n");
+			xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
+				   "LVDS: Using a bios mode, which should work, if it doesn't please report.\n");
 		}
 	}
 

@@ -130,11 +130,10 @@ drmmode_crtc_dpms(xf86CrtcPtr drmmode_crtc, int mode)
 }
 
 static PixmapPtr
-drmmode_fb_pixmap(ScrnInfoPtr pScrn, int id, int *w, int *h)
+drmmode_fb_pixmap(ScrnInfoPtr pScrn, int id, unsigned *w, unsigned *h)
 {
 	ScreenPtr pScreen = pScrn->pScreen;
 	struct nouveau_pixmap *nvpix;
-	struct drm_gem_flink req;
 	NVPtr pNv = NVPTR(pScrn);
 	drmModeFBPtr fb;
 	PixmapPtr ppix;
@@ -155,26 +154,13 @@ drmmode_fb_pixmap(ScrnInfoPtr pScrn, int id, int *w, int *h)
 	miModifyPixmapHeader(ppix, fb->width, fb->height, fb->depth,
 			     pScrn->bitsPerPixel, fb->pitch, NULL);
 	if (w && h) {
-		*w = fb->width;
-		*h = fb->height;
+		if (fb->width < *w)
+			*w = fb->width;
+		if (fb->height < *h)
+			*h = fb->height;
 	}
 
-	/* This is kinda rediculous, libdrm_nouveau needs to be taught
-	 * how to create a nouveau_bo from a GEM handle, and not just
-	 * a GEM name.
-	 */
-	{
-		req.handle = fb->handle;
-		ret = ioctl(nouveau_device(pNv->dev)->fd, DRM_IOCTL_GEM_FLINK,
-					   &req);
-		if (ret) {
-			pScreen->DestroyPixmap(ppix);
-			drmFree(fb);
-			return NULL;
-		}
-	}
-
-	ret = nouveau_bo_handle_ref(pNv->dev, req.name, &nvpix->bo);
+	ret = nouveau_bo_wrap(pNv->dev, fb->handle, &nvpix->bo);
 	drmFree(fb);
 	if (ret) {
 		pScreen->DestroyPixmap(ppix);
@@ -192,9 +178,12 @@ drmmode_fb_copy(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int dst_id, int src_id,
 	NVPtr pNv = NVPTR(pScrn);
 	ExaDriverPtr exa = pNv->EXADriverPtr;
 	PixmapPtr pspix, pdpix;
-	int w, h;
+	unsigned w = -1, h = -1;
 
-	pspix = drmmode_fb_pixmap(pScrn, src_id, NULL, NULL);
+	if (!src_id || !dst_id)
+		return;
+
+	pspix = drmmode_fb_pixmap(pScrn, src_id, &w, &h);
 	if (!pspix)
 		return;
 
@@ -289,9 +278,11 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 	drmmode_ConvertToKMode(crtc->scrn, &kmode, mode);
 
 	fb_id = drmmode->fb_id;
-	if (drmmode_crtc->rotate_fb_id)
+	if (drmmode_crtc->rotate_fb_id) {
 		fb_id = drmmode_crtc->rotate_fb_id;
-	else
+		x = 0;
+		y = 0;
+	} else
 	if (fb_id != drmmode_crtc->mode_crtc->buffer_id &&
 	    pNv->exa_driver_pixmaps) {
 		drmmode_fb_copy(pScrn, drmmode, fb_id,
@@ -379,15 +370,21 @@ drmmode_crtc_shadow_allocate(xf86CrtcPtr crtc, int width, int height)
 	drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
 	drmmode_ptr drmmode = drmmode_crtc->drmmode;
 	NVPtr pNv = NVPTR(crtc->scrn);
-	int size;
-	unsigned long rotate_pitch;
+	uint32_t tile_mode = 0, tile_flags = 0;
+	int rotate_pitch, ah = height;
 	int ret;
 
-	rotate_pitch = crtc->scrn->displayWidth * drmmode->cpp;
-	size = rotate_pitch * height;
+	if (pNv->Architecture >= NV_ARCH_50) {
+		tile_mode = 4;
+		tile_flags = 0x7a00;
+		ah = NOUVEAU_ALIGN(height, 1 << (tile_mode + 2));
+	}
 
-	ret = nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM, 0, size,
-			     &drmmode_crtc->rotate_bo);
+	rotate_pitch = NOUVEAU_ALIGN(width * drmmode->cpp, 64);
+
+	ret = nouveau_bo_new_tile(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_MAP, 0,
+				  rotate_pitch * ah, tile_mode, tile_flags,
+				  &drmmode_crtc->rotate_bo);
 	if (ret) {
 		xf86DrvMsg(crtc->scrn->scrnIndex, X_ERROR,
 			   "Couldn't allocate shadow memory for rotated CRTC\n");
@@ -445,6 +442,14 @@ drmmode_crtc_shadow_create(xf86CrtcPtr crtc, void *data, int width, int height)
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "Couldn't allocate shadow pixmap for rotated CRTC\n");
 	}
+
+	if (drmmode_crtc->rotate_bo) {
+		struct nouveau_pixmap *nvpix = nouveau_pixmap(rotate_pixmap);
+
+		if (nvpix)
+			nouveau_bo_ref(drmmode_crtc->rotate_bo, &nvpix->bo);
+	}
+
 	return rotate_pixmap;
 
 }
@@ -518,8 +523,8 @@ drmmode_crtc_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int num)
 						 drmmode->mode_res->crtcs[num]);
 	drmmode_crtc->drmmode = drmmode;
 
-	ret = nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM, 0, 64*64*4,
-			     &drmmode_crtc->cursor);
+	ret = nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_MAP, 0,
+			     64*64*4, &drmmode_crtc->cursor);
 	assert(ret == 0);
 
 	crtc->driver_private = drmmode_crtc;
@@ -790,7 +795,7 @@ drmmode_output_set_property(xf86OutputPtr output, Atom property,
 	drmmode_output_private_ptr drmmode_output = output->driver_private;
 	drmmode_ptr drmmode = drmmode_output->drmmode;
 	drmModePropertyPtr props;
-	int mode, ret;
+	int mode, ret = 0;
 
 	if (property == scaling_mode_atom) {
 		if (value->type != XA_STRING || value->format != 8)
@@ -809,7 +814,6 @@ drmmode_output_set_property(xf86OutputPtr output, Atom property,
 		ret = drmModeConnectorSetProperty(drmmode->fd,
 						  drmmode_output->output_id,
 						  props->prop_id, mode);
-		return ret == 0;
 	} else
 	if (property == dithering_atom) {
 		if (value->type != XA_STRING || value->format != 8)
@@ -828,10 +832,9 @@ drmmode_output_set_property(xf86OutputPtr output, Atom property,
 		ret = drmModeConnectorSetProperty(drmmode->fd,
 						  drmmode_output->output_id,
 						  props->prop_id, mode);
-		return ret == 0;
 	}
 
-	return FALSE;
+	return ret == 0;
 }
 
 static const xf86OutputFuncsRec drmmode_output_funcs = {
@@ -863,9 +866,9 @@ static int subpixel_conv_table[7] = { 0, SubPixelUnknown,
 
 const char *output_names[] = { "None",
 			       "VGA",
-			       "DVI",
-			       "DVI",
-			       "DVI",
+			       "DVI-I",
+			       "DVI-D",
+			       "DVI-A",
 			       "Composite",
 			       "TV",
 			       "LVDS",
@@ -898,7 +901,7 @@ drmmode_output_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int num)
 	}
 
 	snprintf(name, 32, "%s-%d", output_names[koutput->connector_type],
-		 koutput->connector_type_id);
+		 koutput->connector_type_id - 1);
 
 	output = xf86OutputCreate (pScrn, &drmmode_output_funcs, name);
 	if (!output) {
@@ -931,15 +934,18 @@ drmmode_output_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int num)
 }
 
 static Bool
-drmmode_xf86crtc_resize (ScrnInfoPtr scrn, int width, int height)
+drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
 {
-	xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(scrn);
-	drmmode_crtc_private_ptr drmmode_crtc = config->crtc[0]->driver_private;
-	drmmode_ptr drmmode = drmmode_crtc->drmmode;
+	xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(scrn);
+	ScreenPtr screen = screenInfo.screens[scrn->scrnIndex];
 	NVPtr pNv = NVPTR(scrn);
+	drmmode_crtc_private_ptr
+		    drmmode_crtc = xf86_config->crtc[0]->driver_private;
+	drmmode_ptr drmmode = drmmode_crtc->drmmode;
+	uint32_t pitch, old_width, old_height, old_pitch, old_fb_id;
+	struct nouveau_bo *old_bo = NULL;
+	uint32_t tile_mode = 0, tile_flags = 0;
 	PixmapPtr ppix;
-	struct nouveau_bo *bo = NULL;
-	unsigned pitch, flags, old_id;
 	int ret, i;
 
 	ErrorF("resize called %d %d\n", width, height);
@@ -948,61 +954,78 @@ drmmode_xf86crtc_resize (ScrnInfoPtr scrn, int width, int height)
 		if (width > scrn->virtualX || height > scrn->virtualY)
 			return FALSE;
 
-		scrn->displayWidth = width;
+		scrn->displayWidth = NOUVEAU_ALIGN(width, 64);
 		return TRUE;
 	}
 
 	if (scrn->virtualX == width && scrn->virtualY == height)
 		return TRUE;
 
-	pitch = NOUVEAU_ALIGN(width, 64) * scrn->bitsPerPixel / 8;
-	flags = NOUVEAU_BO_VRAM;
-#if 0
-	if (pNv->Architecture >= NV_ARCH_50)
-		flags |= NOUVEAU_BO_TILED;
-#endif
-
-	ret = nouveau_bo_new(pNv->dev, flags, 0,
-			     pitch * NOUVEAU_ALIGN(height, 64), &bo);
-	if (ret)
-		return FALSE;
-
-	/* work around libdrm_nouveau api issue... */
-	nouveau_bo_map(bo, NOUVEAU_BO_WR);
-	nouveau_bo_unmap(bo);
-
-	old_id = drmmode->fb_id;
-	ret = drmModeAddFB(nouveau_device(pNv->dev)->fd, width, height,
-			   scrn->depth, scrn->bitsPerPixel, pitch,
-			   bo->handle, &drmmode->fb_id);
-	if (ret) {
-		nouveau_bo_ref(NULL, &bo);
-		return FALSE;
+	pitch = width * (scrn->bitsPerPixel >> 3);
+	if (pNv->Architecture >= NV_ARCH_50) {
+		tile_mode = 4;
+		tile_flags = 0x7a00;
+		height = NOUVEAU_ALIGN(height, 1 << (tile_mode + 2));
 	}
+	pitch = NOUVEAU_ALIGN(pitch, 64);
 
-	ppix = scrn->pScreen->GetScreenPixmap(scrn->pScreen);
-	miModifyPixmapHeader(ppix, width, height, -1, -1,
-			     pitch, NULL);
+	old_width = scrn->virtualX;
+	old_height = scrn->virtualY;
+	old_pitch = scrn->displayWidth;
+	old_fb_id = drmmode->fb_id;
+	nouveau_bo_ref(pNv->FB, &old_bo);
+	nouveau_bo_ref(NULL, &pNv->FB);
 
-	nouveau_bo_ref(bo, &nouveau_pixmap(ppix)->bo);
+	scrn->virtualX = width;
+	scrn->virtualY = height;
+	scrn->displayWidth = pitch / (scrn->bitsPerPixel >> 3);
 
-	for (i = 0; i < config->num_crtc; i++) {
-		xf86CrtcPtr crtc = config->crtc[i];
+	ret = nouveau_bo_new_tile(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_MAP |
+				  NOUVEAU_BO_PIN, 0,
+				  pitch * height, tile_mode, tile_flags,
+				  &pNv->FB);
+	if (ret)
+		goto fail;
+
+	nouveau_bo_map(pNv->FB, NOUVEAU_BO_RDWR);
+	pNv->FBMap = pNv->FB->map;
+	nouveau_bo_unmap(pNv->FB);
+
+	ret = drmModeAddFB(drmmode->fd, width, height, scrn->depth,
+			   scrn->bitsPerPixel, pitch, pNv->FB->handle,
+			   &drmmode->fb_id);
+	if (ret)
+		goto fail;
+
+	ppix = screen->GetScreenPixmap(screen);
+
+	nouveau_bo_ref(pNv->FB, &nouveau_pixmap(ppix)->bo);
+	screen->ModifyPixmapHeader(ppix, width, height, -1, -1, pitch, NULL);
+
+	for (i = 0; i < xf86_config->num_crtc; i++) {
+		xf86CrtcPtr crtc = xf86_config->crtc[i];
 
 		if (!crtc->enabled)
 			continue;
 
-		drmmode_set_mode_major(crtc, &crtc->mode, crtc->rotation,
-				       crtc->x, crtc->y);
+		drmmode_set_mode_major(crtc, &crtc->mode,
+				       crtc->rotation, crtc->x, crtc->y);
 	}
 
-	if (old_id)
-		drmModeRmFB(drmmode->fd, old_id);
+	if (old_fb_id)
+		drmModeRmFB(drmmode->fd, old_fb_id);
+	nouveau_bo_ref(NULL, &old_bo);
 
-	scrn->virtualX = width;
-	scrn->virtualY = height;
-	scrn->displayWidth = NOUVEAU_ALIGN(width, 64);
 	return TRUE;
+
+ fail:
+	nouveau_bo_ref(old_bo, &pNv->FB);
+	scrn->virtualX = old_width;
+	scrn->virtualY = old_height;
+	scrn->displayWidth = old_pitch;
+	drmmode->fb_id = old_fb_id;
+
+	return FALSE;
 }
 
 static const xf86CrtcConfigFuncsRec drmmode_xf86crtc_config_funcs = {

@@ -19,29 +19,15 @@ Bool NVAccelGetCtxSurf2DFormatFromPicture(PicturePtr pPix, int *fmt_ret);
 PixmapPtr NVGetDrawablePixmap(DrawablePtr pDraw);
 void NVAccelFree(ScrnInfoPtr pScrn);
 
-/* in nv_driver.c */
-Bool   NVI2CInit(ScrnInfoPtr pScrn);
-
 /* in nv_dri.c */
 Bool NVDRIScreenInit(ScrnInfoPtr pScrn);
 Bool NVDRIFinishScreenInit(ScrnInfoPtr pScrn);
 void NVDRICloseScreen(ScrnInfoPtr pScrn);
-extern const char *drmSymbols[], *driSymbols[];
 Bool NVDRIGetVersion(ScrnInfoPtr pScrn);
 
 /* in nouveau_dri2.c */
 Bool nouveau_dri2_init(ScreenPtr pScreen);
 void nouveau_dri2_fini(ScreenPtr pScreen);
-
-/* in nv_dac.c */
-Bool   NVDACInit(ScrnInfoPtr pScrn, DisplayModePtr mode);
-void   NVDACSave(ScrnInfoPtr pScrn, vgaRegPtr vgaReg,
-                 NVRegPtr nvReg, Bool saveFonts);
-void   NVDACRestore(ScrnInfoPtr pScrn, vgaRegPtr vgaReg,
-                    NVRegPtr nvReg, Bool restoreFonts);
-void   NVDACLoadPalette(ScrnInfoPtr pScrn, int numColors, int *indices,
-                        LOCO *colors, VisualPtr pVisual );
-Bool   NVDACi2cInit(ScrnInfoPtr pScrn);
 
 /* in nouveau_xv.c */
 void NVInitVideo(ScreenPtr);
@@ -73,11 +59,11 @@ Bool nouveau_exa_init(ScreenPtr pScreen);
 Bool nouveau_exa_pixmap_is_onscreen(PixmapPtr pPixmap);
 bool nouveau_exa_pixmap_is_tiled(PixmapPtr ppix);
 
-/* in nv_hw.c */
-void NVCalcStateExt(ScrnInfoPtr,struct nouveau_mode_state *,int,int,int,int,int,int);
-void NVLoadStateExt(ScrnInfoPtr pScrn,struct nouveau_mode_state *);
-void NVUnloadStateExt(NVPtr,struct nouveau_mode_state *);
-void NVSetStartAddress(NVPtr,CARD32);
+/* in nouveau_wfb.c */
+void nouveau_wfb_setup_wrap(ReadMemoryProcPtr *, WriteMemoryProcPtr *,
+			    DrawablePtr);
+void nouveau_wfb_finish_wrap(DrawablePtr);
+void nouveau_wfb_init();
 
 /* in nv_shadow.c */
 void NVRefreshArea(ScrnInfoPtr pScrn, int num, BoxPtr pbox);
@@ -90,6 +76,7 @@ int nouveau_bios_parse_lvds_table(ScrnInfoPtr pScrn, int pxclk, bool *dl, bool *
 int run_tmds_table(ScrnInfoPtr pScrn, struct dcb_entry *dcbent, int head, int pxclk);
 int get_pll_limits(ScrnInfoPtr pScrn, uint32_t limit_match, struct pll_lims *pll_lim);
 uint8_t * nouveau_bios_embedded_edid(ScrnInfoPtr pScrn);
+int nouveau_bios_run_display_table(ScrnInfoPtr, struct dcb_entry *, int pxclk);
 
 /* nv_crtc.c */
 void nv_crtc_set_digital_vibrance(xf86CrtcPtr crtc, int level);
@@ -108,6 +95,7 @@ uint8_t NVReadVgaSeq(NVPtr pNv, int head, uint8_t index);
 void NVWriteVgaGr(NVPtr pNv, int head, uint8_t index, uint8_t value);
 uint8_t NVReadVgaGr(NVPtr pNv, int head, uint8_t index);
 void NVSetOwner(NVPtr pNv, int owner);
+int nouveau_hw_get_current_head(ScrnInfoPtr pScrn);
 void NVBlankScreen(NVPtr pNv, int head, bool blank);
 void nouveau_hw_setpll(ScrnInfoPtr pScrn, uint32_t reg1,
 		       struct nouveau_pll_vals *pv);
@@ -247,7 +235,6 @@ void NV50DacSetFunctionPointers(nouveauOutputPtr output);
 
 /* nv50_sor.c */
 void NV50SorSetFunctionPointers(nouveauOutputPtr output);
-DisplayModePtr GetLVDSNativeMode(ScrnInfoPtr pScrn);
 
 /* nv50_connector.c */
 void NV50ConnectorInit(ScrnInfoPtr pScrn);
@@ -271,6 +258,8 @@ int nv50_xv_port_attribute_get(ScrnInfoPtr, Atom, INT32 *, pointer);
 #ifndef exaMoveInPixmap
 extern void exaMoveInPixmap(PixmapPtr pPixmap);
 #endif
+
+extern Bool wfbPictureInit(ScreenPtr, PictFormatPtr, int);
 
 #endif /* __NV_PROTO_H__ */
 

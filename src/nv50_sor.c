@@ -108,19 +108,31 @@ static void
 NV50SorSetClockMode(nouveauOutputPtr output, int clock)
 {
 	ScrnInfoPtr pScrn = output->scrn;
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "NV50SorSetClockMode is called.\n");
-
 	NVPtr pNv = NVPTR(pScrn);
-	const int limit = 165000;
+	const int limit = output->dcb->type == OUTPUT_LVDS ? 112000 : 165000;
 
-	/* 0x70000 was a late addition to nv, mentioned as fixing tmds initialisation on certain gpu's. */
-	/* I presume it's some kind of clock setting, but what precisely i do not know. */
-	NVWrite(pNv, NV50_SOR0_CLK_CTRL2 + NV50OrOffset(output) * 0x800, 0x70000 | ((clock > limit) ? 0x101 : 0));
-}
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+		   "NV50SorSetClockMode is called.\n");
 
-static void
-NV50SorSetClockModeLVDS(nouveauOutputPtr output, int clock)
-{
+#if 0
+	ret = nouveau_bios_run_display_table(pScrn, output->dcb, clock);
+	if (ret)
+		NV_WARN(pScrn, "failed to run output script, may hang!\n");
+#else
+	/* just to keep the original behaviour until we can reliably run
+	 * the output scripts...
+	 */
+	if (output->dcb->type == OUTPUT_LVDS)
+		return;
+#endif
+
+	/* 0x70000 was a late addition to nv, mentioned as fixing tmds
+	 * initialisation on certain gpu's. */
+	/* I presume it's some kind of clock setting, but what precisely i
+	 * do not know.
+	 */
+	NVWrite(pNv, NV50_SOR0_CLK_CTRL2 + NV50OrOffset(output) * 0x800,
+		     0x70000 | ((clock > limit) ? 0x101 : 0));
 }
 
 static int
@@ -195,71 +207,10 @@ NV50SorSetFunctionPointers(nouveauOutputPtr output)
 {
 	output->ModeValid = NV50SorModeValid;
 	output->ModeSet = NV50SorModeSet;
-	if (output->type == OUTPUT_TMDS)
-		output->SetClockMode = NV50SorSetClockMode;
-	else
-		output->SetClockMode = NV50SorSetClockModeLVDS;
+	output->SetClockMode = NV50SorSetClockMode;
 	output->Sense = NV50SorSense;
 	output->Detect = NV50SorDetect;
 	output->SetPowerMode = NV50SorSetPowerMode;
 	output->GetCurrentCrtc = NV50SorGetCurrentCrtc;
 }
 
-/*
- * Some misc functions.
- */
-
-static DisplayModePtr
-ReadLVDSNativeMode(ScrnInfoPtr pScrn, const int off)
-{
-	NVPtr pNv = NVPTR(pScrn);
-	DisplayModePtr mode = xnfcalloc(1, sizeof(DisplayModeRec));
-	const CARD32 size = NVRead(pNv, 0x00610b4c + off);
-	const int width = size & 0x3fff;
-	const int height = (size >> 16) & 0x3fff;
-
-	mode->HDisplay = width;
-	mode->VDisplay = height;
-	mode->Clock = NVRead(pNv, 0x00610ad4 + off) & 0x3fffff;
-
-	/* We should investigate what else is found in these register ranges. */
-	uint32_t unk1 = NVRead(pNv, NV50_CRTC0_DISPLAY_TOTAL_VAL + off);
-	uint32_t unk2 = NVRead(pNv, NV50_CRTC0_SYNC_DURATION_VAL + off);
-	uint32_t unk3 = NVRead(pNv, NV50_CRTC0_SYNC_START_TO_BLANK_END_VAL + off);
-	/*uint32_t unk4 = NVRead(pNv, NV50_CRTC0_MODE_UNK1_VAL + off);*/
-
-	/* Recontruct our mode, so it can be handled normally. */
-	mode->HTotal = (unk1 & 0xFFFF);
-	mode->VTotal = (unk1 >> 16);
-
-	/* Assuming no interlacing. */
-	mode->HSyncStart = mode->HTotal - (unk3 & 0xFFFF) - 1;
-	mode->VSyncStart = mode->VTotal - (unk3 >> 16) - 1;
-
-	mode->HSyncEnd = mode->HSyncStart + (unk2 & 0xFFFF) + 1;
-	mode->VSyncEnd = mode->VSyncStart + (unk2 >> 16) + 1;
-
-	mode->next = mode->prev = NULL;
-	mode->status = MODE_OK;
-	mode->type = M_T_DRIVER | M_T_PREFERRED;
-
-	xf86SetModeDefaultName(mode);
-
-	return mode;
-}
-
-DisplayModePtr
-GetLVDSNativeMode(ScrnInfoPtr pScrn)
-{
-	NVPtr pNv = NVPTR(pScrn);
-	uint32_t val = NVRead(pNv, NV50_DISPLAY_UNK50_CTRL);
-
-	/* This is rather crude imo, i wonder if it always works. */
-	if ((val & NV50_DISPLAY_UNK50_CTRL_CRTC0_MASK) == NV50_DISPLAY_UNK50_CTRL_CRTC0_ACTIVE) {
-		return ReadLVDSNativeMode(pScrn, 0);
-	} else if ((val & NV50_DISPLAY_UNK50_CTRL_CRTC1_MASK) == NV50_DISPLAY_UNK50_CTRL_CRTC1_ACTIVE) {
-		return ReadLVDSNativeMode(pScrn, 0x540);
-	}
-
-	return NULL;
-}

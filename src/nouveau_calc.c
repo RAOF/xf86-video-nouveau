@@ -346,8 +346,13 @@ void nv4_10UpdateArbitrationSettings(ScrnInfoPtr pScrn, int VClk, int bpp, int *
 	sim_data.enable_mp = false;
 	if ((pNv->Chipset & 0xffff) == CHIPSET_NFORCE ||
 	    (pNv->Chipset & 0xffff) == CHIPSET_NFORCE2) {
+		struct pci_device *dev = pci_device_find_by_slot(0, 0, 0, 1);
+		uint32_t data;
+
+		pci_device_cfg_read_u32(dev, &data, 0x7c);
+
 		sim_data.enable_video = false;
-		sim_data.memory_type = (PCI_SLOT_READ_LONG(1, 0x7c) >> 12) & 1;
+		sim_data.memory_type = (data >> 12) & 1;
 		sim_data.memory_width = 64;
 		sim_data.mem_latency = 3;
 		sim_data.mem_page_miss = 10;
@@ -420,7 +425,7 @@ static int getMNP_single(ScrnInfoPtr pScrn, struct pll_lims *pll_lim, int clk,
 	int minM = pll_lim->vco1.min_m, maxM = pll_lim->vco1.max_m;
 	int minN = pll_lim->vco1.min_n, maxN = pll_lim->vco1.max_n;
 	int minU = pll_lim->vco1.min_inputfreq, maxU = pll_lim->vco1.max_inputfreq;
-	int maxlog2P;
+	int maxlog2P = pll_lim->max_usable_log2p;
 	int crystal = pll_lim->refclk;
 	int M, N, log2P, P;
 	int clkP, calcclk;
@@ -434,7 +439,6 @@ static int getMNP_single(ScrnInfoPtr pScrn, struct pll_lims *pll_lim, int clk,
 			maxM = 6;
 		if (clk > 340000)
 			maxM = 2;
-		maxlog2P = 4;
 	} else if (cv < 0x40) {
 		if (clk > 150000)
 			maxM = 6;
@@ -442,9 +446,7 @@ static int getMNP_single(ScrnInfoPtr pScrn, struct pll_lims *pll_lim, int clk,
 			maxM = 4;
 		if (clk > 340000)
 			maxM = 2;
-		maxlog2P = 5;
-	} else /* nv4x may be subject to the nv17+ limits, but assume not for now */
-		maxlog2P = 6;
+	}
 
 	if ((clk << maxlog2P) < minvco) {
 		minvco = clk << maxlog2P;
@@ -519,6 +521,7 @@ static int getMNP_double(ScrnInfoPtr pScrn, struct pll_lims *pll_lim, int clk,
 	int minN1 = pll_lim->vco1.min_n, maxN1 = pll_lim->vco1.max_n;
 	int minM2 = pll_lim->vco2.min_m, maxM2 = pll_lim->vco2.max_m;
 	int minN2 = pll_lim->vco2.min_n, maxN2 = pll_lim->vco2.max_n;
+	int maxlog2P = pll_lim->max_usable_log2p;
 	int crystal = pll_lim->refclk;
 	bool fixedgain2 = (minM2 == maxM2 && minN2 == maxN2);
 	int M1, N1, M2, N2, log2P;
@@ -527,7 +530,7 @@ static int getMNP_double(ScrnInfoPtr pScrn, struct pll_lims *pll_lim, int clk,
 	int bestclk = 0;
 
 	int vco2 = (maxvco2 - maxvco2/200) / 2;
-	for (log2P = 0; clk && log2P < 6 && clk <= (vco2 >> log2P); log2P++) /* log2P is maximum of 6 */
+	for (log2P = 0; clk && log2P < maxlog2P && clk <= (vco2 >> log2P); log2P++)
 		;
 	clkP = clk << log2P;
 
@@ -607,8 +610,8 @@ int nouveau_calc_pll_mnp(ScrnInfoPtr pScrn, struct pll_lims *pll_lim, int clk,
 		outclk = getMNP_double(pScrn, pll_lim, clk, pv);
 
 	if (!outclk)
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			   "Could not find a compatible set of PLL values\n");
+		NV_ERROR(pScrn,
+			 "Could not find a compatible set of PLL values\n");
 
 	return outclk;
 }

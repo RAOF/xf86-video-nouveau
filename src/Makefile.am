@@ -33,18 +33,18 @@ nouveau_drv_la_SOURCES = \
 			 nouveau_calc.c \
 			 nouveau_hw.c nouveau_hw.h \
 			 nouveau_local.h \
+			 nouveau_ms.h \
 			 nouveau_exa.c nouveau_xv.c nouveau_dri2.c \
+			 nouveau_wfb.c \
 			 nv_accel_common.c \
 			 nv_bios.c \
 			 nv_const.h \
 			 nv_cursor.c \
-			 nv_dac.c \
 			 nv_dma.c \
 			 nv_dma.h \
 			 nv_dri.c \
 			 nv_dri.h \
 			 nv_driver.c \
-			 nv_hw.c \
 			 nv_include.h \
 			 nv_dripriv.h \
 			 nv_local.h \
@@ -86,7 +86,6 @@ nouveau_drv_la_SOURCES = \
 			 nouveau_connector.h \
 			 nouveau_modeset.h \
 			 drmmode_display.c \
-			 nv_pcicompat.h \
 			 vl_hwmc.c \
 			 vl_hwmc.h
 

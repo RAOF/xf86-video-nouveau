@@ -302,7 +302,7 @@ static inline void nv_fix_nv40_hw_cursor(NVPtr pNv, int head)
 static inline void nv_show_cursor(NVPtr pNv, int head, bool show)
 {
 	uint8_t *curctl1 =
-		&pNv->ModeReg.crtc_reg[head].CRTC[NV_CIO_CRE_HCUR_ADDR1_INDEX];
+		&pNv->set_state.head[head].CRTC[NV_CIO_CRE_HCUR_ADDR1_INDEX];
 
 	if (show)
 		*curctl1 |= MASK(NV_CIO_CRE_HCUR_ADDR1_ENABLE);
@@ -320,12 +320,14 @@ static inline uint32_t nv_pitch_align(NVPtr pNv, uint32_t width, int bpp)
 
 	if (bpp == 15)
 		bpp = 16;
-	if (bpp == 24)
+	if (bpp == 24 || bpp == 30)
 		bpp = 8;
 
 	/* Alignment requirements taken from the Haiku driver */
 	if (pNv->Architecture == NV_ARCH_04)
 		mask = 128 / bpp - 1;
+	if (pNv->Architecture >= NV_ARCH_50 && pNv->exa_driver_pixmaps)
+		mask = 64 / bpp - 1;
 	else
 		mask = 512 / bpp - 1;
 

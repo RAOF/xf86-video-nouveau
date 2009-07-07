@@ -2,7 +2,7 @@
  * Copyright 2003 NVIDIA, Corporation
  * Copyright 2006 Dave Airlie
  * Copyright 2007 Maarten Maathuis
- * Copyright 2007-2008 Stuart Bennett
+ * Copyright 2007-2009 Stuart Bennett
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -25,6 +25,7 @@
  */
 
 #include <X11/Xatom.h>
+#include <X11/Xos.h>	/* X_GETTIMEOFDAY */
 #include "nv_include.h"
 
 #define MULTIPLE_ENCODERS(e) (e & (e - 1))
@@ -57,8 +58,182 @@ static int nv_get_digital_bound_head(NVPtr pNv, int or)
 	return (((NVReadRAMDAC(pNv, ramdac, NV_PRAMDAC_FP_TMDS_DATA) & 0x8) >> 3) ^ ramdac);
 }
 
+#define WAIT_FOR(cond, timeout_us) __extension__ ({	\
+	struct timeval begin, cur;			\
+	long d_secs, d_usecs, diff = 0;			\
+							\
+	X_GETTIMEOFDAY(&begin);				\
+	while (!(cond) && diff < timeout_us) {		\
+		X_GETTIMEOFDAY(&cur);			\
+		d_secs  = cur.tv_sec - begin.tv_sec;	\
+		d_usecs = cur.tv_usec - begin.tv_usec;	\
+		diff = d_secs * 1000000 + d_usecs;	\
+	};						\
+	diff >= timeout_us ? -EAGAIN : 0;		\
+})
+
+/*
+ * arbitrary limit to number of sense oscillations tolerated in one sample
+ * period (observed to be at least 13 in "nvidia")
+ */
+#define MAX_HBLANK_OSC 20
+
+/*
+ * arbitrary limit to number of conflicting sample pairs to tolerate at a
+ * voltage step (observed to be at least 5 in "nvidia")
+ */
+#define MAX_SAMPLE_PAIRS 10
+
+static int sample_load_twice(NVPtr pNv, bool sense[2])
+{
+	int i;
+
+	for (i = 0; i < 2; i++) {
+		bool sense_a, sense_b, sense_b_prime;
+		int j = 0;
+
+		/*
+		 * wait for bit 0 clear -- out of hblank -- (say reg value 0x4),
+		 * then wait for transition 0x4->0x5->0x4: enter hblank, leave
+		 * hblank again
+		 * use a 10ms timeout (guards against crtc being inactive, in
+		 * which case blank state would never change)
+		 */
+		if (WAIT_FOR(!(VGA_RD08(pNv->REGS, NV_PRMCIO_INP0__COLOR) & 1), 10000))
+			return -EWOULDBLOCK;
+		if (WAIT_FOR(VGA_RD08(pNv->REGS, NV_PRMCIO_INP0__COLOR) & 1, 10000))
+			return -EWOULDBLOCK;
+		if (WAIT_FOR(!(VGA_RD08(pNv->REGS, NV_PRMCIO_INP0__COLOR) & 1), 10000))
+			return -EWOULDBLOCK;
+
+		WAIT_FOR(0, 100);	/* faster than usleep(100) */
+		/* when level triggers, sense is _LO_ */
+		sense_a = VGA_RD08(pNv->REGS, NV_PRMCIO_INP0) & 0x10;
+
+		/* take another reading until it agrees with sense_a... */
+		do {
+			WAIT_FOR(0, 100);
+			sense_b = VGA_RD08(pNv->REGS, NV_PRMCIO_INP0) & 0x10;
+			if (sense_a != sense_b) {
+				sense_b_prime = VGA_RD08(pNv->REGS, NV_PRMCIO_INP0) & 0x10;
+				if (sense_b == sense_b_prime) {
+					/* ... unless two consecutive subsequent
+					 * samples agree; sense_a is replaced */
+					sense_a = sense_b;
+					/* force mis-match so we loop */
+					sense_b = !sense_a;
+				}
+			}
+		} while ((sense_a != sense_b) && ++j < MAX_HBLANK_OSC);
+
+		if (j == MAX_HBLANK_OSC)
+			/* with so much oscillation, default to sense:LO */
+			sense[i] = false;
+		else
+			sense[i] = sense_a;
+	}
+
+	return 0;
+}
+
+static bool nv_legacy_load_detect(ScrnInfoPtr pScrn)
+{
+	NVPtr pNv = NVPTR(pScrn);
+	uint8_t saved_seq1, saved_pi, saved_rpc1;
+	uint8_t saved_palette0[3], saved_palette_mask;
+	uint32_t saved_rtest_ctrl, saved_rgen_ctrl;
+	int i;
+	uint8_t blue;
+	bool sense = true;
+
+	/*
+	 * for this detection to work, there needs to be a mode set up on the
+	 * CRTC.  this is presumed to be the case
+	 */
+
+	if (pNv->twoHeads)
+		/* only implemented for head A for now */
+		NVSetOwner(pNv, 0);
+
+	saved_seq1 = NVReadVgaSeq(pNv, 0, NV_VIO_SR_CLOCK_INDEX);
+	NVWriteVgaSeq(pNv, 0, NV_VIO_SR_CLOCK_INDEX, saved_seq1 & ~0x20);
+
+	saved_rtest_ctrl = NVReadRAMDAC(pNv, 0, NV_PRAMDAC_TEST_CONTROL);
+	NVWriteRAMDAC(pNv, 0, NV_PRAMDAC_TEST_CONTROL,
+		      saved_rtest_ctrl & ~NV_PRAMDAC_TEST_CONTROL_PWRDWN_DAC_OFF);
+
+	usleep(10000);
+
+	saved_pi = NVReadVgaCrtc(pNv, 0, NV_CIO_CRE_PIXEL_INDEX);
+	NVWriteVgaCrtc(pNv, 0, NV_CIO_CRE_PIXEL_INDEX,
+		       saved_pi & ~(0x80 | MASK(NV_CIO_CRE_PIXEL_FORMAT)));
+	saved_rpc1 = NVReadVgaCrtc(pNv, 0, NV_CIO_CRE_RPC1_INDEX);
+	NVWriteVgaCrtc(pNv, 0, NV_CIO_CRE_RPC1_INDEX, saved_rpc1 & ~0xc0);
+
+	VGA_WR08(pNv->REGS, NV_PRMDIO_READ_MODE_ADDRESS, 0x0);
+	for (i = 0; i < 3; i++)
+		saved_palette0[i] = NV_RD08(pNv->REGS, NV_PRMDIO_PALETTE_DATA);
+	saved_palette_mask = NV_RD08(pNv->REGS, NV_PRMDIO_PIXEL_MASK);
+	VGA_WR08(pNv->REGS, NV_PRMDIO_PIXEL_MASK, 0);
+
+	saved_rgen_ctrl = NVReadRAMDAC(pNv, 0, NV_PRAMDAC_GENERAL_CONTROL);
+	NVWriteRAMDAC(pNv, 0, NV_PRAMDAC_GENERAL_CONTROL,
+		      (saved_rgen_ctrl & ~(NV_PRAMDAC_GENERAL_CONTROL_BPC_8BITS |
+					   NV_PRAMDAC_GENERAL_CONTROL_TERMINATION_75OHM)) |
+		      NV_PRAMDAC_GENERAL_CONTROL_PIXMIX_ON);
+
+	blue = 8;	/* start of test range */
+
+	do {
+		bool sense_pair[2];
+
+		VGA_WR08(pNv->REGS, NV_PRMDIO_WRITE_MODE_ADDRESS, 0);
+		NV_WR08(pNv->REGS, NV_PRMDIO_PALETTE_DATA, 0);
+		NV_WR08(pNv->REGS, NV_PRMDIO_PALETTE_DATA, 0);
+		/* testing blue won't find monochrome monitors.  I don't care */
+		NV_WR08(pNv->REGS, NV_PRMDIO_PALETTE_DATA, blue);
+
+		i = 0;
+		/* take sample pairs until both samples in the pair agree */
+		do {
+			if (sample_load_twice(pNv, sense_pair))
+				goto out;
+		} while ((sense_pair[0] != sense_pair[1]) &&
+							++i < MAX_SAMPLE_PAIRS);
+
+		if (i == MAX_SAMPLE_PAIRS)
+			/* too much oscillation defaults to LO */
+			sense = false;
+		else
+			sense = sense_pair[0];
+
+	/*
+	 * if sense goes LO before blue ramps to 0x18, monitor is not connected.
+	 * ergo, if blue gets to 0x18, monitor must be connected
+	 */
+	} while (++blue < 0x18 && sense);
+
+out:
+	VGA_WR08(pNv->REGS, NV_PRMDIO_PIXEL_MASK, saved_palette_mask);
+	NVWriteRAMDAC(pNv, 0, NV_PRAMDAC_GENERAL_CONTROL, saved_rgen_ctrl);
+	VGA_WR08(pNv->REGS, NV_PRMDIO_WRITE_MODE_ADDRESS, 0);
+	for (i = 0; i < 3; i++)
+		NV_WR08(pNv->REGS, NV_PRMDIO_PALETTE_DATA, saved_palette0[i]);
+	NVWriteRAMDAC(pNv, 0, NV_PRAMDAC_TEST_CONTROL, saved_rtest_ctrl);
+	NVWriteVgaCrtc(pNv, 0, NV_CIO_CRE_PIXEL_INDEX, saved_pi);
+	NVWriteVgaCrtc(pNv, 0, NV_CIO_CRE_RPC1_INDEX, saved_rpc1);
+	NVWriteVgaSeq(pNv, 0, NV_VIO_SR_CLOCK_INDEX, saved_seq1);
+
+	if (blue == 0x18) {
+		NV_TRACE(pScrn, "Load detected on head A\n");
+		return true;
+	}
+
+	return false;
+}
+
 static bool
-nv_load_detect(ScrnInfoPtr pScrn, struct nouveau_encoder *nv_encoder)
+nv_nv17_load_detect(ScrnInfoPtr pScrn, struct nouveau_encoder *nv_encoder)
 {
 	NVPtr pNv = NVPTR(pScrn);
 	uint32_t testval, regoffset = nv_output_ramdac_offset(nv_encoder);
@@ -122,7 +297,8 @@ nv_load_detect(ScrnInfoPtr pScrn, struct nouveau_encoder *nv_encoder)
 	nvWriteMC(pNv, NV_PBUS_POWERCTRL_2, saved_powerctrl_2);
 
 	if (present) {
-		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Load detected on output %c\n", '@' + ffs(nv_encoder->dcb->or));
+		NV_TRACE(pScrn, "Load detected on output %c\n",
+			 '@' + ffs(nv_encoder->dcb->or));
 		return true;
 	}
 
@@ -140,7 +316,7 @@ update_output_fields(xf86OutputPtr output, struct nouveau_encoder *det_encoder)
 
 	nv_connector->detected_encoder = det_encoder;
 	output->possible_crtcs = det_encoder->dcb->heads;
-	if (det_encoder->dcb->type == OUTPUT_LVDS || det_encoder->dcb->type == OUTPUT_TMDS) {
+	if (IS_DFP(det_encoder->dcb->type)) {
 		output->doubleScanAllowed = false;
 		output->interlaceAllowed = false;
 	} else {
@@ -215,11 +391,12 @@ nv_output_detect(xf86OutputPtr output)
 		    xf86CheckBoolOption(output->conf_monitor->mon_option_lst,
 					"Enable", FALSE))
 			ret = XF86OutputStatusConnected;
-		/* we don't have a load det function for early cards */
-		else if (!pNv->gf4_disp_arch)
-			ret = XF86OutputStatusUnknown;
-		else if (nv_load_detect(pScrn, det_encoder))
-			ret = XF86OutputStatusConnected;
+		else if (pNv->gf4_disp_arch) {
+			if (nv_nv17_load_detect(pScrn, det_encoder))
+				ret = XF86OutputStatusConnected;
+		} else
+			 if (nv_legacy_load_detect(pScrn))
+				ret = XF86OutputStatusConnected;
 	} else if ((det_encoder = find_encoder_by_type(OUTPUT_LVDS))) {
 		if (det_encoder->dcb->lvdsconf.use_straps_for_mode) {
 			if (nouveau_bios_fp_mode(pScrn, NULL))
@@ -243,29 +420,34 @@ get_native_mode_from_edid(xf86OutputPtr output, DisplayModePtr edid_modes)
 {
 	struct nouveau_connector *nv_connector = to_nouveau_connector(output);
 	struct nouveau_encoder *nv_encoder = nv_connector->detected_encoder;
-	ScrnInfoPtr pScrn = output->scrn;
 	int max_h_active = 0, max_v_active = 0;
 	int i;
 	DisplayModePtr mode;
 
 	for (i = 0; i < DET_TIMINGS; i++) {
+		struct detailed_timings *dt =
+			&nv_connector->edid->det_mon[i].section.d_timings;
+
 		if (nv_connector->edid->det_mon[i].type != DT)
 			continue;
 		/* Selecting only based on width ok? */
-		if (nv_connector->edid->det_mon[i].section.d_timings.h_active > max_h_active) {
-			max_h_active = nv_connector->edid->det_mon[i].section.d_timings.h_active;
-			max_v_active = nv_connector->edid->det_mon[i].section.d_timings.v_active;
+		if (dt->h_active > max_h_active) {
+			max_h_active = dt->h_active;
+			max_v_active = dt->v_active;
 		}
 	}
-	if (!max_h_active || !max_v_active) /* what kind of a joke EDID is this? */
-		for (i = 0; i < STD_TIMINGS; i++)
-			if (nv_connector->edid->timings2[i].hsize > max_h_active) {
-				max_h_active = nv_connector->edid->timings2[i].hsize;
-				max_v_active = nv_connector->edid->timings2[i].vsize;
+	if (!max_h_active || !max_v_active) /* clearly a joke EDID */
+		for (i = 0; i < STD_TIMINGS; i++) {
+			struct std_timings *st =
+					&nv_connector->edid->timings2[i];
+
+			if (st->hsize > max_h_active) {
+				max_h_active = st->hsize;
+				max_v_active = st->vsize;
 			}
+		}
 	if (!max_h_active || !max_v_active) {
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			   "EDID too broken for finding native mode\n");
+		NV_ERROR(output->scrn, "EDID too broken to find native mode\n");
 		return NULL;
 	}
 
@@ -283,7 +465,8 @@ get_native_mode_from_edid(xf86OutputPtr output, DisplayModePtr edid_modes)
 				break;
 			}
 			/* Find the highest refresh mode otherwise. */
-			if (!nv_encoder->native_mode || (mode->VRefresh > nv_encoder->native_mode->VRefresh)) {
+			if (!nv_encoder->native_mode ||
+			    (mode->VRefresh > nv_encoder->native_mode->VRefresh)) {
 				if (nv_encoder->native_mode)
 					xfree(nv_encoder->native_mode);
 				mode->type |= M_T_PREFERRED;
@@ -300,11 +483,10 @@ nv_output_get_edid_modes(xf86OutputPtr output)
 {
 	struct nouveau_connector *nv_connector = to_nouveau_connector(output);
 	struct nouveau_encoder *nv_encoder = nv_connector->detected_encoder;
-	enum nouveau_encoder_type enctype = nv_encoder->dcb->type;
 	DisplayModePtr edid_modes;
 
-	if (enctype == OUTPUT_LVDS ||
-	    (enctype == OUTPUT_TMDS && nv_encoder->scaling_mode != SCALE_PANEL))
+	if (IS_DFP(nv_encoder->dcb->type) &&
+	    nv_encoder->scaling_mode != SCALE_PANEL)
 		/* the digital scaler is not limited to modes given in the EDID,
 		 * so enable the GTF bit in order that the xserver thinks
 		 * continuous timing is available and adds the standard modes
@@ -315,10 +497,10 @@ nv_output_get_edid_modes(xf86OutputPtr output)
 	if (!(edid_modes = xf86OutputGetEDIDModes(output)))
 		return edid_modes;
 
-	if (enctype == OUTPUT_LVDS || enctype == OUTPUT_TMDS)
+	if (IS_DFP(nv_encoder->dcb->type))
 		if (!get_native_mode_from_edid(output, edid_modes))
 			return NULL;
-	if (enctype == OUTPUT_TMDS)
+	if (nv_encoder->dcb->type == OUTPUT_TMDS)
 		nv_encoder->dual_link = nv_encoder->native_mode->Clock >= 165000;
 
 	return edid_modes;
@@ -348,13 +530,17 @@ nv_lvds_output_get_modes(xf86OutputPtr output)
 
 		nv_encoder->native_mode = xf86DuplicateMode(&mode);
 		ret_mode = xf86DuplicateMode(&mode);
-	} else {
-		ret_mode = nv_output_get_edid_modes(output);
-		clock = nv_encoder->native_mode->Clock;
-	}
+	} else
+		if ((ret_mode = nv_output_get_edid_modes(output)))
+			clock = nv_encoder->native_mode->Clock;
 
-	if (nouveau_bios_parse_lvds_table(pScrn, clock, &dl, &if_is_24bit))
+	if (nouveau_bios_parse_lvds_table(pScrn, clock, &dl, &if_is_24bit)) {
+		if (nv_encoder->native_mode) {
+			xfree(nv_encoder->native_mode);
+			nv_encoder->native_mode = NULL;
+		}
 		return NULL;
+	}
 
 	/* because of the pre-existing native mode exit above, this will only
 	 * get run at startup (and before create_resources is called in
@@ -389,7 +575,11 @@ static int nv_output_mode_valid(xf86OutputPtr output, DisplayModePtr mode)
 			if (mode->Clock > 350000)
 				return MODE_CLOCK_HIGH;
 	}
-	if (nv_encoder->dcb->type == OUTPUT_LVDS || nv_encoder->dcb->type == OUTPUT_TMDS)
+	/* must have a native mode for fp (except in panel scaling case) */
+	if (IS_DFP(nv_encoder->dcb->type) && !nv_encoder->native_mode &&
+	    nv_encoder->scaling_mode != SCALE_PANEL)
+		return MODE_NOCLOCK;
+	if (IS_DFP(nv_encoder->dcb->type) && nv_encoder->native_mode)
 		/* No modes > panel's native res */
 		if (mode->HDisplay > nv_encoder->native_mode->HDisplay ||
 		    mode->VDisplay > nv_encoder->native_mode->VDisplay)
@@ -411,11 +601,8 @@ nv_output_destroy(xf86OutputPtr output)
 {
 	struct nouveau_connector *nv_connector = to_nouveau_connector(output);
 	struct nouveau_encoder *nv_encoder;
-	ScrnInfoPtr pScrn = output->scrn;
 	NVPtr pNv = NVPTR(output->scrn);
 	int i;
-
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "%s called\n", __func__);
 
 	if (!nv_connector)
 		return;
@@ -492,7 +679,7 @@ static void nv_output_create_resources(xf86OutputPtr output)
 	if (!nv_encoder)
 		return;
 
-	if (nv_encoder->dcb->type == OUTPUT_LVDS || nv_encoder->dcb->type == OUTPUT_TMDS) {
+	if (IS_DFP(nv_encoder->dcb->type)) {
 		nv_output_create_prop(output, "DITHERING", &dithering_atom,
 				      (INT32 []){ 0, 1 }, nv_encoder->dithering, NULL, TRUE);
 		nv_output_create_prop(output, "SCALING_MODE", &scaling_mode_atom,
@@ -520,38 +707,39 @@ nv_output_set_property(xf86OutputPtr output, Atom property,
 	NVPtr pNv = NVPTR(output->scrn);
 
 	if (property == scaling_mode_atom) {
-		int32_t ret;
-		char *name = NULL;
+		char *name = (char *) value->data;
+		int32_t val;
 
 		if (value->type != XA_STRING || value->format != 8)
 			return FALSE;
 
-		name = (char *) value->data;
-
 		/* Match a string to a scaling mode */
-		ret = nv_scaling_mode_lookup(name, value->size);
-		if (ret == SCALE_INVALID)
+		val = nv_scaling_mode_lookup(name, value->size);
+		if (val == SCALE_INVALID)
 			return FALSE;
 
 		/* LVDS must always use gpu scaling. */
-		if (ret == SCALE_PANEL && nv_encoder->dcb->type == OUTPUT_LVDS)
+		if (val == SCALE_PANEL && nv_encoder->dcb->type == OUTPUT_LVDS)
 			return FALSE;
 
-		nv_encoder->scaling_mode = ret;
+		nv_encoder->scaling_mode = val;
 	} else if (property == dithering_atom) {
+		int32_t val = *(int32_t *) value->data;
+
 		if (value->type != XA_INTEGER || value->format != 32)
 			return FALSE;
-
-		int32_t val = *(int32_t *) value->data;
 
 		if (val < 0 || val > 1)
 			return FALSE;
 
 		nv_encoder->dithering = val;
-	} else if (output->crtc && (property == dv_atom || property == sharpness_atom)) {
+	} else if (property == dv_atom || property == sharpness_atom) {
 		int32_t val = *(int32_t *) value->data;
 
 		if (value->type != XA_INTEGER || value->format != 32)
+			return FALSE;
+
+		if (!output->crtc)
 			return FALSE;
 
 		if (property == dv_atom) {
@@ -588,8 +776,8 @@ nv_output_mode_fixup(xf86OutputPtr output, DisplayModePtr mode,
 	struct nouveau_encoder *nv_encoder = to_nouveau_encoder(output);
 
 	/* For internal panels and gpu scaling on DVI we need the native mode */
-	if (nv_encoder->dcb->type == OUTPUT_LVDS ||
-	    (nv_encoder->dcb->type == OUTPUT_TMDS && nv_encoder->scaling_mode != SCALE_PANEL)) {
+	if (IS_DFP(nv_encoder->dcb->type) &&
+	    nv_encoder->scaling_mode != SCALE_PANEL) {
 		adjusted_mode->HDisplay = nv_encoder->native_mode->HDisplay;
 		adjusted_mode->HSkew = nv_encoder->native_mode->HSkew;
 		adjusted_mode->HSyncStart = nv_encoder->native_mode->HSyncStart;
@@ -611,7 +799,7 @@ nv_output_mode_fixup(xf86OutputPtr output, DisplayModePtr mode,
 
 static void nv_digital_output_prepare_sel_clk(NVPtr pNv, struct nouveau_encoder *nv_encoder, int head)
 {
-	NVRegPtr state = &pNv->ModeReg;
+	struct nouveau_mode_state *state = &pNv->set_state;
 	uint32_t bits1618 = nv_encoder->dcb->or & OUTPUT_A ? 0x10000 : 0x40000;
 
 	if (nv_encoder->dcb->location != DCB_LOC_ON_CHIP)
@@ -641,8 +829,8 @@ static void nv_digital_output_prepare_sel_clk(NVPtr pNv, struct nouveau_encoder 
 	 * 	and which bit-pair to use, is unclear on nv40 (for earlier cards, the fp table
 	 * 	entry has the necessary info)
 	 */
-	if (nv_encoder->dcb->type == OUTPUT_LVDS && pNv->SavedReg.sel_clk & 0xf0) {
-		int shift = (pNv->SavedReg.sel_clk & 0x50) ? 0 : 1;
+	if (nv_encoder->dcb->type == OUTPUT_LVDS && pNv->saved_regs.sel_clk & 0xf0) {
+		int shift = (pNv->saved_regs.sel_clk & 0x50) ? 0 : 1;
 
 		state->sel_clk &= ~0xf0;
 		state->sel_clk |= (head ? 0x40 : 0x10) << shift;
@@ -656,55 +844,66 @@ static void nv_digital_output_prepare_sel_clk(NVPtr pNv, struct nouveau_encoder 
 			   NV_PRAMDAC_FP_TG_CONTROL_HSYNC_DISABLE |	\
 			   NV_PRAMDAC_FP_TG_CONTROL_VSYNC_DISABLE)
 
+static bool is_fpc_off(uint32_t fpc)
+{
+	return ((fpc & (FP_TG_CONTROL_ON | FP_TG_CONTROL_OFF)) ==
+							FP_TG_CONTROL_OFF);
+}
+
 static void
 nv_output_prepare(xf86OutputPtr output)
 {
 	struct nouveau_encoder *nv_encoder = to_nouveau_encoder(output);
 	NVPtr pNv = NVPTR(output->scrn);
 	int head = to_nouveau_crtc(output->crtc)->head;
-	uint8_t *lcdi = &pNv->ModeReg.crtc_reg[head].CRTC[NV_CIO_CRE_LCD__INDEX];
-	bool digital_op = nv_encoder->dcb->type == OUTPUT_LVDS ||
-			  nv_encoder->dcb->type == OUTPUT_TMDS;
+	struct nouveau_crtc_state *crtcstate = pNv->set_state.head;
+	uint8_t *cr_lcd = &crtcstate[head].CRTC[NV_CIO_CRE_LCD__INDEX];
+	uint8_t *cr_lcd_oth = &crtcstate[head ^ 1].CRTC[NV_CIO_CRE_LCD__INDEX];
 
 	output->funcs->dpms(output, DPMSModeOff);
 
-	if (nv_encoder->dcb->type == OUTPUT_ANALOG &&
-	    NVReadRAMDAC(pNv, head, NV_PRAMDAC_FP_TG_CONTROL) &
-			 FP_TG_CONTROL_ON) {
-		/* digital remnants must be cleaned before new crtc values
-		 * programmed.  delay is time for the vga stuff to realise it's
-		 * in control again
-		 */
-		NVWriteRAMDAC(pNv, head, NV_PRAMDAC_FP_TG_CONTROL,
-			      FP_TG_CONTROL_OFF);
-		usleep(50000);
+	if (nv_encoder->dcb->type == OUTPUT_ANALOG) {
+		if (NVReadRAMDAC(pNv, head, NV_PRAMDAC_FP_TG_CONTROL) &
+							FP_TG_CONTROL_ON) {
+			/* digital remnants must be cleaned before new crtc
+			 * values programmed.  delay is time for the vga stuff
+			 * to realise it's in control again
+			 */
+			NVWriteRAMDAC(pNv, head, NV_PRAMDAC_FP_TG_CONTROL,
+				      FP_TG_CONTROL_OFF);
+			usleep(50000);
+		}
+		/* don't inadvertently turn it on when state written later */
+		crtcstate[head].fp_control = FP_TG_CONTROL_OFF;
 	}
 
 	/* calculate some output specific CRTC regs now, so that they can be
 	 * written in nv_crtc_set_mode
 	 */
 
-	if (digital_op)
+	if (IS_DFP(nv_encoder->dcb->type))
 		nv_digital_output_prepare_sel_clk(pNv, nv_encoder, head);
 
 	/* Some NV4x have unknown values (0x3f, 0x50, 0x54, 0x6b, 0x79, 0x7f)
 	 * at LCD__INDEX which we don't alter
 	 */
-	if (!(*lcdi & 0x44)) {
-		*lcdi = 0;
-		if (digital_op) {
-			*lcdi = 0x3;
+	if (!(*cr_lcd & 0x44)) {
+		*cr_lcd = IS_DFP(nv_encoder->dcb->type) ? 0x3 : 0x0;
+		if (IS_DFP(nv_encoder->dcb->type) && pNv->twoHeads) {
 			if (nv_encoder->dcb->location == DCB_LOC_ON_CHIP)
-				*lcdi |= head ? 0x0 : 0x8;
-			else if (pNv->gf4_disp_arch)
-				*lcdi |= (nv_encoder->dcb->or << 4) & 0x30;
-			else if (pNv->twoHeads)
-				/* the guess here is that 0x10 gets set when
-				 * the output is not on its "natural" crtc
-				 * (lvds naturally on head b, tmds head a)
-				 */
-				*lcdi |= (head + 1 != nv_encoder->dcb->or) ?
-					 0x10 : 0x00;
+				*cr_lcd |= head ? 0x0 : 0x8;
+			else {
+				*cr_lcd |= (nv_encoder->dcb->or << 4) & 0x30;
+				if (nv_encoder->dcb->type == OUTPUT_LVDS)
+					*cr_lcd |= 0x30;
+				if ((*cr_lcd & 0x30) == (*cr_lcd_oth & 0x30)) {
+					/* avoid being connected to both crtcs */
+					*cr_lcd_oth &= ~0x30;
+					NVWriteVgaCrtc(pNv, head ^ 1,
+						       NV_CIO_CRE_LCD__INDEX,
+						       *cr_lcd_oth);
+				}
+			}
 		}
 	}
 }
@@ -715,12 +914,12 @@ nv_output_mode_set(xf86OutputPtr output, DisplayModePtr mode, DisplayModePtr adj
 	struct nouveau_encoder *nv_encoder = to_nouveau_encoder(output);
 	ScrnInfoPtr pScrn = output->scrn;
 	NVPtr pNv = NVPTR(pScrn);
-	struct nouveau_crtc *nv_crtc = to_nouveau_crtc(output->crtc);
+	struct dcb_entry *dcbe = nv_encoder->dcb;
+	int head = to_nouveau_crtc(output->crtc)->head;
 
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-		   "%s called for encoder %d\n", __func__, nv_encoder->dcb->index);
+	NV_TRACE(pScrn, "%s called for encoder %d\n", __func__, dcbe->index);
 
-	if (pNv->gf4_disp_arch && nv_encoder->dcb->type == OUTPUT_ANALOG) {
+	if (pNv->gf4_disp_arch && dcbe->type == OUTPUT_ANALOG) {
 		uint32_t dac_offset = nv_output_ramdac_offset(nv_encoder);
 		uint32_t otherdac;
 		int i;
@@ -728,31 +927,32 @@ nv_output_mode_set(xf86OutputPtr output, DisplayModePtr mode, DisplayModePtr adj
 		/* bit 16-19 are bits that are set on some G70 cards,
 		 * but don't seem to have much effect */
 		NVWriteRAMDAC(pNv, 0, NV_PRAMDAC_DACCLK + dac_offset,
-			      nv_crtc->head << 8 | NV_PRAMDAC_DACCLK_SEL_DACCLK);
+			      head << 8 | NV_PRAMDAC_DACCLK_SEL_DACCLK);
 		/* force any other vga encoders to bind to the other crtc */
 		for (i = 0; i < pNv->vbios->dcb->entries; i++)
-			if (i != nv_encoder->dcb->index && pNv->encoders[i].dcb &&
+			if (i != dcbe->index && pNv->encoders[i].dcb &&
 			    pNv->encoders[i].dcb->type == OUTPUT_ANALOG) {
 				dac_offset = nv_output_ramdac_offset(&pNv->encoders[i]);
 				otherdac = NVReadRAMDAC(pNv, 0, NV_PRAMDAC_DACCLK + dac_offset);
 				NVWriteRAMDAC(pNv, 0, NV_PRAMDAC_DACCLK + dac_offset,
-					      (otherdac & ~0x100) | (nv_crtc->head ^ 1) << 8);
+					      (otherdac & ~0x100) | (head ^ 1) << 8);
 			}
 	}
-	if (nv_encoder->dcb->type == OUTPUT_TMDS)
-		run_tmds_table(pScrn, nv_encoder->dcb, nv_crtc->head, adjusted_mode->Clock);
-	else if (nv_encoder->dcb->type == OUTPUT_LVDS)
-		call_lvds_script(pScrn, nv_encoder->dcb, nv_crtc->head, LVDS_RESET, adjusted_mode->Clock);
+	if (dcbe->type == OUTPUT_TMDS)
+		run_tmds_table(pScrn, dcbe, head, adjusted_mode->Clock);
+	else if (dcbe->type == OUTPUT_LVDS)
+		call_lvds_script(pScrn, dcbe, head, LVDS_RESET, adjusted_mode->Clock);
+	if (IS_DFP(dcbe->type))
+		/* update fp_control state for any changes made by scripts,
+		 * so correct value is written at DPMS on */
+		pNv->set_state.head[head].fp_control =
+			NVReadRAMDAC(pNv, head, NV_PRAMDAC_FP_TG_CONTROL);
 
 	/* This could use refinement for flatpanels, but it should work this way */
 	if (pNv->NVArch < 0x44)
 		NVWriteRAMDAC(pNv, 0, NV_PRAMDAC_TEST_CONTROL + nv_output_ramdac_offset(nv_encoder), 0xf0000000);
 	else
 		NVWriteRAMDAC(pNv, 0, NV_PRAMDAC_TEST_CONTROL + nv_output_ramdac_offset(nv_encoder), 0x00100000);
-
-	/* update fp_control state for any changes made by scripts, for dpms */
-	pNv->ModeReg.crtc_reg[nv_crtc->head].fp_control =
-			NVReadRAMDAC(pNv, nv_crtc->head, NV_PRAMDAC_FP_TG_CONTROL);
 }
 
 static void
@@ -764,50 +964,69 @@ nv_output_commit(xf86OutputPtr output)
 
 	output->funcs->dpms(output, DPMSModeOn);
 
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Output %s is running on CRTC %d using output %c\n", output->name, nv_crtc->head, '@' + ffs(nv_encoder->dcb->or));
+	NV_TRACE(pScrn, "Output %s is running on CRTC %d using output %c\n",
+		 output->name, nv_crtc->head, '@' + ffs(nv_encoder->dcb->or));
 }
 
 static void dpms_update_fp_control(ScrnInfoPtr pScrn, struct nouveau_encoder *nv_encoder, xf86CrtcPtr crtc, int mode)
 {
 	NVPtr pNv = NVPTR(pScrn);
 	struct nouveau_crtc *nv_crtc;
-	uint32_t fpc;
+	uint32_t *fpc;
 	xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
 	int i;
 
 	if (mode == DPMSModeOn) {
 		nv_crtc = to_nouveau_crtc(crtc);
-		fpc = pNv->ModeReg.crtc_reg[nv_crtc->head].fp_control;
+		fpc = &nv_crtc->state->fp_control;
+
+		if (is_fpc_off(*fpc))
+			/* using saved value is ok, as (is_digital && dpms_on &&
+			 * fp_control==OFF) is (at present) *only* true when
+			 * fpc's most recent change was by below "off" code
+			 */
+			*fpc = nv_crtc->dpms_saved_fp_control;
 
 		nv_crtc->fp_users |= 1 << nv_encoder->dcb->index;
-		NVWriteRAMDAC(pNv, nv_crtc->head, NV_PRAMDAC_FP_TG_CONTROL, fpc);
+		NVWriteRAMDAC(pNv, nv_crtc->head, NV_PRAMDAC_FP_TG_CONTROL, *fpc);
 	} else
 		for (i = 0; i < xf86_config->num_crtc; i++) {
 			nv_crtc = to_nouveau_crtc(xf86_config->crtc[i]);
-			fpc = pNv->ModeReg.crtc_reg[nv_crtc->head].fp_control;
+			fpc = &nv_crtc->state->fp_control;
 
 			nv_crtc->fp_users &= ~(1 << nv_encoder->dcb->index);
-			if (!nv_crtc->fp_users) {
+			if (!is_fpc_off(*fpc) && !nv_crtc->fp_users) {
+				nv_crtc->dpms_saved_fp_control = *fpc;
 				/* cut the FP output */
-				fpc &= ~FP_TG_CONTROL_ON;
-				fpc |= FP_TG_CONTROL_OFF;
+				*fpc &= ~FP_TG_CONTROL_ON;
+				*fpc |= FP_TG_CONTROL_OFF;
 				NVWriteRAMDAC(pNv, nv_crtc->head,
-					      NV_PRAMDAC_FP_TG_CONTROL, fpc);
+					      NV_PRAMDAC_FP_TG_CONTROL, *fpc);
 			}
 		}
+}
+
+static bool is_powersaving_dpms(int mode)
+{
+	return (mode == DPMSModeStandby || mode == DPMSModeSuspend ||
+							mode == DPMSModeOff);
 }
 
 static void
 lvds_encoder_dpms(ScrnInfoPtr pScrn, struct nouveau_encoder *nv_encoder, xf86CrtcPtr crtc, int mode)
 {
 	NVPtr pNv = NVPTR(pScrn);
+	bool was_powersaving = is_powersaving_dpms(nv_encoder->last_dpms);
 
 	if (nv_encoder->last_dpms == mode)
 		return;
 	nv_encoder->last_dpms = mode;
 
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-		   "Setting dpms mode %d on lvds encoder (output %d)\n", mode, nv_encoder->dcb->index);
+	NV_TRACE(pScrn, "Setting dpms mode %d on lvds encoder (output %d)\n",
+		 mode, nv_encoder->dcb->index);
+
+	if (was_powersaving && is_powersaving_dpms(mode))
+		return;
 
 	if (nv_encoder->dcb->lvdsconf.use_power_scripts) {
 		/* when removing an output, crtc may not be set, but PANEL_OFF
@@ -832,10 +1051,10 @@ lvds_encoder_dpms(ScrnInfoPtr pScrn, struct nouveau_encoder *nv_encoder, xf86Crt
 	if (mode == DPMSModeOn)
 		nv_digital_output_prepare_sel_clk(pNv, nv_encoder, to_nouveau_crtc(crtc)->head);
 	else {
-		pNv->ModeReg.sel_clk = NVReadRAMDAC(pNv, 0, NV_PRAMDAC_SEL_CLK);
-		pNv->ModeReg.sel_clk &= ~0xf0;
+		pNv->set_state.sel_clk = NVReadRAMDAC(pNv, 0, NV_PRAMDAC_SEL_CLK);
+		pNv->set_state.sel_clk &= ~0xf0;
 	}
-	NVWriteRAMDAC(pNv, 0, NV_PRAMDAC_SEL_CLK, pNv->ModeReg.sel_clk);
+	NVWriteRAMDAC(pNv, 0, NV_PRAMDAC_SEL_CLK, pNv->set_state.sel_clk);
 }
 
 static void
@@ -847,8 +1066,8 @@ vga_encoder_dpms(ScrnInfoPtr pScrn, struct nouveau_encoder *nv_encoder, xf86Crtc
 		return;
 	nv_encoder->last_dpms = mode;
 
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-		   "Setting dpms mode %d on vga encoder (output %d)\n", mode, nv_encoder->dcb->index);
+	NV_TRACE(pScrn, "Setting dpms mode %d on vga encoder (output %d)\n",
+		 mode, nv_encoder->dcb->index);
 
 	if (pNv->gf4_disp_arch) {
 		uint32_t outputval = NVReadRAMDAC(pNv, 0, NV_PRAMDAC_DACCLK + nv_output_ramdac_offset(nv_encoder));
@@ -865,34 +1084,14 @@ vga_encoder_dpms(ScrnInfoPtr pScrn, struct nouveau_encoder *nv_encoder, xf86Crtc
 static void
 tmds_encoder_dpms(ScrnInfoPtr pScrn, struct nouveau_encoder *nv_encoder, xf86CrtcPtr crtc, int mode)
 {
-	NVPtr pNv = NVPTR(pScrn);
-
 	if (nv_encoder->last_dpms == mode)
 		return;
 	nv_encoder->last_dpms = mode;
 
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-		   "Setting dpms mode %d on tmds encoder (output %d)\n", mode, nv_encoder->dcb->index);
+	NV_TRACE(pScrn, "Setting dpms mode %d on tmds encoder (output %d)\n",
+		 mode, nv_encoder->dcb->index);
 
 	dpms_update_fp_control(pScrn, nv_encoder, crtc, mode);
-
-	if (nv_encoder->dcb->location != DCB_LOC_ON_CHIP && pNv->twoHeads) {
-		if (mode == DPMSModeOn) {
-			int head = to_nouveau_crtc(crtc)->head;
-
-			NVWriteVgaCrtc(pNv, head, NV_CIO_CRE_LCD__INDEX,
-				       pNv->ModeReg.crtc_reg[head].CRTC[NV_CIO_CRE_LCD__INDEX]);
-		} else {
-			int i;
-			uint8_t mask = pNv->gf4_disp_arch ?
-				       ~((nv_encoder->dcb->or << 4) & 0x30) :
-				       ~0x10;
-
-			for (i = 0; i < 2; i++)
-				NVWriteVgaCrtc(pNv, i, NV_CIO_CRE_LCD__INDEX,
-					       NVReadVgaCrtc(pNv, i, NV_CIO_CRE_LCD__INDEX) & mask);
-		}
-	}
 }
 
 static void nv_output_dpms(xf86OutputPtr output, int mode)
@@ -927,8 +1126,7 @@ void nv_encoder_save(ScrnInfoPtr pScrn, struct nouveau_encoder *nv_encoder)
 		nv_encoder->restore.output =
 			NVReadRAMDAC(pNv, 0, NV_PRAMDAC_DACCLK +
 				nv_output_ramdac_offset(nv_encoder));
-	if (pNv->twoHeads && (nv_encoder->dcb->type == OUTPUT_LVDS ||
-			      nv_encoder->dcb->type == OUTPUT_TMDS))
+	if (pNv->twoHeads && IS_DFP(nv_encoder->dcb->type))
 		nv_encoder->restore.head =
 			nv_get_digital_bound_head(pNv, nv_encoder->dcb->or);
 }
@@ -950,7 +1148,7 @@ void nv_encoder_restore(ScrnInfoPtr pScrn, struct nouveau_encoder *nv_encoder)
 				 nv_encoder->native_mode->Clock);
 	if (nv_encoder->dcb->type == OUTPUT_TMDS) {
 		int clock = nouveau_hw_pllvals_to_clk
-					(&pNv->SavedReg.crtc_reg[head].pllvals);
+					(&pNv->saved_regs.head[head].pllvals);
 
 		run_tmds_table(pScrn, nv_encoder->dcb, head, clock);
 	}
@@ -995,7 +1193,7 @@ nv_add_encoder(ScrnInfoPtr pScrn, struct dcb_entry *dcbent)
 	nv_encoder->dcb = dcbent;
 	nv_encoder->last_dpms = NV_DPMS_CLEARED;
 	nv_encoder->dithering = pNv->FPDither;
-	if (pNv->fpScaler) /* GPU Scaling */
+	if (pNv->FpScale && pNv->gf4_disp_arch) /* GPU Scaling */
 		nv_encoder->scaling_mode = SCALE_ASPECT;
 	else if (nv_encoder->dcb->type == OUTPUT_LVDS)
 		nv_encoder->scaling_mode = SCALE_NOSCALE;
@@ -1045,7 +1243,7 @@ void NvSetupOutputs(ScrnInfoPtr pScrn)
 		if (dcbent->type == OUTPUT_TV)
 			continue;
 		if (dcbent->type > 3) {
-			xf86DrvMsg(pScrn->scrnIndex, X_WARNING, "DCB type %d not known\n", dcbent->type);
+			NV_WARN(pScrn, "DCB type %d not known\n", dcbent->type);
 			continue;
 		}
 

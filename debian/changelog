@@ -1,3 +1,9 @@
+xserver-xorg-video-nouveau (1:0.0.10~git+20090708+ef3a386-0ubuntu1) karmic; urgency=low
+
+  * New upstream snapshot
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 08 Jul 2009 08:31:59 +1000
+
 xserver-xorg-video-nouveau (1:0.0.10~git+20090404+11be9a9-0ubuntu1) jaunty; urgency=low
 
   * New upstream snapshot.  Standing FFe is (LP: #346621).

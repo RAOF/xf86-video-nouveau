@@ -104,22 +104,28 @@ nv50_crtc_prepare(xf86CrtcPtr crtc)
 }
 
 static void
-nv50_crtc_mode_set(xf86CrtcPtr crtc, DisplayModePtr mode, DisplayModePtr adjusted_mode, int x, int y)
+nv50_crtc_mode_set(xf86CrtcPtr crtc, DisplayModePtr mode,
+		   DisplayModePtr adjusted_mode, int x, int y)
 {
 	ScrnInfoPtr pScrn = crtc->scrn;
 	NV50CrtcPrivatePtr nv_crtc = crtc->driver_private;
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "nv50_crtc_mode_set is called for %s.\n", nv_crtc->crtc->index ? "CRTC1" : "CRTC0");
+	struct nouveau_bo *bo;
+
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+		   "nv50_crtc_mode_set is called for %s.\n",
+		   nv_crtc->crtc->index ? "CRTC1" : "CRTC0");
 
 	NVPtr pNv = NVPTR(pScrn);
 
-	/* Maybe move this elsewhere? */
+	bo = pNv->scanout;
 	if (crtc->rotatedData) {
-		nv_crtc->crtc->SetFB(nv_crtc->crtc, nv_crtc->shadow);
-		nv_crtc->crtc->SetFBOffset(nv_crtc->crtc, 0, 0);
-	} else {
-		nv_crtc->crtc->SetFB(nv_crtc->crtc, pNv->FB);
-		nv_crtc->crtc->SetFBOffset(nv_crtc->crtc, x, y);
+		bo = nv_crtc->shadow;
+		x = 0;
+		y = 0;
 	}
+
+	nv_crtc->crtc->SetFB(nv_crtc->crtc, bo);
+	nv_crtc->crtc->SetFBOffset(nv_crtc->crtc, x, y);
 	nv_crtc->crtc->ModeSet(nv_crtc->crtc, mode);
 }
 
@@ -221,7 +227,6 @@ nv50_crtc_load_cursor_argb(xf86CrtcPtr crtc, CARD32 *src)
 	nv_crtc->crtc->LoadCursor(nv_crtc->crtc, TRUE, (uint32_t *) src);
 }
 
-/* This stuff isn't ready for NOUVEAU_EXA_PIXMAPS, but can be easily ported. */
 static void *
 nv50_crtc_shadow_allocate (xf86CrtcPtr crtc, int width, int height)
 {
@@ -235,9 +240,10 @@ nv50_crtc_shadow_allocate (xf86CrtcPtr crtc, int width, int height)
 	pitch = pScrn->displayWidth * (pScrn->bitsPerPixel/8);
 	size = pitch * height;
 
-	if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN |
+	if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM |
 			   NOUVEAU_BO_MAP, 64, size, &nv_crtc->shadow)) {
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Failed to allocate memory for shadow buffer!\n");
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			   "Failed to allocate memory for shadow buffer!\n");
 		return NULL;
 	}
 
@@ -308,8 +314,19 @@ nv50_crtc_set_origin(xf86CrtcPtr crtc, int x, int y)
 {
 	ScrnInfoPtr pScrn = crtc->scrn;
 	NV50CrtcPrivatePtr nv_crtc = crtc->driver_private;
+	nouveauCrtcPtr nvcrtc = nv_crtc->crtc; /* sigh.. */
+	NVPtr pNv = NVPTR(pScrn);
+	uint32_t fb;
 
-	nv_crtc->crtc->SetFBOffset(nv_crtc->crtc, x, y);
+	nvcrtc->SetFB(nvcrtc, pNv->scanout);
+	nvcrtc->SetFBOffset(nvcrtc, x, y);
+	nvcrtc->fb_pitch = pScrn->displayWidth * (pScrn->bitsPerPixel >> 3);
+	fb = nvcrtc->front_buffer->offset - pNv->dev->vm_vram_base;
+
+	NV50CrtcCommand(nvcrtc, NV50_CRTC0_FB_OFFSET, fb >> 8);
+	NV50CrtcCommand(nvcrtc, NV50_CRTC0_FB_PITCH, nvcrtc->fb_pitch | (1<<20));
+	NV50CrtcCommand(nvcrtc, NV50_CRTC0_FB_SIZE, (pScrn->virtualY << 16) |
+						     pScrn->virtualX);
 
 	NV50DisplayCommand(pScrn, NV50_UPDATE_DISPLAY, 0);
 }

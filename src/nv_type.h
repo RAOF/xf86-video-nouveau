@@ -114,8 +114,9 @@ typedef struct _NVRec {
     unsigned long	AGPSize;
 
     /* Various pinned memory regions */
-    struct nouveau_bo * FB;
-    void *              FBMap;
+    struct nouveau_bo * scanout;
+    struct nouveau_bo * offscreen;
+    void *              offscreen_map;
     //struct nouveau_bo * FB_old; /* for KMS */
     struct nouveau_bo * shadow[2]; /* for easy acces by exa */
     struct nouveau_bo * Cursor;
@@ -140,6 +141,7 @@ typedef struct _NVRec {
     Bool		exa_driver_pixmaps;
     Bool		wfb_enabled;
     ScreenBlockHandlerProcPtr BlockHandler;
+    CreateScreenResourcesProcPtr CreateScreenResources;
     CloseScreenProcPtr  CloseScreen;
     /* Cursor */
 	uint32_t	curImage[256];
@@ -192,6 +194,7 @@ typedef struct _NVRec {
 	/* GPU context */
 	struct nouveau_channel *chan;
 	struct nouveau_notifier *notify0;
+	struct nouveau_notifier *vblank_sem;
 	struct nouveau_grobj *NvContextSurfaces;
 	struct nouveau_grobj *NvContextBeta1;
 	struct nouveau_grobj *NvContextBeta4;
@@ -205,6 +208,7 @@ typedef struct _NVRec {
 	struct nouveau_grobj *NvImageFromCpu;
 	struct nouveau_grobj *Nv2D;
 	struct nouveau_grobj *Nv3D;
+	struct nouveau_grobj *NvSW;
 	struct nouveau_bo *tesla_scratch;
 	struct nouveau_bo *shader_mem;
 	struct nouveau_bo *xv_filtertable_mem;
@@ -285,18 +289,25 @@ nouveau_pixmap(PixmapPtr ppix)
 	return (struct nouveau_pixmap *)exaGetPixmapDriverPrivate(ppix);
 }
 
+Bool drmmode_is_rotate_pixmap(PixmapPtr, struct nouveau_bo **);
 static inline struct nouveau_bo *
 nouveau_pixmap_bo(PixmapPtr ppix)
 {
 	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
 	NVPtr pNv = NVPTR(pScrn);
+	struct nouveau_bo *bo;
 
 	if (pNv->exa_driver_pixmaps) {
 		struct nouveau_pixmap *nvpix = nouveau_pixmap(ppix);
 		return nvpix ? nvpix->bo : NULL;
-	}
+	} else
+	if (ppix == pScrn->pScreen->GetScreenPixmap(pScrn->pScreen))
+		return pNv->scanout;
+	else
+	if (drmmode_is_rotate_pixmap(ppix, &bo))
+		return bo;
 
-	return pNv->FB;
+	return pNv->offscreen;
 }
 
 static inline unsigned
@@ -305,7 +316,9 @@ nouveau_pixmap_offset(PixmapPtr ppix)
 	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
 	NVPtr pNv = NVPTR(pScrn);
 
-	if (pNv->exa_driver_pixmaps)
+	if (pNv->exa_driver_pixmaps ||
+	    ppix == pScrn->pScreen->GetScreenPixmap(pScrn->pScreen) ||
+	    drmmode_is_rotate_pixmap(ppix, NULL))
 		return 0;
 
 	return exaGetPixmapOffset(ppix);

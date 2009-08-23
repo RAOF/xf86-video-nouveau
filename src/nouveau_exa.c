@@ -270,6 +270,7 @@ nouveau_exa_prepare_access(PixmapPtr ppix, int index)
 {
 	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
 	NVPtr pNv = NVPTR(pScrn);
+	struct nouveau_bo *bo;
 
 	if (pNv->exa_driver_pixmaps) {
 		void *map = nouveau_exa_pixmap_map(ppix);
@@ -278,6 +279,18 @@ nouveau_exa_prepare_access(PixmapPtr ppix, int index)
 			return FALSE;
 
 		ppix->devPrivate.ptr = map;
+		return TRUE;
+	} else
+	if (ppix == pScrn->pScreen->GetScreenPixmap(pScrn->pScreen)) {
+		nouveau_bo_map(pNv->scanout, NOUVEAU_BO_RDWR);
+		ppix->devPrivate.ptr = pNv->scanout->map;
+		nouveau_bo_unmap(pNv->scanout);
+		return TRUE;
+	} else
+	if (drmmode_is_rotate_pixmap(ppix, &bo)) {
+		nouveau_bo_map(bo, NOUVEAU_BO_RDWR);
+		ppix->devPrivate.ptr = bo->map;
+		nouveau_bo_unmap(bo);
 		return TRUE;
 	}
 
@@ -290,22 +303,40 @@ nouveau_exa_finish_access(PixmapPtr ppix, int index)
 	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
 	NVPtr pNv = NVPTR(pScrn);
 
-	if (pNv->exa_driver_pixmaps)
+	if (pNv->exa_driver_pixmaps) {
 		nouveau_exa_pixmap_unmap(ppix);
+	} else
+	if (ppix == pScrn->pScreen->GetScreenPixmap(pScrn->pScreen) ||
+	    drmmode_is_rotate_pixmap(ppix, NULL)) {
+		ppix->devPrivate.ptr = NULL;
+	}
 }
 
 static Bool
 nouveau_exa_pixmap_is_offscreen(PixmapPtr ppix)
 {
-	struct nouveau_pixmap *nvpix = nouveau_pixmap(ppix);
+	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
+	NVPtr pNv = NVPTR(pScrn);
 
-	if (nvpix && nvpix->bo)
+	if (pNv->exa_driver_pixmaps) {
+		struct nouveau_pixmap *nvpix = nouveau_pixmap(ppix);
+
+		if (nvpix && nvpix->bo)
+			return TRUE;
+	} else
+	if (ppix->devPrivate.ptr >= pNv->offscreen_map &&
+	    ppix->devPrivate.ptr < pNv->offscreen_map + pNv->offscreen->size)
+		return TRUE;
+	else
+	if (ppix == pScrn->pScreen->GetScreenPixmap(pScrn->pScreen))
+		return TRUE;
+	else
+	if (drmmode_is_rotate_pixmap(ppix, NULL))
 		return TRUE;
 
 	return FALSE;
 }
 
-#if (EXA_VERSION_MAJOR == 2 && EXA_VERSION_MINOR >= 5) || EXA_VERSION_MAJOR > 2
 static void *
 nouveau_exa_create_pixmap(ScreenPtr pScreen, int width, int height, int depth,
 			  int usage_hint, int bitsPerPixel)
@@ -333,6 +364,7 @@ nouveau_exa_create_pixmap(ScreenPtr pScreen, int width, int height, int depth,
 			tile_flags = 0x7000;
 
 			height = NOUVEAU_ALIGN(height, 1 << (tile_mode + 2));
+			width  = NOUVEAU_ALIGN(width, 64);
 		}
 
 		pitch = width * cpp;
@@ -352,107 +384,6 @@ nouveau_exa_create_pixmap(ScreenPtr pScreen, int width, int height, int depth,
 	return nvpix;
 }
 
-static Bool
-nouveau_exa_modify_pixmap_header(PixmapPtr ppix, int width, int height,
-				 int depth, int bitsPerPixel, int devKind,
-				 pointer pPixData)
-{
-	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
-	NVPtr pNv = NVPTR(pScrn);
-	struct nouveau_pixmap *nvpix;
-
-	nvpix = nouveau_pixmap(ppix);
-	if (!nvpix)
-		return FALSE;
-
-	if (pPixData == pNv->FBMap) {
-		if (nouveau_bo_ref(pNv->FB, &nvpix->bo))
-			return FALSE;
-
-		miModifyPixmapHeader(ppix, width, height, depth, bitsPerPixel,
-				     devKind, pPixData);
-		return TRUE;
-	}
-
-	return FALSE;
-}
-#else
-static void *
-nouveau_exa_cp_broken_should_die(ScreenPtr pScreen, int size, int align)
-{
-	struct nouveau_pixmap *nvpix;
-
-	nvpix = xcalloc(1, sizeof(struct nouveau_pixmap));
-	if (!nvpix)
-		return NULL;
-
-	/* Allocate later when we know width/height */
-	nvpix->size = size;
-	return (void *)nvpix;
-}
-
-static Bool
-nouveau_exa_mph_broken_should_die(PixmapPtr ppix, int width, int height,
-				  int depth, int bpp, int devkind, pointer data)
-{
-	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
-	NVPtr pNv = NVPTR(pScrn);
-	struct nouveau_pixmap *nvpix;
-	uint32_t cpp = ppix->drawable.bitsPerPixel >> 3;
-	uint32_t flags = 0, tile_mode = 0, tile_flags = 0;
-	int ret;
-
-	nvpix = nouveau_pixmap(ppix);
-	if (!nvpix)
-		return FALSE;
-
-	if (data == pNv->FBMap) {
-		if (nouveau_bo_ref(pNv->FB, &nvpix->bo))
-			return FALSE;
-
-		miModifyPixmapHeader(ppix, width, height, depth, bpp, devkind,
-				     data);
-		return TRUE;
-	}
-
-	if (nvpix->bo || !nvpix->size)
-		return FALSE;
-
-	if (cpp) {
-		flags = NOUVEAU_BO_VRAM | NOUVEAU_BO_MAP;
-
-		if (pNv->Architecture >= NV_ARCH_50) {
-			uint32_t th;
-
-			if      (height > 32) tile_mode = 4;
-			else if (height > 16) tile_mode = 3;
-			else if (height >  8) tile_mode = 2;
-			else if (height >  4) tile_mode = 1;
-			else                  tile_mode = 0;
-			tile_flags = 0x7000;
-
-			th = 1 << (tile_mode + 2);
-
-			devkind = ((NOUVEAU_ALIGN(width, 8) * cpp) + 63) & ~63;
-			nvpix->size = devkind * NOUVEAU_ALIGN(height, th);
-		}
-	}
-
-	ret = nouveau_bo_new_tile(pNv->dev, flags, 0, nvpix->size, tile_mode,
-				  tile_flags, &nvpix->bo);
-	if (ret) {
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			   "Failed pixmap creation: %d\n", ret);
-		return FALSE;
-	}
-
-	/* We don't want devPrivate.ptr set at all. */
-	miModifyPixmapHeader(ppix, width, height, depth, bpp, devkind, NULL);
-
-	return TRUE;
-}
-#endif
-
 static void
 nouveau_exa_destroy_pixmap(ScreenPtr pScreen, void *priv)
 {
@@ -468,15 +399,7 @@ nouveau_exa_destroy_pixmap(ScreenPtr pScreen, void *priv)
 bool
 nouveau_exa_pixmap_is_tiled(PixmapPtr ppix)
 {
-	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
-	NVPtr pNv = NVPTR(pScrn);
-
-	if (pNv->exa_driver_pixmaps) {
-		if (!nouveau_pixmap_bo(ppix)->tile_flags)
-			return false;
-	} else
-	if (pNv->Architecture < NV_ARCH_50 ||
-	    exaGetPixmapOffset(ppix) < pNv->EXADriverPtr->offScreenBase)
+	if (!nouveau_pixmap_bo(ppix)->tile_flags)
 		return false;
 
 	return true;
@@ -616,10 +539,8 @@ Bool
 nouveau_exa_pixmap_is_onscreen(PixmapPtr ppix)
 {
 	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
-	NVPtr pNv = NVPTR(pScrn);
-	unsigned long offset = exaGetPixmapOffset(ppix);
 
-	if (offset < pNv->EXADriverPtr->offScreenBase)
+	if (pScrn->pScreen->GetScreenPixmap(pScrn->pScreen) == ppix)
 		return TRUE;
 
 	return FALSE;
@@ -646,33 +567,27 @@ nouveau_exa_init(ScreenPtr pScreen)
 	exa->flags |= EXA_SUPPORTS_PREPARE_AUX;
 #endif
 
+	exa->PixmapIsOffscreen = nouveau_exa_pixmap_is_offscreen;
+	exa->PrepareAccess = nouveau_exa_prepare_access;
+	exa->FinishAccess = nouveau_exa_finish_access;
+
+#if (EXA_VERSION_MAJOR == 2 && EXA_VERSION_MINOR >= 5) || EXA_VERSION_MAJOR > 2
 	if (pNv->exa_driver_pixmaps) {
-		exa->flags |= EXA_HANDLES_PIXMAPS;
+		exa->flags |= (EXA_HANDLES_PIXMAPS | EXA_MIXED_PIXMAPS);
 		exa->pixmapOffsetAlign = 256;
 		exa->pixmapPitchAlign = 64;
 
-		exa->PixmapIsOffscreen = nouveau_exa_pixmap_is_offscreen;
-		exa->PrepareAccess = nouveau_exa_prepare_access;
-		exa->FinishAccess = nouveau_exa_finish_access;
-#if (EXA_VERSION_MAJOR == 2 && EXA_VERSION_MINOR >= 5) || EXA_VERSION_MAJOR > 2
 		exa->CreatePixmap2 = nouveau_exa_create_pixmap;
-		exa->ModifyPixmapHeader = nouveau_exa_modify_pixmap_header;
-#else
-		exa->CreatePixmap = nouveau_exa_cp_broken_should_die;
-		exa->ModifyPixmapHeader = nouveau_exa_mph_broken_should_die;
-#endif
 		exa->DestroyPixmap = nouveau_exa_destroy_pixmap;
-	} else {
-		nouveau_bo_map(pNv->FB, NOUVEAU_BO_RDWR);
-		exa->memoryBase = pNv->FB->map;
-		nouveau_bo_unmap(pNv->FB);
-		exa->offScreenBase = NOUVEAU_ALIGN(pScrn->virtualX, 64) *
-				     NOUVEAU_ALIGN(pScrn->virtualY, 64) *
-				     (pScrn->bitsPerPixel / 8);
-		exa->memorySize = pNv->FB->size; 
+	} else
+#endif
+	{
+		exa->memoryBase = pNv->offscreen_map;
+		exa->memorySize = pNv->offscreen->size;
+		exa->offScreenBase = 0;
 
 		if (pNv->Architecture < NV_ARCH_50) {
-			exa->pixmapOffsetAlign = 256; 
+			exa->pixmapOffsetAlign = 256;
 		} else {
 			/* Workaround some corruption issues caused by exa's
 			 * offscreen memory allocation no understanding G8x/G9x
@@ -688,10 +603,6 @@ nouveau_exa_init(ScreenPtr pScreen)
 			exa->flags |= EXA_OFFSCREEN_ALIGN_POT;
 			exa->offScreenBase =
 				NOUVEAU_ALIGN(exa->offScreenBase, 0x10000);
-
-			nouveau_bo_tile(pNv->FB, NOUVEAU_BO_VRAM |
-					NOUVEAU_BO_TILED, exa->offScreenBase,
-					exa->memorySize - exa->offScreenBase);
 		}
 		exa->pixmapPitchAlign = 64;
 	}

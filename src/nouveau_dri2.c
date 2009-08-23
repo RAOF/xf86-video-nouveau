@@ -4,13 +4,22 @@
 #include <errno.h>
 
 #include "xorg-server.h"
-#ifdef DRI2
 #include "nv_include.h"
+#ifdef DRI2
 #include "dri2.h"
+#endif
 
+#if defined(DRI2) && DRI2INFOREC_VERSION >= 3
 struct nouveau_dri2_buffer {
-	PixmapPtr pPixmap;
+	DRI2BufferRec base;
+	PixmapPtr ppix;
 };
+
+static inline struct nouveau_dri2_buffer *
+nouveau_dri2_buffer(DRI2BufferPtr buf)
+{
+	return (struct nouveau_dri2_buffer *)buf;
+}
 
 static PixmapPtr
 nouveau_dri2_create_pixmap(ScreenPtr pScreen, DrawablePtr pDraw, bool zeta)
@@ -45,6 +54,7 @@ nouveau_dri2_create_pixmap(ScreenPtr pScreen, DrawablePtr pDraw, bool zeta)
 		return NULL;
 	}
 
+	exaMoveInPixmap(ppix);
 	nouveau_bo_ref(bo, &nouveau_pixmap(ppix)->bo);
 	nouveau_bo_ref(NULL, &bo);
 
@@ -54,104 +64,91 @@ nouveau_dri2_create_pixmap(ScreenPtr pScreen, DrawablePtr pDraw, bool zeta)
 }
 
 DRI2BufferPtr
-nouveau_dri2_create_buffers(DrawablePtr pDraw, unsigned int *attachments,
-			    int count)
+nouveau_dri2_create_buffer(DrawablePtr pDraw, unsigned int attachment,
+			   unsigned int format)
 {
 	ScreenPtr pScreen = pDraw->pScreen;
-	DRI2BufferPtr dri2_bufs;
-	struct nouveau_dri2_buffer *nv_bufs;
-	PixmapPtr ppix, pzpix;
-	int i;
+	struct nouveau_dri2_buffer *nvbuf;
+	PixmapPtr ppix;
 
-	dri2_bufs = xcalloc(count, sizeof(*dri2_bufs));
-	if (!dri2_bufs)
+	nvbuf = xcalloc(1, sizeof(*nvbuf));
+	if (!nvbuf)
 		return NULL;
 
-	nv_bufs = xcalloc(count, sizeof(*nv_bufs));
-	if (!nv_bufs) {
-		xfree(dri2_bufs);
-		return NULL;
-	}
-
-	pzpix = NULL;
-	for (i = 0; i < count; i++) {
-		if (attachments[i] == DRI2BufferFrontLeft) {
-			if (pDraw->type == DRAWABLE_PIXMAP) {
-				ppix = (PixmapPtr)pDraw;
-			} else {
-				WindowPtr pwin = (WindowPtr)pDraw;
-				ppix = pScreen->GetWindowPixmap(pwin);
-			}
-
-			ppix->refcnt++;
-		} else
-		if (attachments[i] == DRI2BufferStencil && pzpix) {
-			ppix = pzpix;
-			ppix->refcnt++;
+	switch (attachment) {
+	case DRI2BufferFrontLeft:
+		if (pDraw->type == DRAWABLE_PIXMAP) {
+			ppix = (PixmapPtr)pDraw;
 		} else {
-			bool zeta;
-
-			if (attachments[i] == DRI2BufferDepth ||
-			    attachments[i] == DRI2BufferStencil)
-				zeta = true;
-			else
-				zeta = false;
-
-			ppix = nouveau_dri2_create_pixmap(pScreen, pDraw, zeta);
+			WindowPtr pwin = (WindowPtr)pDraw;
+			ppix = pScreen->GetWindowPixmap(pwin);
 		}
 
-		if (attachments[i] == DRI2BufferDepth)
-			pzpix = ppix;
-
-		dri2_bufs[i].attachment = attachments[i];
-		dri2_bufs[i].pitch = ppix->devKind;
-		dri2_bufs[i].cpp = ppix->drawable.bitsPerPixel / 8;
-		dri2_bufs[i].driverPrivate = &nv_bufs[i];
-		dri2_bufs[i].flags = 0;
-		nv_bufs[i].pPixmap = ppix;
-
-		nouveau_bo_handle_get(nouveau_pixmap(ppix)->bo,
-				      &dri2_bufs[i].name);
+		exaMoveInPixmap(ppix);
+		ppix->refcnt++;
+		break;
+	case DRI2BufferDepth:
+	case DRI2BufferDepthStencil:
+		ppix = nouveau_dri2_create_pixmap(pScreen, pDraw, true);
+		break;
+	default:
+		ppix = nouveau_dri2_create_pixmap(pScreen, pDraw, false);
+		break;
 	}
 
-	return dri2_bufs;
+
+	nvbuf->base.attachment = attachment;
+	nvbuf->base.pitch = ppix->devKind;
+	nvbuf->base.cpp = ppix->drawable.bitsPerPixel / 8;
+	nvbuf->base.driverPrivate = nvbuf;
+	nvbuf->base.format = format;
+	nvbuf->base.flags = 0;
+	nvbuf->ppix = ppix;
+
+	nouveau_bo_handle_get(nouveau_pixmap(ppix)->bo, &nvbuf->base.name);
+	return &nvbuf->base;
 }
 
 void
-nouveau_dri2_destroy_buffers(DrawablePtr pDraw, DRI2BufferPtr buffers,
-			     int count)
+nouveau_dri2_destroy_buffer(DrawablePtr pDraw, DRI2BufferPtr buf)
 {
 	struct nouveau_dri2_buffer *nvbuf;
 
-	while (count--) {
-		nvbuf = buffers[count].driverPrivate;
-		pDraw->pScreen->DestroyPixmap(nvbuf->pPixmap);
-	}
+	nvbuf = nouveau_dri2_buffer(buf);
+	if (!nvbuf)
+		return;
 
-	if (buffers) {
-		xfree(buffers[0].driverPrivate);
-		xfree(buffers);
-	}
+	pDraw->pScreen->DestroyPixmap(nvbuf->ppix);
+	xfree(nvbuf);
 }
 
 void
 nouveau_dri2_copy_region(DrawablePtr pDraw, RegionPtr pRegion,
 			 DRI2BufferPtr pDstBuffer, DRI2BufferPtr pSrcBuffer)
 {
-	struct nouveau_dri2_buffer *nvbuf = pSrcBuffer->driverPrivate;
+	struct nouveau_dri2_buffer *src = nouveau_dri2_buffer(pSrcBuffer);
+	struct nouveau_dri2_buffer *dst = nouveau_dri2_buffer(pDstBuffer);
+	PixmapPtr pspix = src->ppix, pdpix = dst->ppix;
 	ScreenPtr pScreen = pDraw->pScreen;
 	ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
 	NVPtr pNv = NVPTR(pScrn);
 	RegionPtr pCopyClip;
 	GCPtr pGC;
 
+	if (src->base.attachment == DRI2BufferFrontLeft)
+		pspix = (PixmapPtr)pDraw;
+	if (dst->base.attachment == DRI2BufferFrontLeft)
+		pdpix = (PixmapPtr)pDraw;
+
 	pGC = GetScratchGC(pDraw->depth, pScreen);
 	pCopyClip = REGION_CREATE(pScreen, NULL, 0);
 	REGION_COPY(pScreen, pCopyClip, pRegion);
 	pGC->funcs->ChangeClip(pGC, CT_REGION, pCopyClip, 0);
-	ValidateGC(pDraw, pGC);
-	pGC->ops->CopyArea(&nvbuf->pPixmap->drawable, pDraw, pGC, 0, 0,
+	ValidateGC(&pdpix->drawable, pGC);
+
+	pGC->ops->CopyArea(&pspix->drawable, &pdpix->drawable, pGC, 0, 0,
 			   pDraw->width, pDraw->height, 0, 0);
+
 	FreeScratchGC(pGC);
 
 	FIRE_RING(pNv->chan);
@@ -195,12 +192,13 @@ nouveau_dri2_init(ScreenPtr pScreen)
 		return FALSE;
 	}
 
-	dri2.version = 1;
 	dri2.fd = nouveau_device(pNv->dev)->fd;
 	dri2.driverName = "nouveau";
 	dri2.deviceName = pNv->drm_device_name;
-	dri2.CreateBuffers = nouveau_dri2_create_buffers;
-	dri2.DestroyBuffers = nouveau_dri2_destroy_buffers;
+
+	dri2.version = DRI2INFOREC_VERSION;
+	dri2.CreateBuffer = nouveau_dri2_create_buffer;
+	dri2.DestroyBuffer = nouveau_dri2_destroy_buffer;
 	dri2.CopyRegion = nouveau_dri2_copy_region;
 
 	return DRI2ScreenInit(pScreen, &dri2);
@@ -211,4 +209,16 @@ nouveau_dri2_fini(ScreenPtr pScreen)
 {
 	DRI2CloseScreen(pScreen);
 }
+#else
+Bool
+nouveau_dri2_init(ScreenPtr pScreen)
+{
+	return TRUE;
+}
+
+void
+nouveau_dri2_fini(ScreenPtr pScreen)
+{
+}
 #endif
+

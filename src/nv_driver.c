@@ -276,9 +276,8 @@ static Bool NVPciProbe (	DriverPtr 		drv,
 		 * to avoid list duplication */
 		/* AGP bridge chips need their bridge chip id to be detected */
 		PciChipsets NVChipsets[] = {
-			{ pci_id, (dev->vendor_id << 16) | dev->device_id,
-				  RES_SHARED_VGA },
-			{ -1, -1, RES_UNDEFINED }
+			{ pci_id, (dev->vendor_id << 16) | dev->device_id, NULL },
+			{ -1, -1, NULL }
 		};
 
 		pScrn = xf86ConfigPciEntity(pScrn, 0, entity_num, NVChipsets, 
@@ -383,8 +382,13 @@ NVEnterVT(int scrnIndex, int flags)
 {
 	ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
 	NVPtr pNv = NVPTR(pScrn);
+	int ret;
 
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "NVEnterVT is called.\n");
+
+	ret = drmSetMaster(nouveau_device(pNv->dev)->fd);
+	if (ret)
+		ErrorF("Unable to get master: %d\n", ret);
 
 	if (!pNv->NoAccel)
 		NVAccelCommonInit(pScrn);
@@ -396,10 +400,9 @@ NVEnterVT(int scrnIndex, int flags)
 		/* Clear the framebuffer, we don't want to see garbage
 		 * on-screen up until X decides to draw something
 		 */
-		nouveau_bo_map(pNv->FB, NOUVEAU_BO_WR);
-		memset(pNv->FB->map, 0, NOUVEAU_ALIGN(pScrn->virtualX, 64) *
-		       pScrn->virtualY * (pScrn->bitsPerPixel >> 3));
-		nouveau_bo_unmap(pNv->FB);
+		nouveau_bo_map(pNv->scanout, NOUVEAU_BO_WR);
+		memset(pNv->scanout->map, 0, pNv->scanout->size);
+		nouveau_bo_unmap(pNv->scanout);
 
 		if (pNv->Architecture == NV_ARCH_50) {
 			if (!NV50AcquireDisplay(pScrn))
@@ -431,10 +434,15 @@ NVLeaveVT(int scrnIndex, int flags)
 {
 	ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
 	NVPtr pNv = NVPTR(pScrn);
+	int ret;
 
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "NVLeaveVT is called.\n");
 
 	NVSync(pScrn);
+
+	ret = drmDropMaster(nouveau_device(pNv->dev)->fd);
+	if (ret)
+		ErrorF("Error dropping master: %d\n", ret);
 
 	if (!pNv->kms_enable) {
 		if (pNv->Architecture < NV_ARCH_50)
@@ -467,6 +475,25 @@ NVBlockHandler (
 		(*pNv->VideoTimerCallback)(pScrnInfo, currentTime.milliseconds);
 }
 
+static Bool
+NVCreateScreenResources(ScreenPtr pScreen)
+{
+	ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+	NVPtr pNv = NVPTR(pScrn);
+	PixmapPtr ppix;
+
+	pScreen->CreateScreenResources = pNv->CreateScreenResources;
+	if (!(*pScreen->CreateScreenResources)(pScreen))
+		return FALSE;
+	pScreen->CreateScreenResources = NVCreateScreenResources;
+
+	if (pNv->exa_driver_pixmaps) {
+		ppix = pScreen->GetScreenPixmap(pScreen);
+		nouveau_bo_ref(pNv->scanout, &nouveau_pixmap(ppix)->bo);
+	}
+
+	return TRUE;
+}
 
 /*
  * This is called at the end of each server generation.  It restores the
@@ -482,6 +509,15 @@ NVCloseScreen(int scrnIndex, ScreenPtr pScreen)
 	ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
 	NVPtr pNv = NVPTR(pScrn);
 
+	if (!pNv->exa_driver_pixmaps)
+		NVDRICloseScreen(pScrn);
+	else
+		nouveau_dri2_fini(pScreen);
+
+	if (pScrn->vtSema) {
+		NVLeaveVT(scrnIndex, 0);
+		pScrn->vtSema = FALSE;
+	}
 	if (pScrn->vtSema) {
 		NVLeaveVT(scrnIndex, 0);
 		pScrn->vtSema = FALSE;
@@ -491,13 +527,6 @@ NVCloseScreen(int scrnIndex, ScreenPtr pScreen)
 	NVTakedownVideo(pScrn);
 	NVTakedownDma(pScrn);
 	NVUnmapMem(pScrn);
-
-	if (!pNv->exa_driver_pixmaps)
-		NVDRICloseScreen(pScrn);
-#ifdef DRI2
-	else
-		nouveau_dri2_fini(pScreen);
-#endif
 
 	xf86_cursors_fini(pScreen);
 
@@ -567,19 +596,79 @@ NVFreeScreen(int scrnIndex, int flags)
 }
 
 static Bool
-nv_xf86crtc_resize(ScrnInfoPtr pScrn, int width, int height)
+nouveau_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
 {
-#if 0
-	do not change virtual* for now, as it breaks multihead server regeneration
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "nv_xf86crtc_resize is called with %dx%d resolution.\n", width, height);
-	pScrn->virtualX = width;
-	pScrn->virtualY = height;
-#endif
+	xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(scrn);
+	ScreenPtr screen = screenInfo.screens[scrn->scrnIndex];
+	NVPtr pNv = NVPTR(scrn);
+	uint32_t pitch, old_width, old_height, old_pitch;
+	struct nouveau_bo *old_bo = NULL;
+	uint32_t tile_mode = 0, tile_flags = 0, ah = height;
+	PixmapPtr ppix = screen->GetScreenPixmap(screen);
+	int ret, i;
+
+	ErrorF("resize called %d %d\n", width, height);
+
+	if (scrn->virtualX == width && scrn->virtualY == height)
+		return TRUE;
+
+	pitch  = nv_pitch_align(pNv, width, scrn->depth);
+	pitch *= (scrn->bitsPerPixel >> 3);
+
+	old_width = scrn->virtualX;
+	old_height = scrn->virtualY;
+	old_pitch = scrn->displayWidth;
+	nouveau_bo_ref(pNv->scanout, &old_bo);
+	nouveau_bo_ref(NULL, &pNv->scanout);
+
+	scrn->virtualX = width;
+	scrn->virtualY = height;
+	scrn->displayWidth = pitch / (scrn->bitsPerPixel >> 3);
+
+	ret = nouveau_bo_new_tile(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_MAP,
+				  0, pitch * ah, tile_mode, tile_flags,
+				  &pNv->scanout);
+	if (ret)
+		goto fail;
+
+	if (pNv->ShadowPtr) {
+		xfree(pNv->ShadowPtr);
+		pNv->ShadowPitch = pitch;
+		pNv->ShadowPtr = xalloc(pNv->ShadowPitch * height);
+	}
+
+	nouveau_bo_map(pNv->scanout, NOUVEAU_BO_RDWR);
+	screen->ModifyPixmapHeader(ppix, width, height, -1, -1, pitch,
+				   (!pNv->NoAccel || pNv->ShadowFB) ?
+				   pNv->ShadowPtr : pNv->scanout->map);
+	nouveau_bo_unmap(pNv->scanout);
+
+	for (i = 0; i < xf86_config->num_crtc; i++) {
+		xf86CrtcPtr crtc = xf86_config->crtc[i];
+
+		if (!crtc->enabled)
+			continue;
+
+		xf86CrtcSetMode(crtc, &crtc->mode, crtc->rotation,
+				crtc->x, crtc->y);
+	}
+
+	nouveau_bo_ref(NULL, &old_bo);
+
+	NVDRIFinishScreenInit(scrn, true);
 	return TRUE;
+
+ fail:
+	nouveau_bo_ref(old_bo, &pNv->scanout);
+	scrn->virtualX = old_width;
+	scrn->virtualY = old_height;
+	scrn->displayWidth = old_pitch;
+
+	return FALSE;
 }
 
 static const xf86CrtcConfigFuncsRec nv_xf86crtc_config_funcs = {
-	nv_xf86crtc_resize
+	nouveau_xf86crtc_resize
 };
 
 #define NVPreInitFail(fmt, args...) do {                                    \
@@ -642,7 +731,7 @@ NVPreInitDRM(ScrnInfoPtr pScrn)
 	ret = nouveau_device_open_existing(&pNv->dev, 1, DRIMasterFD(pScrn), 0);
 	if (ret) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			   "[drm] error creating device, setting NoAccel\n");
+			   "[drm] error creating device\n");
 		xfree(bus_id);
 		return FALSE;
 	}
@@ -652,10 +741,6 @@ NVPreInitDRM(ScrnInfoPtr pScrn)
 	 */
 #ifdef XF86DRM_MODE
 	pNv->kms_enable = !drmCheckModesettingSupported(bus_id);
-
-	/* Additional sanity check */
-	if (!nouveau_device(pNv->dev)->mm_enabled)
-		pNv->kms_enable = false;
 #endif
 	xf86DrvMsg(pScrn->scrnIndex, X_PROBED,
 		   "[drm] kernel modesetting %s\n", pNv->kms_enable ?
@@ -671,7 +756,6 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 {
 	NVPtr pNv;
 	MessageType from;
-	int max_width, max_height;
 	int ret, i;
 
 	if (flags & PROBE_DETECT) {
@@ -779,15 +863,9 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 #endif
 	}
 
-	/* Attempt to initialise the kernel module, if we fail this we'll
-	 * fallback to limited functionality.
-	 */
-	if (!NVPreInitDRM(pScrn)) {
-		xf86DrvMsg(pScrn->scrnIndex, X_NOTICE,
-			   "Failing back to NoAccel mode\n");
-		pNv->NoAccel = TRUE;
-		pNv->ShadowFB = TRUE;
-	}
+	/* Initialise the kernel module */
+	if (!NVPreInitDRM(pScrn))
+		NVPreInitFail("\n");
 
 	/* Save current console video mode */
 	if (pNv->Architecture >= NV_ARCH_50 && pNv->pInt10 && !pNv->kms_enable) {
@@ -805,9 +883,6 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 			   "VESA-HACK: Console VGA mode is 0x%x\n",
 			   pNv->Int10Mode);
 	}
-
-	xf86SetOperatingState(resVgaIo, pNv->pEnt->index, ResUnusedOpr);
-	xf86SetOperatingState(resVgaMem, pNv->pEnt->index, ResDisableOpr);
 
 	/* Set pScrn->monitor */
 	pScrn->monitor = pScrn->confScreen->monitor;
@@ -925,13 +1000,21 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 			"Using \"Shadow Framebuffer\" - acceleration disabled\n");
 	}
 
-	if (xf86ReturnOptValBool(pNv->Options, OPTION_EXA_PIXMAPS, FALSE)) {
-		pNv->exa_driver_pixmaps = TRUE;
-#if XORG_VERSION_CURRENT >= XORG_VERSION_NUMERIC(1,6,99,0,0)
-		if (pNv->Architecture >= NV_50)
-			pNv->wfb_enabled = TRUE;
-#endif
+#if (EXA_VERSION_MAJOR == 2 && EXA_VERSION_MINOR >= 5) || EXA_VERSION_MAJOR > 2
+	if (!pNv->NoAccel &&
+	    xf86ReturnOptValBool(pNv->Options, OPTION_EXA_PIXMAPS, TRUE)) {
+		if (pNv->kms_enable) {
+			pNv->exa_driver_pixmaps = TRUE;
+		} else {
+			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+				   "EXAPixmaps support requires KMS\n");
+		}
 	}
+
+	if (!pNv->NoAccel && pNv->kms_enable &&
+	     pNv->Architecture >= NV_ARCH_50)
+		pNv->wfb_enabled = TRUE;
+#endif
 
 	if(xf86GetOptValInteger(pNv->Options, OPTION_VIDEO_KEY, &(pNv->videoKey))) {
 		xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, "video key set to 0x%x\n",
@@ -986,20 +1069,6 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 	xf86DrvMsg(pScrn->scrnIndex, from, "MMIO registers at 0x%lX\n",
 		(unsigned long)pNv->IOAddress);
 
-	if (xf86RegisterResources(pNv->pEnt->index, NULL, ResExclusive))
-		NVPreInitFail("xf86RegisterResources() found resource conflicts\n");
-
-	if (pNv->Architecture < NV_ARCH_10) {
-		max_width = (pScrn->bitsPerPixel > 16) ? 2032 : 2048;
-		max_height = 2048;
-	} else if (pNv->Architecture < NV_ARCH_50) {
-		max_width = (pScrn->bitsPerPixel > 16) ? 4080 : 4096;
-		max_height = 4096;
-	} else {
-		max_width = (pScrn->bitsPerPixel > 16) ? 8176 : 8192;
-		max_height = 8192;
-	}
-
 #ifdef XF86DRM_MODE
 	if (pNv->kms_enable){
 		ret = drmmode_pre_init(pScrn, nouveau_device(pNv->dev)->fd,
@@ -1008,10 +1077,24 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 			NVPreInitFail("Kernel modesetting failed to initialize\n");
 	} else
 #endif
+	{
+		int max_width, max_height;
 
-	/* Allocate an xf86CrtcConfig */
-	xf86CrtcConfigInit(pScrn, &nv_xf86crtc_config_funcs);
-	xf86CrtcSetSizeRange(pScrn, 320, 200, max_width, max_height);
+		if (pNv->Architecture < NV_ARCH_10) {
+			max_width = (pScrn->bitsPerPixel > 16) ? 2032 : 2048;
+			max_height = 2048;
+		} else if (pNv->Architecture < NV_ARCH_50) {
+			max_width = (pScrn->bitsPerPixel > 16) ? 4080 : 4096;
+			max_height = 4096;
+		} else {
+			max_width = (pScrn->bitsPerPixel > 16) ? 8176 : 8192;
+			max_height = 8192;
+		}
+
+		/* Allocate an xf86CrtcConfig */
+		xf86CrtcConfigInit(pScrn, &nv_xf86crtc_config_funcs);
+		xf86CrtcSetSizeRange(pScrn, 320, 200, max_width, max_height);
+	}
 
 	NVCommonSetup(pScrn);
 
@@ -1040,7 +1123,7 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 		} else
 			nv50_output_create(pScrn); /* create randr-1.2 "outputs". */
 
-		if (!xf86InitialConfiguration(pScrn, FALSE))
+		if (!xf86InitialConfiguration(pScrn, TRUE))
 			NVPreInitFail("No valid modes.\n");
 	}
 
@@ -1059,7 +1142,16 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 	if (!xf86SetGamma(pScrn, gammazeros))
 		NVPreInitFail("\n");
 
-	pScrn->displayWidth = nv_pitch_align(pNv, pScrn->virtualX, pScrn->depth);
+	if (pNv->Architecture >= NV_ARCH_50 && pNv->wfb_enabled) {
+		int cpp = pScrn->bitsPerPixel >> 3;
+		pScrn->displayWidth = pScrn->virtualX * cpp;
+		pScrn->displayWidth = NOUVEAU_ALIGN(pScrn->displayWidth, 64);
+		pScrn->displayWidth = pScrn->displayWidth / cpp;
+	} else {
+		pScrn->displayWidth = nv_pitch_align(pNv, pScrn->virtualX,
+						     pScrn->depth);
+	}
+
 	/* Set the current mode to the first in the list */
 	pScrn->currentMode = pScrn->modes;
 
@@ -1092,91 +1184,13 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 }
 
 
-/*
- * Map the framebuffer and MMIO memory.
- */
-static Bool
-NVMapMemSW(ScrnInfoPtr pScrn)
-{
-	NVPtr pNv = NVPTR(pScrn);
-	unsigned VRAMReserved, Cursor0Offset, Cursor1Offset, CLUTOffset[2];
-	static struct nouveau_device dev;
-	void *map;
-	int ret, i;
-
-	memset(&dev, 0, sizeof(dev));
-
-	pNv->VRAMSize = pNv->RamAmountKBytes * 1024;
-	VRAMReserved  = pNv->VRAMSize - (1 * 1024 * 1024);
-	pNv->AGPSize = 0;
-	pNv->VRAMPhysical = pNv->PciInfo->regions[1].base_addr;
-	pci_device_map_range(pNv->PciInfo, pNv->VRAMPhysical,
-			     pNv->PciInfo->regions[1].size,
-			     PCI_DEV_MAP_FLAG_WRITABLE |
-			     PCI_DEV_MAP_FLAG_WRITE_COMBINE, &map);
-	pNv->VRAMMap = map;
-
-	Cursor0Offset = VRAMReserved;
-	Cursor1Offset = Cursor0Offset + (64 * 64 * 4);
-	CLUTOffset[0] = Cursor1Offset + (64 * 64 * 4);
-	CLUTOffset[1] = CLUTOffset[0] + (4 * 1024);
-
-	ret = nouveau_bo_fake(&dev, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN,
-			      pNv->VRAMSize - (1<<20), pNv->VRAMMap,
-			      &pNv->FB);
-	if (ret)
-		return FALSE;
-	pNv->GART = NULL;
-
-	ret = nouveau_bo_fake(&dev, Cursor0Offset,
-			      NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN,
-			      64 * 64 * 4, pNv->VRAMMap + Cursor0Offset,
-			      &pNv->Cursor);
-	if (ret)
-		return FALSE;
-
-	ret = nouveau_bo_fake(&dev, Cursor1Offset,
-			      NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN,
-			      64 * 64 * 4, pNv->VRAMMap + Cursor1Offset,
-			      &pNv->Cursor2);
-	if (ret)
-		return FALSE;
-
-	if (pNv->Architecture == NV_ARCH_50) {
-		for(i = 0; i < 2; i++) {
-			nouveauCrtcPtr crtc = pNv->crtc[i];
-
-			ret = nouveau_bo_fake(&dev, CLUTOffset[i],
-					      NOUVEAU_BO_VRAM |
-					      NOUVEAU_BO_PIN, 0x1000,
-					      pNv->VRAMMap + CLUTOffset[i],
-					      &crtc->lut);
-			if (ret)
-				return FALSE;
-
-			/* Copy the last known values. */
-			if (crtc->lut_values_valid) {
-				nouveau_bo_map(crtc->lut, NOUVEAU_BO_WR);
-				memcpy(crtc->lut->map, crtc->lut_values,
-				       4 * 256 * sizeof(uint16_t));
-				nouveau_bo_unmap(crtc->lut);
-			}
-		}
-	}
-
-	return TRUE;
-}
-
 static Bool
 NVMapMem(ScrnInfoPtr pScrn)
 {
 	NVPtr pNv = NVPTR(pScrn);
 	uint64_t res;
 	uint32_t tile_mode = 0, tile_flags = 0;
-	int size;
-
-	if (!pNv->dev)
-		return NVMapMemSW(pScrn);
+	int ret, size;
 
 	nouveau_device_get_param(pNv->dev, NOUVEAU_GETPARAM_FB_SIZE, &res);
 	pNv->VRAMSize=res;
@@ -1185,33 +1199,55 @@ NVMapMem(ScrnInfoPtr pScrn)
 	nouveau_device_get_param(pNv->dev, NOUVEAU_GETPARAM_AGP_SIZE, &res);
 	pNv->AGPSize=res;
 
-	if (pNv->exa_driver_pixmaps) {
-		uint32_t height = pScrn->virtualY;
-
-		if (pNv->Architecture == NV_ARCH_50 && pNv->kms_enable) {
-			tile_mode = 4;
-			tile_flags = 0x7a00;
-			height = NOUVEAU_ALIGN(height, 64);
-		}
-
-		size = NOUVEAU_ALIGN(pScrn->virtualX, 64);
-		size = size * (pScrn->bitsPerPixel >> 3);
-		size = size * height;
+	size = pScrn->displayWidth * (pScrn->bitsPerPixel >> 3);
+	if (pNv->Architecture >= NV_ARCH_50 && pNv->wfb_enabled) {
+		tile_mode = 4;
+		tile_flags = pScrn->bitsPerPixel == 16 ? 0x7000 : 0x7a00;
+		size *= NOUVEAU_ALIGN(pScrn->virtualY, (1 << (tile_mode + 2)));
 	} else {
-		size = pNv->VRAMPhysicalSize / 2;
+		size *= pScrn->virtualY;
 	}
 
-	if (nouveau_bo_new_tile(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN |
-				NOUVEAU_BO_MAP, 0, size, tile_mode,
-				tile_flags, &pNv->FB)) {
+	ret = nouveau_bo_new_tile(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_MAP,
+				  0, size, tile_mode, tile_flags,
+				  &pNv->scanout);
+	if (ret) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			   "Failed to allocate framebuffer memory\n");
+			   "Error allocating scanout buffer: %d\n", ret);
 		return FALSE;
 	}
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-		   "Allocated %dMiB VRAM for framebuffer + offscreen pixmaps, "
-		   "at offset 0x%X\n",
-		   (uint32_t)(pNv->FB->size >> 20), (uint32_t) pNv->FB->offset);
+
+	nouveau_bo_map(pNv->scanout, NOUVEAU_BO_RDWR);
+	nouveau_bo_unmap(pNv->scanout);
+
+	if (pNv->NoAccel)
+		goto skip_offscreen_gart;
+
+	if (!pNv->exa_driver_pixmaps) {
+		size = (pNv->VRAMPhysicalSize / 2) - size;
+
+		if (pNv->Architecture >= NV_ARCH_50) {
+			tile_mode = 0;
+			tile_flags = 0x7000;
+		}
+
+		ret = nouveau_bo_new_tile(pNv->dev, NOUVEAU_BO_VRAM |
+					  NOUVEAU_BO_MAP, 0, size, tile_mode,
+					  tile_flags, &pNv->offscreen);
+		if (ret) {
+			xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Error allocating"
+				   " offscreen pixmap area: %d\n", ret);
+			return FALSE;
+		}
+
+		xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+			   "Allocated %dMiB VRAM for offscreen pixmaps\n",
+			   (uint32_t)(pNv->offscreen->size >> 20));
+
+		nouveau_bo_map(pNv->offscreen, NOUVEAU_BO_RDWR);
+		pNv->offscreen_map = pNv->offscreen->map;
+		nouveau_bo_unmap(pNv->offscreen);
+	}
 
 	if (pNv->AGPSize) {
 		xf86DrvMsg(pScrn->scrnIndex, X_INFO,
@@ -1225,12 +1261,11 @@ NVMapMem(ScrnInfoPtr pScrn)
 	} else {
 		size = (4 << 20) - (1 << 18) ;
 		xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-			   "GART: PCI DMA - using %dKiB\n",
-			   size >> 10);
+			   "GART: PCI DMA - using %dKiB\n", size >> 10);
 	}
 
-	if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_GART | NOUVEAU_BO_PIN |
-			   NOUVEAU_BO_MAP, 0, size, &pNv->GART)) {
+	if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_GART | NOUVEAU_BO_MAP,
+			   0, size, &pNv->GART)) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "Unable to allocate GART memory\n");
 	}
@@ -1240,6 +1275,7 @@ NVMapMem(ScrnInfoPtr pScrn)
 			   (unsigned int)(pNv->GART->size >> 20));
 	}
 
+skip_offscreen_gart:
 	/* We don't need to allocate cursors / lut here if we're using
 	 * kernel modesetting
 	 **/
@@ -1306,7 +1342,12 @@ NVUnmapMem(ScrnInfoPtr pScrn)
 				       pNv->PciInfo->regions[1].size);
 	}
 
-	nouveau_bo_ref(NULL, &pNv->FB);
+#ifdef XF86DRM_MODE
+	if (pNv->kms_enable)
+		drmmode_remove_fb(pScrn);
+#endif
+	nouveau_bo_ref(NULL, &pNv->scanout);
+	nouveau_bo_ref(NULL, &pNv->offscreen);
 	nouveau_bo_ref(NULL, &pNv->GART);
 	nouveau_bo_ref(NULL, &pNv->Cursor);
 	nouveau_bo_ref(NULL, &pNv->Cursor2);
@@ -1424,26 +1465,31 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	unsigned char *FBStart;
 	int displayWidth;
 
-	/* Allocate and map memory areas we need */
-	if (!NVMapMem(pScrn))
-		return FALSE;
+	if (!pNv->NoAccel) {
+		if (!NVInitDma(pScrn) || !NVAccelCommonInit(pScrn)) {
+			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+				   "Error initialising acceleration.  "
+				   "Falling back to NoAccel\n");
+			pNv->NoAccel = TRUE;
+			pNv->ShadowFB = TRUE;
+			pNv->exa_driver_pixmaps = FALSE;
+			pNv->wfb_enabled = FALSE;
+			pScrn->displayWidth = nv_pitch_align(pNv,
+							     pScrn->virtualX,
+							     pScrn->depth);
+		}
+	}
 
 	if (!pNv->NoAccel) {
 		if (!pNv->exa_driver_pixmaps)
 			NVDRIScreenInit(pScrn);
-#ifdef DRI2
 		else
 			nouveau_dri2_init(pScreen);
-#endif
-
-		/* Init DRM - Alloc FIFO */
-		if (!NVInitDma(pScrn))
-			return FALSE;
-
-		/* setup graphics objects */
-		if (!NVAccelCommonInit(pScrn))
-			return FALSE;
 	}
+
+	/* Allocate and map memory areas we need */
+	if (!NVMapMem(pScrn))
+		return FALSE;
 
 	xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
 	int i;
@@ -1496,9 +1542,9 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	} else {
 		pNv->ShadowPtr = NULL;
 		displayWidth = pScrn->displayWidth;
-		nouveau_bo_map(pNv->FB, NOUVEAU_BO_RDWR);
-		FBStart = pNv->FB->map;
-		nouveau_bo_unmap(pNv->FB);
+		nouveau_bo_map(pNv->scanout, NOUVEAU_BO_RDWR);
+		FBStart = pNv->scanout->map;
+		nouveau_bo_unmap(pNv->scanout);
 	}
 
 	switch (pScrn->bitsPerPixel) {
@@ -1546,10 +1592,6 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
 	xf86SetBlackWhitePixels(pScreen);
 
-	nouveau_bo_map(pNv->FB, NOUVEAU_BO_RDWR);
-	pNv->FBMap = pNv->FB->map;
-	nouveau_bo_unmap(pNv->FB);
-
 	if (!pNv->NoAccel) {
 		if (!nouveau_exa_init(pScreen))
 			return FALSE;
@@ -1564,7 +1606,7 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	xf86SetSilkenMouse(pScreen);
 
 	/* Finish DRI init */
-	if (!NVDRIFinishScreenInit(pScrn)) {
+	if (!NVDRIFinishScreenInit(pScrn, false)) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "[dri] NVDRIFinishScreenInit failed, disbling DRI\n");
 		NVDRICloseScreen(pScrn);
@@ -1616,6 +1658,13 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
 	xf86DPMSInit(pScreen, xf86DPMSSet, 0);
 
+	/* Wrap the current CloseScreen function */
+	pScreen->SaveScreen = NVSaveScreen;
+	pNv->CloseScreen = pScreen->CloseScreen;
+	pScreen->CloseScreen = NVCloseScreen;
+	pNv->CreateScreenResources = pScreen->CreateScreenResources;
+	pScreen->CreateScreenResources = NVCreateScreenResources;
+
 	if (!xf86CrtcScreenInit(pScreen))
 		return FALSE;
 
@@ -1630,12 +1679,6 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	if (!xf86HandleColormaps(pScreen, 256, 8, NVLoadPalette,
 				 NULL, CMAP_PALETTED_TRUECOLOR))
 		return FALSE;
-
-	pScreen->SaveScreen = NVSaveScreen;
-
-	/* Wrap the current CloseScreen function */
-	pNv->CloseScreen = pScreen->CloseScreen;
-	pScreen->CloseScreen = NVCloseScreen;
 
 	/* Report any unused options (only for the first generation) */
 	if (serverGeneration == 1)

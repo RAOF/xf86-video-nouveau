@@ -45,8 +45,8 @@ NVAccelInitContextSurfaces(ScrnInfoPtr pScrn)
 	struct nouveau_grobj *surf2d;
 	uint32_t class;
 
-	class = (pNv->Architecture >= NV_10) ? NV10_CONTEXT_SURFACES_2D :
-					       NV04_CONTEXT_SURFACES_2D;
+	class = (pNv->Architecture >= NV_ARCH_10) ? NV10_CONTEXT_SURFACES_2D :
+						    NV04_CONTEXT_SURFACES_2D;
 
 	if (!pNv->NvContextSurfaces) {
 		if (nouveau_grobj_alloc(chan, NvContextSurfaces, class,
@@ -544,6 +544,8 @@ void NVAccelFree(ScrnInfoPtr pScrn)
 		return;
 
 	nouveau_notifier_free(&pNv->notify0);
+	nouveau_notifier_free(&pNv->vblank_sem);
+
 	if (pNv->Architecture < NV_ARCH_50) {
 		nouveau_grobj_free(&pNv->NvContextSurfaces);
 		nouveau_grobj_free(&pNv->NvContextBeta1);
@@ -559,6 +561,7 @@ void NVAccelFree(ScrnInfoPtr pScrn)
 		nouveau_grobj_free(&pNv->Nv2D);
 	nouveau_grobj_free(&pNv->NvMemFormat);
 
+	nouveau_grobj_free(&pNv->NvSW);
 	nouveau_grobj_free(&pNv->Nv3D);
 
 	nouveau_bo_ref(NULL, &pNv->tesla_scratch);

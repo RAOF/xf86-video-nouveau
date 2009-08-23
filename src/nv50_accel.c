@@ -28,7 +28,7 @@ NVAccelInitNV50TCL(ScrnInfoPtr pScrn)
 {
 	NVPtr pNv = NVPTR(pScrn);
 	struct nouveau_channel *chan = pNv->chan;
-	struct nouveau_grobj *tesla;
+	struct nouveau_grobj *tesla, *nvsw;
 	unsigned class;
 	int i;
 
@@ -47,16 +47,38 @@ NVAccelInitNV50TCL(ScrnInfoPtr pScrn)
 	}
 
 	if (!pNv->Nv3D) {
-		if (nouveau_grobj_alloc(pNv->chan, Nv3D, class, &pNv->Nv3D))
+		if (nouveau_grobj_alloc(chan, Nv3D, class, &pNv->Nv3D))
 			return FALSE;
+
+		if (nouveau_grobj_alloc(chan, NvSW, 0x506e, &pNv->NvSW)) {
+			nouveau_grobj_free(&pNv->Nv3D);
+			return FALSE;
+		}
+
+		if (nouveau_notifier_alloc(chan, NvVBlankSem, 1,
+					   &pNv->vblank_sem)) {
+			nouveau_grobj_free(&pNv->NvSW);
+			nouveau_grobj_free(&pNv->Nv3D);
+		}
 
 		if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM, 0, 65536,
 				   &pNv->tesla_scratch)) {
+			nouveau_notifier_free(&pNv->vblank_sem);
+			nouveau_grobj_free(&pNv->NvSW);
 			nouveau_grobj_free(&pNv->Nv3D);
 			return FALSE;
 		}
 	}
 	tesla = pNv->Nv3D;
+	nvsw = pNv->NvSW;
+
+	BEGIN_RING(chan, nvsw, 0x0060, 2);
+	OUT_RING  (chan, pNv->vblank_sem->handle);
+	OUT_RING  (chan, 0);
+	BEGIN_RING(chan, nvsw, 0x018c, 1);
+	OUT_RING  (chan, pNv->vblank_sem->handle);
+	BEGIN_RING(chan, nvsw, 0x0400, 1);
+	OUT_RING  (chan, 0);
 
 	BEGIN_RING(chan, tesla, 0x1558, 1);
 	OUT_RING  (chan, 1);
@@ -314,15 +336,22 @@ NVAccelInitNV50TCL(ScrnInfoPtr pScrn)
 	OUT_RING  (chan, 0x08070407);
 	OUT_RING  (chan, 0x00000008);
 
+	BEGIN_RING(chan, tesla, NV50TCL_SCISSOR_ENABLE, 1);
+	OUT_RING  (chan, 1);
+
 	BEGIN_RING(chan, tesla, NV50TCL_VIEWPORT_HORIZ, 2);
 	OUT_RING  (chan, 8192 << NV50TCL_VIEWPORT_HORIZ_W_SHIFT);
 	OUT_RING  (chan, 8192 << NV50TCL_VIEWPORT_VERT_H_SHIFT);
+	/* NV50TCL_SCISSOR_VERT_T_SHIFT is wrong, because it was deducted with
+	 * origin lying at the bottom left. This will be changed to _MIN_ and _MAX_
+	 * later, because it is origin dependent.
+	 */
 	BEGIN_RING(chan, tesla, NV50TCL_SCISSOR_HORIZ, 2);
 	OUT_RING  (chan, 8192 << NV50TCL_SCISSOR_HORIZ_R_SHIFT);
-	OUT_RING  (chan, 8192 << NV50TCL_SCISSOR_VERT_B_SHIFT);
-	BEGIN_RING(chan, tesla, 0x0ff4, 2);
-	OUT_RING  (chan, 8192 << NV50TCL_UNKFF4_W_SHIFT);
-	OUT_RING  (chan, 8192 << NV50TCL_UNKFF8_H_SHIFT);
+	OUT_RING  (chan, 8192 << NV50TCL_SCISSOR_VERT_T_SHIFT);
+	BEGIN_RING(chan, tesla, NV50TCL_SCREEN_SCISSOR_HORIZ, 2);
+	OUT_RING  (chan, 8192 << NV50TCL_SCREEN_SCISSOR_HORIZ_W_SHIFT);
+	OUT_RING  (chan, 8192 << NV50TCL_SCREEN_SCISSOR_VERT_H_SHIFT);
 
 	return TRUE;
 }

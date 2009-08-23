@@ -52,7 +52,8 @@ typedef struct {
     drmModeCrtcPtr mode_crtc;
     struct nouveau_bo *cursor;
     struct nouveau_bo *rotate_bo;
-    void *rotate_bo_virtual;
+    uint32_t rotate_pitch;
+    PixmapPtr rotate_pixmap;
     uint32_t rotate_fb_id;
 } drmmode_crtc_private_rec, *drmmode_crtc_private_ptr;
 
@@ -228,7 +229,8 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 		ret = drmModeAddFB(drmmode->fd,
 				   pScrn->virtualX, pScrn->virtualY,
 				   pScrn->depth, pScrn->bitsPerPixel,
-				   pitch, pNv->FB->handle, &drmmode->fb_id);
+				   pitch, pNv->scanout->handle,
+				   &drmmode->fb_id);
 		if (ret < 0) {
 			ErrorF("failed to add fb\n");
 			return FALSE;
@@ -371,20 +373,23 @@ drmmode_crtc_shadow_allocate(xf86CrtcPtr crtc, int width, int height)
 	drmmode_ptr drmmode = drmmode_crtc->drmmode;
 	NVPtr pNv = NVPTR(crtc->scrn);
 	uint32_t tile_mode = 0, tile_flags = 0;
-	int rotate_pitch, ah = height;
-	int ret;
+	int ah = height, ret, pitch;
+	void *virtual;
 
 	if (pNv->Architecture >= NV_ARCH_50) {
 		tile_mode = 4;
-		tile_flags = 0x7a00;
+		tile_flags = (drmmode->cpp == 2) ? 0x7000 : 0x7a00;
 		ah = NOUVEAU_ALIGN(height, 1 << (tile_mode + 2));
+		pitch = NOUVEAU_ALIGN(width * drmmode->cpp, 64);
+	} else {
+		pitch  = nv_pitch_align(pNv, width, crtc->scrn->depth);
+		pitch *= drmmode->cpp;
 	}
-
-	rotate_pitch = NOUVEAU_ALIGN(width * drmmode->cpp, 64);
+	drmmode_crtc->rotate_pitch = pitch;
 
 	ret = nouveau_bo_new_tile(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_MAP, 0,
-				  rotate_pitch * ah, tile_mode, tile_flags,
-				  &drmmode_crtc->rotate_bo);
+				  drmmode_crtc->rotate_pitch * ah, tile_mode,
+				  tile_flags, &drmmode_crtc->rotate_bo);
 	if (ret) {
 		xf86DrvMsg(crtc->scrn->scrnIndex, X_ERROR,
 			   "Couldn't allocate shadow memory for rotated CRTC\n");
@@ -398,11 +403,11 @@ drmmode_crtc_shadow_allocate(xf86CrtcPtr crtc, int width, int height)
 		nouveau_bo_ref(NULL, &drmmode_crtc->rotate_bo);
 		return NULL;
 	}
-	drmmode_crtc->rotate_bo_virtual = drmmode_crtc->rotate_bo->map;
+	virtual = drmmode_crtc->rotate_bo->map;
 	nouveau_bo_unmap(drmmode_crtc->rotate_bo);
 
 	ret = drmModeAddFB(drmmode->fd, width, height, crtc->scrn->depth,
-			   crtc->scrn->bitsPerPixel, rotate_pitch,
+			   crtc->scrn->bitsPerPixel, drmmode_crtc->rotate_pitch,
 			   drmmode_crtc->rotate_bo->handle,
 			   &drmmode_crtc->rotate_fb_id);
 	if (ret) {
@@ -410,11 +415,10 @@ drmmode_crtc_shadow_allocate(xf86CrtcPtr crtc, int width, int height)
 			   "Error adding FB for shadow scanout: %s\n",
 			   strerror(-ret));
 		nouveau_bo_ref(NULL, &drmmode_crtc->rotate_bo);
-		drmmode_crtc->rotate_bo_virtual = NULL;
 		return NULL;
 	}
 
-	return drmmode_crtc->rotate_bo_virtual;
+	return virtual;
 }
 
 static PixmapPtr
@@ -422,20 +426,16 @@ drmmode_crtc_shadow_create(xf86CrtcPtr crtc, void *data, int width, int height)
 {
 	ScrnInfoPtr pScrn = crtc->scrn;
 	drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
-	drmmode_ptr drmmode = drmmode_crtc->drmmode;
-	unsigned long rotate_pitch;
 	PixmapPtr rotate_pixmap;
 
 	if (!data)
 		data = drmmode_crtc_shadow_allocate (crtc, width, height);
 
-	rotate_pitch = pScrn->displayWidth * drmmode->cpp;
-
 	rotate_pixmap = GetScratchPixmapHeader(pScrn->pScreen,
 					       width, height,
 					       pScrn->depth,
 					       pScrn->bitsPerPixel,
-					       rotate_pitch,
+					       drmmode_crtc->rotate_pitch,
 					       data);
 
 	if (rotate_pixmap == NULL) {
@@ -443,15 +443,15 @@ drmmode_crtc_shadow_create(xf86CrtcPtr crtc, void *data, int width, int height)
 			   "Couldn't allocate shadow pixmap for rotated CRTC\n");
 	}
 
-	if (drmmode_crtc->rotate_bo) {
+	if (drmmode_crtc->rotate_bo && NVPTR(pScrn)->exa_driver_pixmaps) {
 		struct nouveau_pixmap *nvpix = nouveau_pixmap(rotate_pixmap);
 
 		if (nvpix)
 			nouveau_bo_ref(drmmode_crtc->rotate_bo, &nvpix->bo);
 	}
 
-	return rotate_pixmap;
-
+	drmmode_crtc->rotate_pixmap = rotate_pixmap;
+	return drmmode_crtc->rotate_pixmap;
 }
 
 static void
@@ -467,7 +467,7 @@ drmmode_crtc_shadow_destroy(xf86CrtcPtr crtc, PixmapPtr rotate_pixmap, void *dat
 		drmModeRmFB(drmmode->fd, drmmode_crtc->rotate_fb_id);
 		drmmode_crtc->rotate_fb_id = 0;
 		nouveau_bo_ref(NULL, &drmmode_crtc->rotate_bo);
-		drmmode_crtc->rotate_bo_virtual = NULL;
+		drmmode_crtc->rotate_pixmap = NULL;
 	}
 }
 
@@ -944,63 +944,66 @@ drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
 	drmmode_ptr drmmode = drmmode_crtc->drmmode;
 	uint32_t pitch, old_width, old_height, old_pitch, old_fb_id;
 	struct nouveau_bo *old_bo = NULL;
-	uint32_t tile_mode = 0, tile_flags = 0;
+	uint32_t tile_mode = 0, tile_flags = 0, ah = height;
 	PixmapPtr ppix;
 	int ret, i;
 
 	ErrorF("resize called %d %d\n", width, height);
 
-	if (!pNv->exa_driver_pixmaps) {
-		if (width > scrn->virtualX || height > scrn->virtualY)
-			return FALSE;
-
-		scrn->displayWidth = NOUVEAU_ALIGN(width, 64);
-		return TRUE;
-	}
-
 	if (scrn->virtualX == width && scrn->virtualY == height)
 		return TRUE;
 
-	pitch = width * (scrn->bitsPerPixel >> 3);
-	if (pNv->Architecture >= NV_ARCH_50) {
+	if (pNv->Architecture >= NV_ARCH_50 && pNv->wfb_enabled) {
 		tile_mode = 4;
-		tile_flags = 0x7a00;
-		height = NOUVEAU_ALIGN(height, 1 << (tile_mode + 2));
+		tile_flags = (scrn->bitsPerPixel == 16) ? 0x7000 : 0x7a00;
+		ah = NOUVEAU_ALIGN(height, 1 << (tile_mode + 2));
+		pitch = NOUVEAU_ALIGN(width * (scrn->bitsPerPixel >> 3), 64);
+	} else {
+		pitch  = nv_pitch_align(pNv, width, scrn->depth);
+		pitch *= (scrn->bitsPerPixel >> 3);
 	}
-	pitch = NOUVEAU_ALIGN(pitch, 64);
 
 	old_width = scrn->virtualX;
 	old_height = scrn->virtualY;
 	old_pitch = scrn->displayWidth;
 	old_fb_id = drmmode->fb_id;
-	nouveau_bo_ref(pNv->FB, &old_bo);
-	nouveau_bo_ref(NULL, &pNv->FB);
+	nouveau_bo_ref(pNv->scanout, &old_bo);
+	nouveau_bo_ref(NULL, &pNv->scanout);
 
 	scrn->virtualX = width;
 	scrn->virtualY = height;
 	scrn->displayWidth = pitch / (scrn->bitsPerPixel >> 3);
 
-	ret = nouveau_bo_new_tile(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_MAP |
-				  NOUVEAU_BO_PIN, 0,
-				  pitch * height, tile_mode, tile_flags,
-				  &pNv->FB);
+	ret = nouveau_bo_new_tile(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_MAP,
+				  0, pitch * ah, tile_mode, tile_flags,
+				  &pNv->scanout);
 	if (ret)
 		goto fail;
 
-	nouveau_bo_map(pNv->FB, NOUVEAU_BO_RDWR);
-	pNv->FBMap = pNv->FB->map;
-	nouveau_bo_unmap(pNv->FB);
+	nouveau_bo_map(pNv->scanout, NOUVEAU_BO_RDWR);
 
 	ret = drmModeAddFB(drmmode->fd, width, height, scrn->depth,
-			   scrn->bitsPerPixel, pitch, pNv->FB->handle,
+			   scrn->bitsPerPixel, pitch, pNv->scanout->handle,
 			   &drmmode->fb_id);
-	if (ret)
+	if (ret) {
+		nouveau_bo_unmap(pNv->scanout);
 		goto fail;
+	}
+
+	if (pNv->ShadowPtr) {
+		xfree(pNv->ShadowPtr);
+		pNv->ShadowPitch = pitch;
+		pNv->ShadowPtr = xalloc(pNv->ShadowPitch * height);
+	}
 
 	ppix = screen->GetScreenPixmap(screen);
+	if (pNv->exa_driver_pixmaps)
+		nouveau_bo_ref(pNv->scanout, &nouveau_pixmap(ppix)->bo);
+	screen->ModifyPixmapHeader(ppix, width, height, -1, -1, pitch,
+				   (!pNv->NoAccel || pNv->ShadowPtr) ?
+				   pNv->ShadowPtr : pNv->scanout->map);
 
-	nouveau_bo_ref(pNv->FB, &nouveau_pixmap(ppix)->bo);
-	screen->ModifyPixmapHeader(ppix, width, height, -1, -1, pitch, NULL);
+	nouveau_bo_unmap(pNv->scanout);
 
 	for (i = 0; i < xf86_config->num_crtc; i++) {
 		xf86CrtcPtr crtc = xf86_config->crtc[i];
@@ -1016,10 +1019,11 @@ drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
 		drmModeRmFB(drmmode->fd, old_fb_id);
 	nouveau_bo_ref(NULL, &old_bo);
 
+	NVDRIFinishScreenInit(scrn, true);
 	return TRUE;
 
  fail:
-	nouveau_bo_ref(old_bo, &pNv->FB);
+	nouveau_bo_ref(old_bo, &pNv->scanout);
 	scrn->virtualX = old_width;
 	scrn->virtualY = old_height;
 	scrn->displayWidth = old_pitch;
@@ -1058,16 +1062,20 @@ Bool drmmode_pre_init(ScrnInfoPtr pScrn, int fd, int cpp)
 	for (i = 0; i < drmmode->mode_res->count_connectors; i++)
 		drmmode_output_init(pScrn, drmmode, i);
 
-	xf86InitialConfiguration(pScrn, NVPTR(pScrn)->exa_driver_pixmaps);
+	xf86InitialConfiguration(pScrn, TRUE);
 
 	return TRUE;
 }
 
-Bool drmmode_is_rotate_pixmap(ScrnInfoPtr pScrn, pointer pPixData,
-			      struct nouveau_bo **bo)
+Bool
+drmmode_is_rotate_pixmap(PixmapPtr ppix, struct nouveau_bo **bo)
 {
+	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
 	xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR (pScrn);
 	int i;
+
+	if (!NVPTR(pScrn)->kms_enable)
+		return FALSE;
 
 	for (i = 0; i < config->num_crtc; i++) {
 		xf86CrtcPtr crtc = config->crtc[i];
@@ -1076,8 +1084,9 @@ Bool drmmode_is_rotate_pixmap(ScrnInfoPtr pScrn, pointer pPixData,
 		if (!drmmode_crtc->rotate_bo)
 			continue;
 
-		if (drmmode_crtc->rotate_bo_virtual == pPixData) {
-			*bo = drmmode_crtc->rotate_bo;
+		if (drmmode_crtc->rotate_pixmap == ppix) {
+			if (bo)
+				*bo = drmmode_crtc->rotate_bo;
 			return TRUE;
 		}
 	}
@@ -1096,6 +1105,30 @@ drmmode_adjust_frame(ScrnInfoPtr scrn, int x, int y, int flags)
 		return;
 
 	drmmode_set_mode_major(crtc, &crtc->mode, crtc->rotation, x, y);
+}
+
+void
+drmmode_remove_fb(ScrnInfoPtr pScrn)
+{
+	xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(pScrn);
+	xf86CrtcPtr crtc = NULL;
+	drmmode_crtc_private_ptr drmmode_crtc;
+	drmmode_ptr drmmode;
+
+	if (!NVPTR(pScrn)->kms_enable)
+		return;
+
+	if (config)
+		crtc = config->crtc[0];
+	if (!crtc)
+		return;
+
+	drmmode_crtc = crtc->driver_private;
+	drmmode = drmmode_crtc->drmmode;
+
+	if (drmmode->fb_id)
+		drmModeRmFB(drmmode->fd, drmmode->fb_id);
+	drmmode->fb_id = 0;
 }
 
 #endif

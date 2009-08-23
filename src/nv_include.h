@@ -16,7 +16,6 @@
 /* All drivers should typically include these */
 #include "xf86.h"
 #include "xf86_OSproc.h"
-#include "xf86Resources.h"
 #define PPC_MMIO_IS_BE
 #include "compiler.h"
 
@@ -37,8 +36,6 @@
 #include "xf86DDC.h"
 
 #include "vbe.h"
-
-#include "xf86RAC.h"
 
 #include "xf86RandR12.h"
 
@@ -61,8 +58,13 @@
 #include "region.h"
 
 #include <X11/extensions/randr.h>
+
+#ifdef HAVE_XEXTPROTO_71
+#include <X11/extensions/dpmsconst.h>
+#else
 #define DPMS_SERVER
 #include <X11/extensions/dpms.h>
+#endif
 
 #define NV_DMA_DEBUG 0
 

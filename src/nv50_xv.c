@@ -36,6 +36,8 @@
 #include "nv50_accel.h"
 #include "nv50_texture.h"
 
+extern Atom xvSyncToVBlank, xvSetDefaults;
+
 static Bool
 nv50_xv_check_image_put(PixmapPtr ppix)
 {
@@ -72,9 +74,9 @@ nv50_xv_state_emit(PixmapPtr ppix, int id, struct nouveau_bo *src,
 	OUT_RELOCh(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
 	OUT_RELOCl(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
 	switch (ppix->drawable.depth) {
-	case 32: OUT_RING  (chan, NV50TCL_RT_FORMAT_32BPP); break;
-	case 24: OUT_RING  (chan, NV50TCL_RT_FORMAT_24BPP); break;
-	case 16: OUT_RING  (chan, NV50TCL_RT_FORMAT_16BPP); break;
+	case 32: OUT_RING  (chan, NV50TCL_RT_FORMAT_A8R8G8B8_UNORM); break;
+	case 24: OUT_RING  (chan, NV50TCL_RT_FORMAT_X8R8G8B8_UNORM); break;
+	case 16: OUT_RING  (chan, NV50TCL_RT_FORMAT_R5G6B5_UNORM); break;
 	}
 	OUT_RING  (chan, bo->tile_mode << 4);
 	OUT_RING  (chan, 0);
@@ -205,6 +207,31 @@ nv50_xv_state_emit(PixmapPtr ppix, int id, struct nouveau_bo *src,
 
 }
 
+static void
+NV50EmitWaitForVBlank(PixmapPtr ppix, int x, int y, int w, int h)
+{
+	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
+	NVPtr pNv = NVPTR(pScrn);
+	struct nouveau_channel *chan = pNv->chan;
+	struct nouveau_grobj *nvsw = pNv->NvSW;
+	int crtcs;
+
+	if (!nouveau_exa_pixmap_is_onscreen(ppix))
+		return;
+
+	crtcs = nv_window_belongs_to_crtc(pScrn, x, y, w, h);
+	if (!crtcs)
+		return;
+
+	BEGIN_RING(chan, nvsw, 0x006c, 1);
+	OUT_RING  (chan, 0x22222222);
+	BEGIN_RING(chan, nvsw, 0x0404, 2);
+	OUT_RING  (chan, 0x11111111);
+	OUT_RING  (chan, ffs(crtcs) - 1);
+	BEGIN_RING(chan, nvsw, 0x0068, 1);
+	OUT_RING  (chan, 0x11111111);
+}
+
 int
 nv50_xv_image_put(ScrnInfoPtr pScrn,
 		  struct nouveau_bo *src, int packed_y, int uv,
@@ -226,6 +253,12 @@ nv50_xv_image_put(ScrnInfoPtr pScrn,
 	if (!nv50_xv_check_image_put(ppix))
 		return BadMatch;
 	nv50_xv_state_emit(ppix, id, src, packed_y, uv, width, height);
+
+	if (pPriv->SyncToVBlank) {
+		NV50EmitWaitForVBlank(ppix, dstBox->x1, dstBox->y1,
+				      dstBox->x2 - dstBox->x1,
+				      dstBox->y2 - dstBox->y1);
+	}
 
 	/* These are fixed point values in the 16.16 format. */
 	X1 = (float)(x1>>16)+(float)(x1&0xFFFF)/(float)0x10000;
@@ -255,12 +288,19 @@ nv50_xv_image_put(ScrnInfoPtr pScrn,
 					   src_w, src_h);
 		}
 
+		/* NV50TCL_SCISSOR_VERT_T_SHIFT is wrong, because it was deducted with
+		* origin lying at the bottom left. This will be changed to _MIN_ and _MAX_
+		* later, because it is origin dependent.
+		*/
+		BEGIN_RING(chan, tesla, NV50TCL_SCISSOR_HORIZ, 2);
+		OUT_RING  (chan, sx2 << NV50TCL_SCISSOR_HORIZ_R_SHIFT | sx1);
+		OUT_RING  (chan, sy2 << NV50TCL_SCISSOR_VERT_T_SHIFT | sy1 );
+
 		BEGIN_RING(chan, tesla, NV50TCL_VERTEX_BEGIN, 1);
-		OUT_RING  (chan, NV50TCL_VERTEX_BEGIN_QUADS);
+		OUT_RING  (chan, NV50TCL_VERTEX_BEGIN_TRIANGLES);
 		VTX2s(pNv, tx1, ty1, tx1, ty1, sx1, sy1);
-		VTX2s(pNv, tx2, ty1, tx2, ty1, sx2, sy1);
-		VTX2s(pNv, tx2, ty2, tx2, ty2, sx2, sy2);
-		VTX2s(pNv, tx1, ty2, tx1, ty2, sx1, sy2);
+		VTX2s(pNv, tx2+(tx2-tx1), ty1, tx2+(tx2-tx1), ty1, sx2+(sx2-sx1), sy1);
+		VTX2s(pNv, tx1, ty2+(ty2-ty1), tx1, ty2+(ty2-ty1), sx1, sy2+(sy2-sy1));
 		BEGIN_RING(chan, tesla, NV50TCL_VERTEX_END, 1);
 		OUT_RING  (chan, 0);
 
@@ -280,13 +320,33 @@ int
 nv50_xv_port_attribute_set(ScrnInfoPtr pScrn, Atom attribute,
 			   INT32 value, pointer data)
 {
-	return BadMatch;
+	NVPortPrivPtr pPriv = (NVPortPrivPtr)data;
+
+	if (attribute == xvSyncToVBlank) {
+		if (value < 0 || value > 1)
+			return BadValue;
+		pPriv->SyncToVBlank = value;
+	} else
+	if (attribute == xvSetDefaults) {
+		pPriv->SyncToVBlank = true;
+	} else
+		return BadMatch;
+
+	return Success;
 }
 
 int
 nv50_xv_port_attribute_get(ScrnInfoPtr pScrn, Atom attribute,
 			   INT32 *value, pointer data)
 {
-	return BadMatch;
+	NVPortPrivPtr pPriv = (NVPortPrivPtr)data;
+
+	if (attribute == xvSyncToVBlank)
+		*value = (pPriv->SyncToVBlank) ? 1 : 0;
+	else
+		return BadMatch;
+
+	return Success;
 }
+
 

@@ -250,8 +250,7 @@ nouveau_xv_bo_realloc(ScrnInfoPtr pScrn, unsigned flags, unsigned size,
 	if (pNv->Architecture >= NV_ARCH_50 && (flags & NOUVEAU_BO_VRAM))
 		flags |= NOUVEAU_BO_TILED;
 
-	ret = nouveau_bo_new(pNv->dev, flags | NOUVEAU_BO_PIN |
-			     NOUVEAU_BO_MAP, 0, size, pbo);
+	ret = nouveau_bo_new(pNv->dev, flags | NOUVEAU_BO_MAP, 0, size, pbo);
 	if (ret)
 		return ret;
 
@@ -982,6 +981,14 @@ NVPutImage(ScrnInfoPtr pScrn, short src_x, short src_y, short drw_x,
 	if (ret)
 		return BadAlloc;
 
+	if (action_flags & USE_OVERLAY) {
+		ret = nouveau_bo_pin(pPriv->video_mem, NOUVEAU_BO_VRAM);
+		if (ret) {
+			nouveau_bo_ref(NULL, &pPriv->video_mem);
+			return BadAlloc;
+		}
+	}
+
 	/* The overlay supports hardware double buffering. We handle this here*/
 	offset = 0;
 	if (pPriv->doubleBuffer) {
@@ -1229,16 +1236,21 @@ CPU_copy:
 		ppix = NVGetDrawablePixmap(pDraw);
 
 		/* Ensure pixmap is in offscreen memory */
+		exaMoveInPixmap(ppix);
 		if (!pNv->exa_driver_pixmaps) {
-			exaMoveInPixmap(ppix);
+			ScreenPtr pScreen = pScrn->pScreen;
 
 			/* check if it made it offscreen */
-			if (exaGetPixmapOffset(ppix) >= pNv->EXADriverPtr->memorySize)
+			if (ppix != pScreen->GetScreenPixmap(pScreen) &&
+			    exaGetPixmapOffset(ppix) >=
+			    pNv->EXADriverPtr->memorySize)
 				/* we lost, insufficient space probably */
 				return BadAlloc;
 
 			ExaOffscreenMarkUsed(ppix);
-		}
+		} else
+		if (!exaGetPixmapDriverPrivate(ppix))
+			return BadAlloc;
 
 #ifdef COMPOSITE
 		/* Convert screen coords to pixmap coords */
@@ -1603,7 +1615,6 @@ NVSetupBlitVideo (ScreenPtr pScreen)
 	pPriv->SyncToVBlank		= pNv->WaitVSyncPossible;
 
 	pNv->blitAdaptor		= adapt;
-	xvSyncToVBlank			= MAKE_ATOM("XV_SYNC_TO_VBLANK");
 
 	return adapt;
 }
@@ -1771,7 +1782,7 @@ NVSetupOverlayVideo(ScreenPtr pScreen)
 	XF86VideoAdaptorPtr  overlayAdaptor = NULL;
 	NVPtr                pNv   = NVPTR(pScrn);
 
-	if (!NVChipsetHasOverlay(pNv))
+	if (pNv->kms_enable || !NVChipsetHasOverlay(pNv))
 		return NULL;
 
 	overlayAdaptor = NVSetupOverlayVideoAdapter(pScreen);
@@ -1841,7 +1852,7 @@ NV30SetupTexturedVideo (ScreenPtr pScreen, Bool bicubic)
 	for(i = 0; i < NUM_TEXTURE_PORTS; i++)
 		adapt->pPortPrivates[i].ptr = (pointer)(pPriv);
 
-	if(pNv->WaitVSyncPossible) {
+	if (pNv->WaitVSyncPossible) {
 		adapt->pAttributes = NVTexturedAttributes;
 		adapt->nAttributes = NUM_TEXTURED_ATTRIBUTES;
 	} else {
@@ -1863,12 +1874,12 @@ NV30SetupTexturedVideo (ScreenPtr pScreen, Bool bicubic)
 	adapt->QueryImageAttributes	= NVQueryImageAttributes;
 
 	pPriv->videoStatus		= 0;
-	pPriv->grabbedByV4L	= FALSE;
+	pPriv->grabbedByV4L		= FALSE;
 	pPriv->blitter			= FALSE;
 	pPriv->texture			= TRUE;
 	pPriv->bicubic			= bicubic;
 	pPriv->doubleBuffer		= FALSE;
-	pPriv->SyncToVBlank	= pNv->WaitVSyncPossible;
+	pPriv->SyncToVBlank		= pNv->WaitVSyncPossible;
 
 	if (bicubic)
 		pNv->textureAdaptor[1]	= adapt;
@@ -1950,12 +1961,12 @@ NV40SetupTexturedVideo (ScreenPtr pScreen, Bool bicubic)
 	adapt->QueryImageAttributes	= NVQueryImageAttributes;
 
 	pPriv->videoStatus		= 0;
-	pPriv->grabbedByV4L	= FALSE;
+	pPriv->grabbedByV4L		= FALSE;
 	pPriv->blitter			= FALSE;
 	pPriv->texture			= TRUE;
 	pPriv->bicubic			= bicubic;
 	pPriv->doubleBuffer		= FALSE;
-	pPriv->SyncToVBlank	= pNv->WaitVSyncPossible;
+	pPriv->SyncToVBlank		= pNv->WaitVSyncPossible;
 
 	if (bicubic)
 		pNv->textureAdaptor[1]	= adapt;
@@ -2002,8 +2013,8 @@ NV50SetupTexturedVideo (ScreenPtr pScreen)
 	for(i = 0; i < NUM_TEXTURE_PORTS; i++)
 		adapt->pPortPrivates[i].ptr = (pointer)(pPriv);
 
-	adapt->pAttributes		= NULL;
-	adapt->nAttributes		= 0;
+	adapt->pAttributes		= NVTexturedAttributes;
+	adapt->nAttributes		= NUM_TEXTURED_ATTRIBUTES;
 	adapt->pImages			= NV50TexturedImages;
 	adapt->nImages			= sizeof(NV50TexturedImages) /
 					  sizeof(NV50TexturedImages[0]);
@@ -2023,7 +2034,7 @@ NV50SetupTexturedVideo (ScreenPtr pScreen)
 	pPriv->blitter			= FALSE;
 	pPriv->texture			= TRUE;
 	pPriv->doubleBuffer		= FALSE;
-	pPriv->SyncToVBlank		= 0;
+	pPriv->SyncToVBlank		= TRUE;
 
 	pNv->textureAdaptor[0]		= adapt;
 	return adapt;
@@ -2057,6 +2068,8 @@ NVInitVideo(ScreenPtr pScreen)
 	 * acceleration is disabled:
 	 */
 	if (pScrn->bitsPerPixel != 8 && !pNv->NoAccel) {
+		xvSyncToVBlank = MAKE_ATOM("XV_SYNC_TO_VBLANK");
+
 		if (pNv->Architecture < NV_ARCH_50) {
 			overlayAdaptor = NVSetupOverlayVideo(pScreen);
 			blitAdaptor    = NVSetupBlitVideo(pScreen);

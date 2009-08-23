@@ -78,12 +78,12 @@ NV50EXA2DSurfaceFormat(PixmapPtr ppix, uint32_t *fmt)
 	NV50EXA_LOCALS(ppix);
 
 	switch (ppix->drawable.depth) {
-	case 8 : *fmt = NV50_2D_SRC_FORMAT_8BPP; break;
-	case 15: *fmt = NV50_2D_SRC_FORMAT_15BPP; break;
-	case 16: *fmt = NV50_2D_SRC_FORMAT_16BPP; break;
-	case 24: *fmt = NV50_2D_SRC_FORMAT_24BPP; break;
-	case 30: *fmt = 0xd1; break;
-	case 32: *fmt = NV50_2D_SRC_FORMAT_32BPP; break;
+	case 8 : *fmt = NV50_2D_SRC_FORMAT_R8_UNORM; break;
+	case 15: *fmt = NV50_2D_SRC_FORMAT_X1B5G5R5_UNORM; break;
+	case 16: *fmt = NV50_2D_SRC_FORMAT_R5G6B5_UNORM; break;
+	case 24: *fmt = NV50_2D_SRC_FORMAT_X8R8G8B8_UNORM; break;
+	case 30: *fmt = NV50_2D_SRC_FORMAT_A2B10G10R10_UNORM; break;
+	case 32: *fmt = NV50_2D_SRC_FORMAT_A8R8G8B8_UNORM; break;
 	default:
 		 NOUVEAU_FALLBACK("Unknown surface format for bpp=%d\n",
 				  ppix->drawable.depth);
@@ -401,7 +401,7 @@ NV50EXAUploadSIFC(const char *src, int src_pitch,
 					 NV50_2D_SIFC_DATA | 0x40000000, size);
 			OUT_RINGp (chan, p, size);
 
-			p += size * cpp;
+			p += size * 4;
 			count -= size;
 		}
 
@@ -451,12 +451,12 @@ NV50EXARenderTarget(PixmapPtr ppix, PicturePtr ppict)
 	switch (ppict->format) {
 	case PICT_FORMAT(32, PICT_TYPE_ABGR, 2, 10, 10, 10):
 	case PICT_FORMAT(32, PICT_TYPE_ABGR, 0, 10, 10, 10):
-		format = 0xd1;
+		format = NV50TCL_RT_FORMAT_A2B10G10R10_UNORM;
 		break;
-	case PICT_a8r8g8b8: format = NV50TCL_RT_FORMAT_32BPP; break;
-	case PICT_x8r8g8b8: format = NV50TCL_RT_FORMAT_24BPP; break;
-	case PICT_r5g6b5  : format = NV50TCL_RT_FORMAT_16BPP; break;
-	case PICT_a8      : format = NV50TCL_RT_FORMAT_8BPP; break;
+	case PICT_a8r8g8b8: format = NV50TCL_RT_FORMAT_A8R8G8B8_UNORM; break;
+	case PICT_x8r8g8b8: format = NV50TCL_RT_FORMAT_X8R8G8B8_UNORM; break;
+	case PICT_r5g6b5  : format = NV50TCL_RT_FORMAT_R5G6B5_UNORM; break;
+	case PICT_a8      : format = NV50TCL_RT_FORMAT_R8_UNORM; break;
 	default:
 		NOUVEAU_FALLBACK("invalid picture format\n");
 	}
@@ -863,51 +863,45 @@ NV50EXAComposite(PixmapPtr pdpix, int sx, int sy, int mx, int my,
 		 int dx, int dy, int w, int h)
 {
 	NV50EXA_LOCALS(pdpix);
-	float sX0, sX1, sX2, sX3, sY0, sY1, sY2, sY3;
-	unsigned dX0 = dx, dX1 = dx + w, dY0 = dy, dY1 = dy + h;
+	float sX0, sX1, sX2, sY0, sY1, sY2;
 
 	WAIT_RING (chan, 64);
+	BEGIN_RING(chan, tesla, NV50TCL_SCISSOR_HORIZ, 2);
+	OUT_RING  (chan, (dx + w) << 16 | dx);
+	OUT_RING  (chan, (dy + h) << 16 | dy);
 	BEGIN_RING(chan, tesla, NV50TCL_VERTEX_BEGIN, 1);
-	OUT_RING  (chan, NV50TCL_VERTEX_BEGIN_QUADS);
+	OUT_RING  (chan, NV50TCL_VERTEX_BEGIN_TRIANGLES);
 
-	NV50EXATransform(state->unit[0].transform, sx, sy,
+	NV50EXATransform(state->unit[0].transform, sx, sy + (h * 2),
 			 state->unit[0].width, state->unit[0].height,
 			 &sX0, &sY0);
-	NV50EXATransform(state->unit[0].transform, sx + w, sy,
+	NV50EXATransform(state->unit[0].transform, sx, sy,
 			 state->unit[0].width, state->unit[0].height,
 			 &sX1, &sY1);
-	NV50EXATransform(state->unit[0].transform, sx + w, sy + h,
+	NV50EXATransform(state->unit[0].transform, sx + (w * 2), sy,
 			 state->unit[0].width, state->unit[0].height,
 			 &sX2, &sY2);
-	NV50EXATransform(state->unit[0].transform, sx, sy + h,
-			 state->unit[0].width, state->unit[0].height,
-			 &sX3, &sY3);
 
 	if (state->have_mask) {
-		float mX0, mX1, mX2, mX3, mY0, mY1, mY2, mY3;
+		float mX0, mX1, mX2, mY0, mY1, mY2;
 
-		NV50EXATransform(state->unit[1].transform, mx, my,
+		NV50EXATransform(state->unit[1].transform, mx, my + (h * 2),
 				 state->unit[1].width, state->unit[1].height,
 				 &mX0, &mY0);
-		NV50EXATransform(state->unit[1].transform, mx + w, my,
+		NV50EXATransform(state->unit[1].transform, mx, my,
 				 state->unit[1].width, state->unit[1].height,
 				 &mX1, &mY1);
-		NV50EXATransform(state->unit[1].transform, mx + w, my + h,
+		NV50EXATransform(state->unit[1].transform, mx + (w * 2), my,
 				 state->unit[1].width, state->unit[1].height,
 				 &mX2, &mY2);
-		NV50EXATransform(state->unit[1].transform, mx, my + h,
-				 state->unit[1].width, state->unit[1].height,
-				 &mX3, &mY3);
 
-		VTX2s(pNv, sX0, sY0, mX0, mY0, dX0, dY0);
-		VTX2s(pNv, sX1, sY1, mX1, mY1, dX1, dY0);
-		VTX2s(pNv, sX2, sY2, mX2, mY2, dX1, dY1);
-		VTX2s(pNv, sX3, sY3, mX3, mY3, dX0, dY1);
+		VTX2s(pNv, sX0, sY0, mX0, mY0, dx, dy + (h * 2));
+		VTX2s(pNv, sX1, sY1, mX1, mY1, dx, dy);
+		VTX2s(pNv, sX2, sY2, mX2, mY2, dx + (w * 2), dy);
 	} else {
-		VTX1s(pNv, sX0, sY0, dX0, dY0);
-		VTX1s(pNv, sX1, sY1, dX1, dY0);
-		VTX1s(pNv, sX2, sY2, dX1, dY1);
-		VTX1s(pNv, sX3, sY3, dX0, dY1);
+		VTX1s(pNv, sX0, sY0, dx, dy + (h * 2));
+		VTX1s(pNv, sX1, sY1, dx, dy);
+		VTX1s(pNv, sX2, sY2, dx + (w * 2), dy);
 	}
 
 	BEGIN_RING(chan, tesla, NV50TCL_VERTEX_END, 1);

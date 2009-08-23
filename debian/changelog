@@ -1,3 +1,19 @@
+xserver-xorg-video-nouveau (1:0.0.10~git+20090823+569a17a-0ubuntu1) karmic; urgency=low
+
+  * Merge package from Debian experimental.  Remaining Ubuntu changes:
+    + debian/control:
+      - Remove mention of using module-assistant; we have a DKMS source package
+      - Add dependency on quilt for our snapshot-date patch
+    + debian/rules:
+      - Call patch target
+      - Generate snapshot-date in get-orig-source
+    + debian/patches/01_include_snapshot_date
+      - Use snapshot-date included by get-orig-source to define NV_DRIVER_DATE
+        in configure.  Helps upstream identify obsolete drivers with Xorg.log
+  * New upstream snapshot.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sun, 23 Aug 2009 19:36:28 +1000
+
 xserver-xorg-video-nouveau (1:0.0.10~git+20090708+ef3a386-0ubuntu1) karmic; urgency=low
 
   * New upstream snapshot

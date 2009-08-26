@@ -10,6 +10,9 @@ xserver-xorg-video-nouveau (1:0.0.10~git+20090823+569a17a-0ubuntu1) karmic; urge
     + debian/patches/01_include_snapshot_date
       - Use snapshot-date included by get-orig-source to define NV_DRIVER_DATE
         in configure.  Helps upstream identify obsolete drivers with Xorg.log
+    + debian/xsfbs/*
+      - Update build-system helper from pkg-xorg.  No longer uses deprecated
+        --print-instalation-architecture. (LP: #403316)
   * New upstream snapshot.
 
  -- Christopher James Halse Rogers <raof@ubuntu.com>  Sun, 23 Aug 2009 19:36:28 +1000

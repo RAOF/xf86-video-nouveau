@@ -518,10 +518,6 @@ NVCloseScreen(int scrnIndex, ScreenPtr pScreen)
 		NVLeaveVT(scrnIndex, 0);
 		pScrn->vtSema = FALSE;
 	}
-	if (pScrn->vtSema) {
-		NVLeaveVT(scrnIndex, 0);
-		pScrn->vtSema = FALSE;
-	}
 
 	NVAccelFree(pScrn);
 	NVTakedownVideo(pScrn);
@@ -641,6 +637,7 @@ nouveau_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
 	screen->ModifyPixmapHeader(ppix, width, height, -1, -1, pitch,
 				   (!pNv->NoAccel || pNv->ShadowFB) ?
 				   pNv->ShadowPtr : pNv->scanout->map);
+	scrn->pixmapPrivate.ptr = ppix->devPrivate.ptr;
 	nouveau_bo_unmap(pNv->scanout);
 
 	for (i = 0; i < xf86_config->num_crtc; i++) {
@@ -1012,8 +1009,10 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 	}
 
 	if (!pNv->NoAccel && pNv->kms_enable &&
-	     pNv->Architecture >= NV_ARCH_50)
+	     pNv->Architecture >= NV_ARCH_50) {
 		pNv->wfb_enabled = TRUE;
+		pNv->tiled_scanout = TRUE;
+	}
 #endif
 
 	if(xf86GetOptValInteger(pNv->Options, OPTION_VIDEO_KEY, &(pNv->videoKey))) {
@@ -1142,7 +1141,7 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 	if (!xf86SetGamma(pScrn, gammazeros))
 		NVPreInitFail("\n");
 
-	if (pNv->Architecture >= NV_ARCH_50 && pNv->wfb_enabled) {
+	if (pNv->Architecture >= NV_ARCH_50 && pNv->tiled_scanout) {
 		int cpp = pScrn->bitsPerPixel >> 3;
 		pScrn->displayWidth = pScrn->virtualX * cpp;
 		pScrn->displayWidth = NOUVEAU_ALIGN(pScrn->displayWidth, 64);
@@ -1200,7 +1199,7 @@ NVMapMem(ScrnInfoPtr pScrn)
 	pNv->AGPSize=res;
 
 	size = pScrn->displayWidth * (pScrn->bitsPerPixel >> 3);
-	if (pNv->Architecture >= NV_ARCH_50 && pNv->wfb_enabled) {
+	if (pNv->Architecture >= NV_ARCH_50 && pNv->tiled_scanout) {
 		tile_mode = 4;
 		tile_flags = pScrn->bitsPerPixel == 16 ? 0x7000 : 0x7a00;
 		size *= NOUVEAU_ALIGN(pScrn->virtualY, (1 << (tile_mode + 2)));
@@ -1421,6 +1420,8 @@ NVLoadPalette(ScrnInfoPtr pScrn, int numColors, int *indices,
 					lut_b[index * 8 + j] = colors[index].blue << 8;
 				}
 			}
+			break;
+
 		case 16:
 			for (i = 0; i < numColors; i++) {
 				index = indices[i];
@@ -1436,6 +1437,8 @@ NVLoadPalette(ScrnInfoPtr pScrn, int numColors, int *indices,
 					lut_g[index * 4 + j] = colors[index].green << 8;
 				}
 			}
+			break;
+
 		default:
 			for (i = 0; i < numColors; i++) {
 				index = indices[i];
@@ -1474,6 +1477,7 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 			pNv->ShadowFB = TRUE;
 			pNv->exa_driver_pixmaps = FALSE;
 			pNv->wfb_enabled = FALSE;
+			pNv->tiled_scanout = FALSE;
 			pScrn->displayWidth = nv_pitch_align(pNv,
 							     pScrn->virtualX,
 							     pScrn->depth);
@@ -1539,12 +1543,17 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 		pNv->ShadowPtr = xalloc(pNv->ShadowPitch * pScrn->virtualY);
 		displayWidth = pNv->ShadowPitch / (pScrn->bitsPerPixel >> 3);
 		FBStart = pNv->ShadowPtr;
-	} else {
+	} else
+	if (pNv->NoAccel) {
 		pNv->ShadowPtr = NULL;
 		displayWidth = pScrn->displayWidth;
 		nouveau_bo_map(pNv->scanout, NOUVEAU_BO_RDWR);
 		FBStart = pNv->scanout->map;
 		nouveau_bo_unmap(pNv->scanout);
+	} else {
+		pNv->ShadowPtr = NULL;
+		displayWidth = pScrn->displayWidth;
+		FBStart = NULL;
 	}
 
 	switch (pScrn->bitsPerPixel) {
@@ -1623,6 +1632,9 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	 * Must follow software cursor initialization.
 	 */
 	if (pNv->HWCursor) { 
+		if (pNv->kms_enable)
+			ret = drmmode_cursor_init(pScreen);
+		else
 		if (pNv->Architecture < NV_ARCH_50)
 			ret = NVCursorInitRandr12(pScreen);
 		else
@@ -1653,6 +1665,9 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 
 	pScrn->vtSema = TRUE;
 	pScrn->pScreen = pScreen;
+	if (pNv->kms_enable)
+		drmmode_fbcon_copy(pScrn);
+
 	if (!NVEnterVT(pScrn->scrnIndex, 0))
 		return FALSE;
 

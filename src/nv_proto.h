@@ -6,6 +6,8 @@ Bool drmmode_pre_init(ScrnInfoPtr pScrn, int fd, int cpp);
 Bool drmmode_is_rotate_pixmap(PixmapPtr, struct nouveau_bo **);
 void drmmode_adjust_frame(ScrnInfoPtr pScrn, int x, int y, int flags);
 void drmmode_remove_fb(ScrnInfoPtr pScrn);
+Bool drmmode_cursor_init(ScreenPtr pScreen);
+void drmmode_fbcon_copy(ScrnInfoPtr pScrn);
 
 /* in nouveau_calc.c */
 void nouveau_calc_arb(ScrnInfoPtr pScrn, int vclk, int bpp, int *burst, int *lwm);
@@ -48,6 +50,8 @@ void nv_crtc_set_cursor_position(xf86CrtcPtr crtc, int x, int y);
 void nv_crtc_set_cursor_colors(xf86CrtcPtr crtc, int bg, int fg);
 void nv_crtc_load_cursor_image(xf86CrtcPtr crtc, CARD8 *image);
 void nv_crtc_load_cursor_argb(xf86CrtcPtr crtc, CARD32 *image);
+void nv_cursor_convert_cursor(uint32_t *src, void *dst, int src_stride,
+			      int dst_stride, int bpp, uint32_t fg, uint32_t bg);
 
 /* in nv_dma.c */
 void  NVSync(ScrnInfoPtr pScrn);
@@ -123,7 +127,7 @@ int NV04GetOverlayPortAttribute(ScrnInfoPtr, Atom, INT32 *, pointer);
 void NV04StopOverlay(ScrnInfoPtr);
 
 /* in nv04_video_blitter.c */
-void NVPutBlitImage(ScrnInfoPtr, struct nouveau_bo *, int, int, int, BoxPtr,
+Bool NVPutBlitImage(ScrnInfoPtr, struct nouveau_bo *, int, int, int, BoxPtr,
 		    int, int, int, int, short, short, short, short, short,
 		    short, RegionPtr, PixmapPtr);
 int NVSetBlitPortAttribute(ScrnInfoPtr, Atom, INT32, pointer);

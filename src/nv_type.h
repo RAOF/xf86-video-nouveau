@@ -139,7 +139,9 @@ typedef struct _NVRec {
     uint8_t cur_head;
     ExaDriverPtr	EXADriverPtr;
     Bool		exa_driver_pixmaps;
+    Bool                exa_force_cp;
     Bool		wfb_enabled;
+    Bool		tiled_scanout;
     ScreenBlockHandlerProcPtr BlockHandler;
     CreateScreenResourcesProcPtr CreateScreenResources;
     CloseScreenProcPtr  CloseScreen;
@@ -276,6 +278,8 @@ typedef struct _NVPortPrivRec {
 #define TIMER_MASK      (OFF_TIMER | FREE_TIMER)
 
 /* EXA driver-controlled pixmaps */
+#define NOUVEAU_CREATE_PIXMAP_ZETA 0x10000000
+
 struct nouveau_pixmap {
 	struct nouveau_bo *bo;
 	void *linear;

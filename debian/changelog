@@ -1,3 +1,14 @@
+xserver-xorg-video-nouveau (1:0.0.10~git+20091204+95fc663-0ubuntu1) lucid; urgency=low
+
+  * New upstream snapshot, up to commit 
+    95fc663d5fb653fc0a50aa4d589bbf3b9c79e928.
+    + Too many commits to usefully list in the changelog.
+  * debian/control:
+    + Bump versioned Build-Dep on libdrm-dev to >= 2.4.16~ to pick up nouveau
+      #define updates.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 04 Dec 2009 12:31:58 +1100
+
 xserver-xorg-video-nouveau (1:0.0.10~git+20090823+569a17a-0ubuntu1) karmic; urgency=low
 
   * Merge package from Debian experimental.  Remaining Ubuntu changes:

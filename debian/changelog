@@ -1,11 +1,13 @@
-xserver-xorg-video-nouveau (1:0.0.10~git+20091204+95fc663-0ubuntu1) lucid; urgency=low
+xserver-xorg-video-nouveau (1:0.0.10+git20091207+60a3942-0ubuntu1) lucid; urgency=low
 
-  * New upstream snapshot, up to commit 
-    95fc663d5fb653fc0a50aa4d589bbf3b9c79e928.
+  * New upstream snapshot
     + Too many commits to usefully list in the changelog.
   * debian/control:
     + Bump versioned Build-Dep on libdrm-dev to >= 2.4.16~ to pick up nouveau
       #define updates.
+    + Replace dependency on linux-nouveau-modules with nouveau-kernel-source.
+      This small divergence from Debian allows us to version the dependency
+      to help ensure an appropriate kernel module is available.
 
  -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 04 Dec 2009 12:31:58 +1100
 

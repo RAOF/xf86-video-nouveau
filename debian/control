@@ -12,7 +12,7 @@ Vcs-Browser: http://git.debian.org/?=pkg-xorg/driver/xserver-xorg-video-nouveau.
 
 Package: xserver-xorg-video-nouveau
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, ${xserver:Depends}, linux-nouveau-modules
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${xserver:Depends}, nouveau-kernel-source (>= 0.0.15+git20091122)
 Provides: ${xviddriver:Provides}
 Replaces: xserver-xorg (<< 6.8.2-35), nvidia-glx
 Conflicts: nvidia-glx

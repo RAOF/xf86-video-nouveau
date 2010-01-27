@@ -133,7 +133,7 @@ NV30VideoTexture(ScrnInfoPtr pScrn, struct nouveau_bo *src, int offset,
 	NVPtr pNv = NVPTR(pScrn);
 	struct nouveau_channel *chan = pNv->chan;
 	struct nouveau_grobj *rankine = pNv->Nv3D;
-
+	uint32_t tex_reloc = NOUVEAU_BO_VRAM | NOUVEAU_BO_GART | NOUVEAU_BO_RD;
 	uint32_t card_fmt = 0;
 	uint32_t card_swz = 0;
 
@@ -157,7 +157,7 @@ NV30VideoTexture(ScrnInfoPtr pScrn, struct nouveau_bo *src, int offset,
 	}
 
 	BEGIN_RING(chan, rankine, NV34TCL_TX_OFFSET(unit), 8);
-	if (OUT_RELOCl(chan, src, offset, NOUVEAU_BO_VRAM | NOUVEAU_BO_RD))
+	if (OUT_RELOCl(chan, src, offset, tex_reloc))
 		return FALSE;
 
 	if (unit == 0) {
@@ -167,9 +167,8 @@ NV30VideoTexture(ScrnInfoPtr pScrn, struct nouveau_bo *src, int offset,
 				NV34TCL_TX_FORMAT_BASE_SIZE_U_SHIFT) |
 			       (log2i(height) <<
 				NV34TCL_TX_FORMAT_BASE_SIZE_V_SHIFT) |
-			       8 /* no idea */,
-			       NOUVEAU_BO_VRAM | NOUVEAU_BO_RD,
-			       NV34TCL_TX_FORMAT_DMA0, 0))
+			       8 /* no idea */, tex_reloc | NOUVEAU_BO_OR,
+			       NV34TCL_TX_FORMAT_DMA0, NV34TCL_TX_FORMAT_DMA1))
 			return FALSE;
 		OUT_RING  (chan, NV34TCL_TX_WRAP_S_REPEAT |
 				 NV34TCL_TX_WRAP_T_CLAMP_TO_EDGE |
@@ -181,9 +180,8 @@ NV30VideoTexture(ScrnInfoPtr pScrn, struct nouveau_bo *src, int offset,
 				NV34TCL_TX_FORMAT_BASE_SIZE_U_SHIFT) |
 			       (log2i(height) <<
 				NV34TCL_TX_FORMAT_BASE_SIZE_V_SHIFT) |
-			       8 /* no idea */,
-			       NOUVEAU_BO_VRAM | NOUVEAU_BO_RD,
-			       NV34TCL_TX_FORMAT_DMA0, 0))
+			       8 /* no idea */, tex_reloc | NOUVEAU_BO_OR,
+			       NV34TCL_TX_FORMAT_DMA0, NV34TCL_TX_FORMAT_DMA1))
 			return FALSE;
 		OUT_RING  (chan, NV34TCL_TX_WRAP_S_CLAMP_TO_EDGE |
 				 NV34TCL_TX_WRAP_T_CLAMP_TO_EDGE |
@@ -260,7 +258,6 @@ NV30PutTextureImage(ScrnInfoPtr pScrn, struct nouveau_bo *src, int src_offset,
 	struct nouveau_channel *chan = pNv->chan;
 	struct nouveau_grobj *rankine = pNv->Nv3D;
 	struct nouveau_bo *bo = nouveau_pixmap_bo(ppix);
-	unsigned delta = nouveau_pixmap_offset(ppix);
 	Bool redirected = FALSE;
 	float X1, X2, Y1, Y2;
 	BoxPtr pbox;
@@ -300,12 +297,12 @@ NV30PutTextureImage(ScrnInfoPtr pScrn, struct nouveau_bo *src, int src_offset,
 			 dst_format);
 	OUT_RING  (chan, (exaGetPixmapPitch(ppix) << 16) |
 			  exaGetPixmapPitch(ppix));
-	if (OUT_RELOCl(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR)) {
+	if (OUT_RELOCl(chan, bo, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR)) {
 		MARK_UNDO(chan);
 		return BadImplementation;
 	}
 
-	if (pNv->NVArch == 0x30) {
+	if (pNv->dev->chipset == 0x30) {
 		int x = 0;
 		int y = 0;
 		int w = ppix->drawable.x + ppix->drawable.width;
@@ -397,7 +394,7 @@ NV30PutTextureImage(ScrnInfoPtr pScrn, struct nouveau_bo *src, int src_offset,
 	BEGIN_RING(chan, rankine, NV34TCL_VERTEX_BEGIN_END, 1);
 	OUT_RING  (chan, NV34TCL_VERTEX_BEGIN_END_STOP);
 
-	if (pNv->NVArch == 0x30) {
+	if (pNv->dev->chipset == 0x30) {
 		BEGIN_RING(chan, rankine, NV34TCL_VIEWPORT_HORIZ, 2);
 		OUT_RING  (chan, 4096 << 16);
 		OUT_RING  (chan, 4096 << 16);
@@ -432,15 +429,14 @@ NV30SetTexturePortAttribute(ScrnInfoPtr pScrn, Atom attribute,
                        INT32 value, pointer data)
 {
         NVPortPrivPtr pPriv = (NVPortPrivPtr)data;
-        NVPtr           pNv = NVPTR(pScrn);
 
-        if ((attribute == xvSyncToVBlank) && pNv->WaitVSyncPossible) {
+        if (attribute == xvSyncToVBlank) {
                 if ((value < 0) || (value > 1))
                         return BadValue;
                 pPriv->SyncToVBlank = value;
         } else
         if (attribute == xvSetDefaults) {
-                pPriv->SyncToVBlank = pNv->WaitVSyncPossible;
+                pPriv->SyncToVBlank = TRUE;
         } else
                 return BadMatch;
 

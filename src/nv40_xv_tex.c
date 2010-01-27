@@ -135,7 +135,7 @@ NV40VideoTexture(ScrnInfoPtr pScrn, struct nouveau_bo *src, int offset,
 	NVPtr pNv = NVPTR(pScrn);
 	struct nouveau_channel *chan = pNv->chan;
 	struct nouveau_grobj *curie = pNv->Nv3D;
-
+	uint32_t tex_reloc = NOUVEAU_BO_VRAM | NOUVEAU_BO_GART | NOUVEAU_BO_RD;
 	uint32_t card_fmt = 0;
 	uint32_t card_swz = 0;
 
@@ -159,15 +159,16 @@ NV40VideoTexture(ScrnInfoPtr pScrn, struct nouveau_bo *src, int offset,
 	}
 
 	BEGIN_RING(chan, curie, NV40TCL_TEX_OFFSET(unit), 8);
-	if (OUT_RELOCl(chan, src, offset, NOUVEAU_BO_VRAM | NOUVEAU_BO_RD))
+	if (OUT_RELOCl(chan, src, offset, tex_reloc))
 		return FALSE;
 	if (unit==0) {
 		if (OUT_RELOCd(chan, src, card_fmt | 0x8000 |
 			       NV40TCL_TEX_FORMAT_DIMS_1D |
 			       NV40TCL_TEX_FORMAT_NO_BORDER |
 			       (1 << NV40TCL_TEX_FORMAT_MIPMAP_COUNT_SHIFT),
-			       NOUVEAU_BO_VRAM | NOUVEAU_BO_RD,
-			       NV40TCL_TEX_FORMAT_DMA0, 0))
+			       tex_reloc | NOUVEAU_BO_OR,
+			       NV40TCL_TEX_FORMAT_DMA0,
+			       NV40TCL_TEX_FORMAT_DMA1))
 			return FALSE;
 		OUT_RING  (chan, NV40TCL_TEX_WRAP_S_REPEAT |
 				 NV40TCL_TEX_WRAP_T_CLAMP_TO_EDGE |
@@ -179,8 +180,9 @@ NV40VideoTexture(ScrnInfoPtr pScrn, struct nouveau_bo *src, int offset,
 			       NV40TCL_TEX_FORMAT_DIMS_2D |
 			       NV40TCL_TEX_FORMAT_NO_BORDER |
 			       (1 << NV40TCL_TEX_FORMAT_MIPMAP_COUNT_SHIFT),
-			       NOUVEAU_BO_VRAM | NOUVEAU_BO_RD,
-			       NV40TCL_TEX_FORMAT_DMA0, 0))
+			       tex_reloc | NOUVEAU_BO_OR,
+			       NV40TCL_TEX_FORMAT_DMA0,
+			       NV40TCL_TEX_FORMAT_DMA1))
 			return FALSE;
 		OUT_RING  (chan, NV40TCL_TEX_WRAP_S_CLAMP_TO_EDGE |
 				 NV40TCL_TEX_WRAP_T_CLAMP_TO_EDGE |
@@ -260,7 +262,6 @@ NV40PutTextureImage(ScrnInfoPtr pScrn,
 	struct nouveau_channel *chan = pNv->chan;
 	struct nouveau_grobj *curie = pNv->Nv3D;
 	struct nouveau_bo *bo = nouveau_pixmap_bo(ppix);
-	unsigned delta = nouveau_pixmap_offset(ppix);
 	Bool redirected = FALSE;
 	float X1, X2, Y1, Y2;
 	BoxPtr pbox;
@@ -298,7 +299,7 @@ NV40PutTextureImage(ScrnInfoPtr pScrn,
 	OUT_RING  (chan, NV40TCL_RT_FORMAT_TYPE_LINEAR |
 			 NV40TCL_RT_FORMAT_ZETA_Z24S8 | dst_format);
 	OUT_RING  (chan, exaGetPixmapPitch(ppix));
-	if (OUT_RELOCl(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR)) {
+	if (OUT_RELOCl(chan, bo, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR)) {
 		MARK_UNDO(chan);
 		return BadImplementation;
 	}
@@ -405,15 +406,14 @@ NV40SetTexturePortAttribute(ScrnInfoPtr pScrn, Atom attribute,
                        INT32 value, pointer data)
 {
         NVPortPrivPtr pPriv = (NVPortPrivPtr)data;
-        NVPtr           pNv = NVPTR(pScrn);
 
-        if ((attribute == xvSyncToVBlank) && pNv->WaitVSyncPossible) {
+        if (attribute == xvSyncToVBlank) {
                 if ((value < 0) || (value > 1))
                         return BadValue;
                 pPriv->SyncToVBlank = value;
         } else
         if (attribute == xvSetDefaults) {
-                pPriv->SyncToVBlank = pNv->WaitVSyncPossible;
+                pPriv->SyncToVBlank = TRUE;
         } else
                 return BadMatch;
 

@@ -44,11 +44,11 @@ nouveau_dri2_create_buffer(DrawablePtr pDraw, unsigned int attachment,
 
 		ppix->refcnt++;
 	} else {
-		unsigned int usage_hint = 0;
+		unsigned int usage_hint = NOUVEAU_CREATE_PIXMAP_TILED;
 
 		if (attachment == DRI2BufferDepth ||
 		    attachment == DRI2BufferDepthStencil)
-			usage_hint = NOUVEAU_CREATE_PIXMAP_ZETA;
+			usage_hint |= NOUVEAU_CREATE_PIXMAP_ZETA;
 
 		ppix = pScreen->CreatePixmap(pScreen, pDraw->width,
 					     pDraw->height, pDraw->depth,
@@ -154,8 +154,12 @@ nouveau_dri2_init(ScreenPtr pScreen)
 		return FALSE;
 	}
 
+	if (pNv->Architecture >= NV_ARCH_30)
+		dri2.driverName = "nouveau";
+	else
+		dri2.driverName = "nouveau_vieux";
+
 	dri2.fd = nouveau_device(pNv->dev)->fd;
-	dri2.driverName = "nouveau";
 	dri2.deviceName = pNv->drm_device_name;
 
 	dri2.version = DRI2INFOREC_VERSION;

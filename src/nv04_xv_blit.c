@@ -36,6 +36,8 @@
 
 #define FOURCC_RGB 0x0000003
 
+#define VSYNC_POSSIBLE (pNv->dev->chipset >= 0x11)
+
 extern Atom xvSetDefaults, xvSyncToVBlank;
 
 /**
@@ -80,21 +82,20 @@ NVPutBlitImage(ScrnInfoPtr pScrn, struct nouveau_bo *src, int src_offset,
 	struct nouveau_grobj *rect = pNv->NvRectangle;
 	struct nouveau_grobj *sifm = pNv->NvScaledImage;
 	struct nouveau_bo *bo = nouveau_pixmap_bo(ppix);
-	unsigned delta = nouveau_pixmap_offset(ppix);
         unsigned int crtcs;
         int dst_format;
 
         if (!NVAccelGetCtxSurf2DFormatFromPixmap(ppix, &dst_format))
 		return BadImplementation;
 
-	if (MARK_RING(chan, 64, 3))
+	if (MARK_RING(chan, 64, 4))
 		return BadImplementation;
 
         BEGIN_RING(chan, surf2d, NV04_CONTEXT_SURFACES_2D_FORMAT, 4);
         OUT_RING  (chan, dst_format);
         OUT_RING  (chan, (exaGetPixmapPitch(ppix) << 16) | exaGetPixmapPitch(ppix));
-        if (OUT_RELOCl(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR) ||
-	    OUT_RELOCl(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR)) {
+        if (OUT_RELOCl(chan, bo, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR) ||
+	    OUT_RELOCl(chan, bo, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR)) {
 		MARK_UNDO(chan);
 		return BadImplementation;
 	}
@@ -139,7 +140,7 @@ NVPutBlitImage(ScrnInfoPtr pScrn, struct nouveau_bo *src, int src_offset,
                         NVWaitVSync(pScrn, 1);
         }
 
-        if(pNv->BlendingPossible) {
+        if (pNv->dev->chipset >= 0x05) {
                 BEGIN_RING(chan, sifm,
 				 NV04_SCALED_IMAGE_FROM_MEMORY_COLOR_FORMAT, 2);
                 OUT_RING  (chan, src_format);
@@ -150,6 +151,10 @@ NVPutBlitImage(ScrnInfoPtr pScrn, struct nouveau_bo *src, int src_offset,
                 OUT_RING  (chan, src_format);
         }
 
+
+	BEGIN_RING(chan, sifm, NV04_SCALED_IMAGE_FROM_MEMORY_DMA_IMAGE, 1);
+	OUT_RELOCo(chan, src, NOUVEAU_BO_VRAM | NOUVEAU_BO_GART |
+			      NOUVEAU_BO_RD);
         while (nbox--) {
                 BEGIN_RING(chan, rect, NV04_GDI_RECTANGLE_TEXT_COLOR1_A, 1);
                 OUT_RING  (chan, 0);
@@ -167,8 +172,8 @@ NVPutBlitImage(ScrnInfoPtr pScrn, struct nouveau_bo *src, int src_offset,
                 BEGIN_RING(chan, sifm, NV04_SCALED_IMAGE_FROM_MEMORY_SIZE, 4);
                 OUT_RING  (chan, (height << 16) | width);
                 OUT_RING  (chan, src_pitch);
-		if (OUT_RELOCl(chan, src, src_offset,
-			       NOUVEAU_BO_VRAM | NOUVEAU_BO_RD)) {
+		if (OUT_RELOCl(chan, src, src_offset, NOUVEAU_BO_VRAM |
+			       NOUVEAU_BO_GART | NOUVEAU_BO_RD)) {
 			MARK_UNDO(chan);
 			return BadImplementation;
 		}
@@ -210,13 +215,13 @@ NVSetBlitPortAttribute(ScrnInfoPtr pScrn, Atom attribute,
         NVPortPrivPtr pPriv = (NVPortPrivPtr)data;
         NVPtr           pNv = NVPTR(pScrn);
 
-        if ((attribute == xvSyncToVBlank) && pNv->WaitVSyncPossible) {
+        if ((attribute == xvSyncToVBlank) && VSYNC_POSSIBLE) {
                 if ((value < 0) || (value > 1))
                         return BadValue;
                 pPriv->SyncToVBlank = value;
         } else
         if (attribute == xvSetDefaults) {
-                pPriv->SyncToVBlank = pNv->WaitVSyncPossible;
+                pPriv->SyncToVBlank = VSYNC_POSSIBLE;
         } else
                 return BadMatch;
 

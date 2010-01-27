@@ -68,15 +68,11 @@
 
 #define NV_DMA_DEBUG 0
 
-#include "nv_local.h"
 #include "nv_type.h"
 #include "nv_proto.h"
-#include "nouveau_hw.h"
 #include "nv_dma.h"
 #include "nouveau_drm.h"
 #include "nouveau_class.h"
-#include "nvreg.h"
-#include "nv50reg.h"
 #include "sarea.h"
 
 #include "nouveau_drmif.h"

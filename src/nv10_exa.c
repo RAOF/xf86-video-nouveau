@@ -374,7 +374,7 @@ setup_texture(NVPtr pNv, int unit, PicturePtr pict, PixmapPtr pixmap)
 	struct nouveau_channel *chan = pNv->chan;
 	struct nouveau_grobj *celsius = pNv->Nv3D;
 	struct nouveau_bo *bo = nouveau_pixmap_bo(pixmap);
-	unsigned delta = nouveau_pixmap_offset(pixmap);
+	unsigned tex_reloc = NOUVEAU_BO_VRAM | NOUVEAU_BO_GART | NOUVEAU_BO_RD;
 	long w = pict->pDrawable->width,
 	     h = pict->pDrawable->height;
 	unsigned int txfmt =
@@ -383,10 +383,10 @@ setup_texture(NVPtr pNv, int unit, PicturePtr pict, PixmapPtr pixmap)
 		log2i(w) << 20 | log2i(h) << 16 |
 		1 << 12 | /* lod == 1 */
 		get_tex_format(pict) |
-		0x51 /* UNK */;
+		0x50 /* UNK */;
 
 	BEGIN_RING(chan, celsius, NV10TCL_TX_OFFSET(unit), 1);
-	if (OUT_RELOCl(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_RD))
+	if (OUT_RELOCl(chan, bo, 0, tex_reloc))
 		return FALSE;
 
 	if (pict->repeat == RepeatNone) {
@@ -406,7 +406,9 @@ setup_texture(NVPtr pNv, int unit, PicturePtr pict, PixmapPtr pixmap)
 	}
 
 	BEGIN_RING(chan, celsius, NV10TCL_TX_FORMAT(unit), 1 );
-	OUT_RING  (chan, txfmt);
+	if (OUT_RELOCd(chan, bo, txfmt, tex_reloc | NOUVEAU_BO_OR,
+		       NV10TCL_TX_FORMAT_DMA0, NV10TCL_TX_FORMAT_DMA1))
+		return FALSE;
 
 	BEGIN_RING(chan, celsius, NV10TCL_TX_ENABLE(unit), 1 );
 	OUT_RING  (chan, NV10TCL_TX_ENABLE_ENABLE);
@@ -428,7 +430,6 @@ setup_render_target(NVPtr pNv, PicturePtr pict, PixmapPtr pixmap)
 	struct nouveau_channel *chan = pNv->chan;
 	struct nouveau_grobj *celsius = pNv->Nv3D;
 	struct nouveau_bo *bo = nouveau_pixmap_bo(pixmap);
-	unsigned delta = nouveau_pixmap_offset(pixmap);
 
 	BEGIN_RING(chan, celsius, NV10TCL_RT_FORMAT, 2);
 	OUT_RING  (chan, get_rt_format(pict));
@@ -436,7 +437,7 @@ setup_render_target(NVPtr pNv, PicturePtr pict, PixmapPtr pixmap)
 			  exaGetPixmapPitch(pixmap)));
 
 	BEGIN_RING(chan, celsius, NV10TCL_COLOR_OFFSET, 1);
-	if (OUT_RELOCl(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR))
+	if (OUT_RELOCl(chan, bo, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR))
 		return FALSE;
 
 	return TRUE;
@@ -465,18 +466,18 @@ setup_render_target(NVPtr pNv, PicturePtr pict, PixmapPtr pixmap)
 #define RC_IN_ONE(input)						\
 	(NV10TCL_RC_IN_RGB_##input##_INPUT_ZERO |			\
 	 NV10TCL_RC_IN_RGB_##input##_COMPONENT_USAGE_ALPHA |		\
-	 NV10TCL_RC_IN_RGB_##input##_MAPPING_UNSIGNED_INVERT_NV)
+	 NV10TCL_RC_IN_RGB_##input##_MAPPING_UNSIGNED_INVERT)
 
 /* Bind the combiner variable <input> to the specified channel from
  * the texture unit <unit>. */
 #define RC_IN_TEX(input, chan, unit)					\
-	(NV10TCL_RC_IN_RGB_##input##_INPUT_TEXTURE##unit##_ARB |	\
+	(NV10TCL_RC_IN_RGB_##input##_INPUT_TEXTURE##unit |		\
 	 NV10TCL_RC_IN_RGB_##input##_COMPONENT_USAGE_##chan)
 
 /* Bind the combiner variable <input> to the specified channel from
  * the constant color <unit>. */
 #define RC_IN_COLOR(input, chan, unit)					\
-	(NV10TCL_RC_IN_RGB_##input##_INPUT_CONSTANT_COLOR##unit##_NV | \
+	(NV10TCL_RC_IN_RGB_##input##_INPUT_CONSTANT_COLOR##unit |	\
 	 NV10TCL_RC_IN_RGB_##input##_COMPONENT_USAGE_##chan)
 
 static void
@@ -587,7 +588,7 @@ NV10EXAPrepareComposite(int op,
 	NVPtr pNv = NVPTR(pScrn);
 	struct nouveau_channel *chan = pNv->chan;
 
-	if (MARK_RING(chan, 128, 3))
+	if (MARK_RING(chan, 128, 5))
 		return FALSE;
 
 	pNv->alu = op;
@@ -722,18 +723,18 @@ NVAccelInitNV10TCL(ScrnInfoPtr pScrn)
 	NVPtr pNv = NVPTR(pScrn);
 	struct nouveau_channel *chan = pNv->chan;
 	struct nouveau_grobj *celsius;
-	uint32_t class = 0, chipset;
+	uint32_t class = 0;
 	int i;
 
-	chipset = (nvReadMC(pNv, NV_PMC_BOOT_0) >> 20) & 0xff;
-	if (((chipset & 0xf0) != NV_ARCH_10) && ((chipset & 0xf0) != NV_ARCH_20))
+	if (((pNv->dev->chipset & 0xf0) != NV_ARCH_10) &&
+	    ((pNv->dev->chipset & 0xf0) != NV_ARCH_20))
 		return FALSE;
 
-	if (chipset >= 0x20 || chipset == 0x1a)
+	if (pNv->dev->chipset >= 0x20 || pNv->dev->chipset == 0x1a)
 		class = NV11TCL;
-	else if (chipset >= 0x17)
+	else if (pNv->dev->chipset >= 0x17)
 		class = NV17TCL;
-	else if (chipset >= 0x11)
+	else if (pNv->dev->chipset >= 0x11)
 		class = NV11TCL;
 	else
 		class = NV10TCL;

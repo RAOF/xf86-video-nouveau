@@ -23,9 +23,6 @@
 #include "nv_include.h"
 #include "exa.h"
 
-static void *nouveau_exa_pixmap_map(PixmapPtr);
-static void nouveau_exa_pixmap_unmap(PixmapPtr);
-
 static inline Bool
 NVAccelMemcpyRect(char *dst, const char *src, int height, int dst_pitch,
 		  int src_pitch, int line_len)
@@ -52,12 +49,11 @@ NVAccelDownloadM2MF(PixmapPtr pspix, int x, int y, int w, int h,
 	struct nouveau_channel *chan = pNv->chan;
 	struct nouveau_grobj *m2mf = pNv->NvMemFormat;
 	struct nouveau_bo *bo = nouveau_pixmap_bo(pspix);
-	unsigned src_offset = nouveau_pixmap_offset(pspix);
 	unsigned cpp = pspix->drawable.bitsPerPixel / 8;
 	unsigned line_len = w * cpp;
-	unsigned src_pitch = 0, linear = 0;
+	unsigned src_offset = 0, src_pitch = 0, linear = 0;
 
-	if (!nouveau_exa_pixmap_is_tiled(pspix)) {
+	if (!nv50_style_tiled_pixmap(pspix)) {
 		linear     = 1;
 		src_pitch  = exaGetPixmapPitch(pspix);
 		src_offset += (y * src_pitch) + (x * cpp);
@@ -82,7 +78,7 @@ NVAccelDownloadM2MF(PixmapPtr pspix, int x, int y, int w, int h,
 		if (MARK_RING(chan, 32, 6))
 			return FALSE;
 
-		BEGIN_RING(chan, m2mf, 0x184, 2);
+		BEGIN_RING(chan, m2mf, NV04_MEMORY_TO_MEMORY_FORMAT_DMA_BUFFER_IN, 2);
 		if (OUT_RELOCo(chan, bo, NOUVEAU_BO_GART | NOUVEAU_BO_VRAM |
 			       NOUVEAU_BO_RD) ||
 		    OUT_RELOCo(chan, pNv->GART, NOUVEAU_BO_GART |
@@ -93,7 +89,7 @@ NVAccelDownloadM2MF(PixmapPtr pspix, int x, int y, int w, int h,
 
 		if (pNv->Architecture >= NV_ARCH_50) {
 			if (!linear) {
-				BEGIN_RING(chan, m2mf, 0x0200, 7);
+				BEGIN_RING(chan, m2mf, NV50_MEMORY_TO_MEMORY_FORMAT_LINEAR_IN, 7);
 				OUT_RING  (chan, 0);
 				OUT_RING  (chan, bo->tile_mode << 4);
 				OUT_RING  (chan, pspix->drawable.width * cpp);
@@ -102,14 +98,14 @@ NVAccelDownloadM2MF(PixmapPtr pspix, int x, int y, int w, int h,
 				OUT_RING  (chan, 0);
 				OUT_RING  (chan, (y << 16) | (x * cpp));
 			} else {
-				BEGIN_RING(chan, m2mf, 0x0200, 1);
+				BEGIN_RING(chan, m2mf, NV50_MEMORY_TO_MEMORY_FORMAT_LINEAR_IN, 1);
 				OUT_RING  (chan, 1);
 			}
 
-			BEGIN_RING(chan, m2mf, 0x021c, 1);
+			BEGIN_RING(chan, m2mf, NV50_MEMORY_TO_MEMORY_FORMAT_LINEAR_OUT, 1);
 			OUT_RING  (chan, 1);
 
-			BEGIN_RING(chan, m2mf, 0x238, 2);
+			BEGIN_RING(chan, m2mf, NV50_MEMORY_TO_MEMORY_FORMAT_OFFSET_IN_HIGH, 2);
 			if (OUT_RELOCh(chan, bo, src_offset, NOUVEAU_BO_GART |
 				       NOUVEAU_BO_VRAM | NOUVEAU_BO_RD) ||
 			    OUT_RELOCh(chan, pNv->GART, 0, NOUVEAU_BO_GART |
@@ -170,12 +166,11 @@ NVAccelUploadM2MF(PixmapPtr pdpix, int x, int y, int w, int h,
 	struct nouveau_channel *chan = pNv->chan;
 	struct nouveau_grobj *m2mf = pNv->NvMemFormat;
 	struct nouveau_bo *bo = nouveau_pixmap_bo(pdpix);
-	unsigned dst_offset = nouveau_pixmap_offset(pdpix);
 	unsigned cpp = pdpix->drawable.bitsPerPixel / 8;
 	unsigned line_len = w * cpp;
-	unsigned dst_pitch = 0, linear = 0;
+	unsigned dst_offset = 0, dst_pitch = 0, linear = 0;
 
-	if (!nouveau_exa_pixmap_is_tiled(pdpix)) {
+	if (!nv50_style_tiled_pixmap(pdpix)) {
 		linear     = 1;
 		dst_pitch  = exaGetPixmapPitch(pdpix);
 		dst_offset += (y * dst_pitch) + (x * cpp);
@@ -217,7 +212,7 @@ NVAccelUploadM2MF(PixmapPtr pdpix, int x, int y, int w, int h,
 		if (MARK_RING(chan, 32, 6))
 			return FALSE;
 
-		BEGIN_RING(chan, m2mf, 0x184, 2);
+		BEGIN_RING(chan, m2mf, NV04_MEMORY_TO_MEMORY_FORMAT_DMA_BUFFER_IN, 2);
 		if (OUT_RELOCo(chan, pNv->GART, NOUVEAU_BO_GART |
 			       NOUVEAU_BO_RD) ||
 		    OUT_RELOCo(chan, bo, NOUVEAU_BO_VRAM | NOUVEAU_BO_GART |
@@ -227,11 +222,11 @@ NVAccelUploadM2MF(PixmapPtr pdpix, int x, int y, int w, int h,
 		}
 
 		if (pNv->Architecture >= NV_ARCH_50) {
-			BEGIN_RING(chan, m2mf, 0x0200, 1);
+			BEGIN_RING(chan, m2mf, NV50_MEMORY_TO_MEMORY_FORMAT_LINEAR_IN, 1);
 			OUT_RING  (chan, 1);
 
 			if (!linear) {
-				BEGIN_RING(chan, m2mf, 0x021c, 7);
+				BEGIN_RING(chan, m2mf, NV50_MEMORY_TO_MEMORY_FORMAT_LINEAR_OUT, 7);
 				OUT_RING  (chan, 0);
 				OUT_RING  (chan, bo->tile_mode << 4);
 				OUT_RING  (chan, pdpix->drawable.width * cpp);
@@ -240,11 +235,11 @@ NVAccelUploadM2MF(PixmapPtr pdpix, int x, int y, int w, int h,
 				OUT_RING  (chan, 0);
 				OUT_RING  (chan, (y << 16) | (x * cpp));
 			} else {
-				BEGIN_RING(chan, m2mf, 0x021c, 1);
+				BEGIN_RING(chan, m2mf, NV50_MEMORY_TO_MEMORY_FORMAT_LINEAR_OUT, 1);
 				OUT_RING  (chan, 1);
 			}
 
-			BEGIN_RING(chan, m2mf, 0x0238, 2);
+			BEGIN_RING(chan, m2mf, NV50_MEMORY_TO_MEMORY_FORMAT_OFFSET_IN_HIGH, 2);
 			if (OUT_RELOCh(chan, pNv->GART, 0, NOUVEAU_BO_GART |
 				       NOUVEAU_BO_RD) ||
 			    OUT_RELOCh(chan, bo, dst_offset, NOUVEAU_BO_VRAM |
@@ -290,82 +285,31 @@ nouveau_exa_mark_sync(ScreenPtr pScreen)
 static void
 nouveau_exa_wait_marker(ScreenPtr pScreen, int marker)
 {
-	NVPtr pNv = NVPTR(xf86Screens[pScreen->myNum]);
-	
-	if (!pNv->exa_driver_pixmaps)
-		NVSync(xf86Screens[pScreen->myNum]);
 }
 
 static Bool
 nouveau_exa_prepare_access(PixmapPtr ppix, int index)
 {
-	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
-	NVPtr pNv = NVPTR(pScrn);
-	struct nouveau_bo *bo;
+	struct nouveau_bo *bo = nouveau_pixmap_bo(ppix);
 
-	if (pNv->exa_driver_pixmaps) {
-		void *map = nouveau_exa_pixmap_map(ppix);
-
-		if (!map)
-			return FALSE;
-
-		ppix->devPrivate.ptr = map;
-		return TRUE;
-	} else
-	if (ppix == pScrn->pScreen->GetScreenPixmap(pScrn->pScreen)) {
-		nouveau_bo_map(pNv->scanout, NOUVEAU_BO_RDWR);
-		ppix->devPrivate.ptr = pNv->scanout->map;
-		nouveau_bo_unmap(pNv->scanout);
-		return TRUE;
-	} else
-	if (drmmode_is_rotate_pixmap(ppix, &bo)) {
-		nouveau_bo_map(bo, NOUVEAU_BO_RDWR);
-		ppix->devPrivate.ptr = bo->map;
-		nouveau_bo_unmap(bo);
-		return TRUE;
-	}
-
-	return FALSE;
+	if (nouveau_bo_map(bo, NOUVEAU_BO_RDWR))
+		return FALSE;
+	ppix->devPrivate.ptr = bo->map;
+	return TRUE;
 }
 
 static void
 nouveau_exa_finish_access(PixmapPtr ppix, int index)
 {
-	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
-	NVPtr pNv = NVPTR(pScrn);
+	struct nouveau_bo *bo = nouveau_pixmap_bo(ppix);
 
-	if (pNv->exa_driver_pixmaps) {
-		nouveau_exa_pixmap_unmap(ppix);
-	} else
-	if (ppix == pScrn->pScreen->GetScreenPixmap(pScrn->pScreen) ||
-	    drmmode_is_rotate_pixmap(ppix, NULL)) {
-		ppix->devPrivate.ptr = NULL;
-	}
+	nouveau_bo_unmap(bo);
 }
 
 static Bool
 nouveau_exa_pixmap_is_offscreen(PixmapPtr ppix)
 {
-	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
-	NVPtr pNv = NVPTR(pScrn);
-
-	if (pNv->exa_driver_pixmaps) {
-		struct nouveau_pixmap *nvpix = nouveau_pixmap(ppix);
-
-		if (nvpix && nvpix->bo)
-			return TRUE;
-	} else
-	if (ppix->devPrivate.ptr >= pNv->offscreen_map &&
-	    ppix->devPrivate.ptr < pNv->offscreen_map + pNv->offscreen->size)
-		return TRUE;
-	else
-	if (ppix == pScrn->pScreen->GetScreenPixmap(pScrn->pScreen))
-		return TRUE;
-	else
-	if (drmmode_is_rotate_pixmap(ppix, NULL))
-		return TRUE;
-
-	return FALSE;
+	return nouveau_pixmap_bo(ppix) != NULL;
 }
 
 static void *
@@ -390,6 +334,7 @@ nouveau_exa_create_pixmap(ScreenPtr pScreen, int width, int height, int depth,
 
 	if (cpp) {
 		flags |= NOUVEAU_BO_VRAM;
+		*new_pitch = width * cpp;
 
 		if (pNv->Architecture >= NV_ARCH_50) {
 			if      (height > 32) tile_mode = 4;
@@ -398,15 +343,22 @@ nouveau_exa_create_pixmap(ScreenPtr pScreen, int width, int height, int depth,
 			else if (height >  4) tile_mode = 1;
 			else                  tile_mode = 0;
 
-			if (usage_hint == NOUVEAU_CREATE_PIXMAP_ZETA)
+			if (usage_hint & NOUVEAU_CREATE_PIXMAP_ZETA)
 				tile_flags = 0x2800;
 			else
 				tile_flags = 0x7000;
 
 			height = NOUVEAU_ALIGN(height, 1 << (tile_mode + 2));
-		}
+		} else {
+			if (usage_hint & NOUVEAU_CREATE_PIXMAP_TILED) {
+				int pitch_align =
+					pNv->dev->chipset >= 0x40 ? 1024 : 256;
 
-		*new_pitch = width * cpp;
+				*new_pitch = NOUVEAU_ALIGN(*new_pitch,
+							   pitch_align);
+				tile_mode = *new_pitch;
+			}
+		}
 	} else {
 		*new_pitch = (width * bitsPerPixel + 7) / 8;
 	}
@@ -437,65 +389,13 @@ nouveau_exa_destroy_pixmap(ScreenPtr pScreen, void *priv)
 }
 
 bool
-nouveau_exa_pixmap_is_tiled(PixmapPtr ppix)
-{
-	if (!nouveau_pixmap_bo(ppix)->tile_flags)
-		return false;
-
-	return true;
-}
-
-static void *
-nouveau_exa_pixmap_map(PixmapPtr ppix)
+nv50_style_tiled_pixmap(PixmapPtr ppix)
 {
 	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
 	NVPtr pNv = NVPTR(pScrn);
-	struct nouveau_bo *bo = nouveau_pixmap_bo(ppix);
-	unsigned delta = nouveau_pixmap_offset(ppix);
 
-	if (bo->tile_flags && !pNv->wfb_enabled) {
-		struct nouveau_pixmap *nvpix = nouveau_pixmap(ppix);
-
-		nvpix->map_refcount++;
-		if (nvpix->linear)
-			return nvpix->linear;
-
-		nvpix->linear = xcalloc(1, ppix->devKind * ppix->drawable.height);
-
-		NVAccelDownloadM2MF(ppix, 0, 0, ppix->drawable.width,
-				    ppix->drawable.height, nvpix->linear,
-				    ppix->devKind);
-
-		nouveau_bo_map(bo, NOUVEAU_BO_RDWR);
-		return nvpix->linear;
-	}
-
-	nouveau_bo_map(bo, NOUVEAU_BO_RDWR);
-	return bo->map + delta;
-}
-
-static void
-nouveau_exa_pixmap_unmap(PixmapPtr ppix)
-{
-	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
-	NVPtr pNv = NVPTR(pScrn);
-	struct nouveau_bo *bo = nouveau_pixmap_bo(ppix);
-
-	if (bo->tile_flags && !pNv->wfb_enabled) {
-		struct nouveau_pixmap *nvpix = nouveau_pixmap(ppix);
-
-		if (--nvpix->map_refcount)
-			return;
-
-		NVAccelUploadM2MF(ppix, 0, 0, ppix->drawable.width,
-				  ppix->drawable.height, nvpix->linear,
-				  ppix->devKind);
-
-		xfree(nvpix->linear);
-		nvpix->linear = NULL;
-	}
-
-	nouveau_bo_unmap(bo);
+	return pNv->Architecture == NV_ARCH_50 &&
+		nouveau_pixmap_bo(ppix)->tile_flags;
 }
 
 static Bool
@@ -504,6 +404,7 @@ nouveau_exa_download_from_screen(PixmapPtr pspix, int x, int y, int w, int h,
 {
 	ScrnInfoPtr pScrn = xf86Screens[pspix->drawable.pScreen->myNum];
 	NVPtr pNv = NVPTR(pScrn);
+	struct nouveau_bo *bo;
 	int src_pitch, cpp, offset;
 	const char *src;
 	Bool ret;
@@ -517,12 +418,12 @@ nouveau_exa_download_from_screen(PixmapPtr pspix, int x, int y, int w, int h,
 			return TRUE;
 	}
 
-	src = nouveau_exa_pixmap_map(pspix);
-	if (!src)
+	bo = nouveau_pixmap_bo(pspix);
+	if (nouveau_bo_map(bo, NOUVEAU_BO_RD))
 		return FALSE;
-	src += offset;
+	src = (char *)bo->map + offset;
 	ret = NVAccelMemcpyRect(dst, src, h, dst_pitch, src_pitch, w*cpp);
-	nouveau_exa_pixmap_unmap(pspix);
+	nouveau_bo_unmap(bo);
 	return ret;
 }
 
@@ -532,6 +433,7 @@ nouveau_exa_upload_to_screen(PixmapPtr pdpix, int x, int y, int w, int h,
 {
 	ScrnInfoPtr pScrn = xf86Screens[pdpix->drawable.pScreen->myNum];
 	NVPtr pNv = NVPTR(pScrn);
+	struct nouveau_bo *bo;
 	int dst_pitch, cpp;
 	char *dst;
 	Bool ret;
@@ -566,12 +468,12 @@ nouveau_exa_upload_to_screen(PixmapPtr pdpix, int x, int y, int w, int h,
 	}
 
 	/* fallback to memcpy-based transfer */
-	dst = nouveau_exa_pixmap_map(pdpix);
-	if (!dst)
+	bo = nouveau_pixmap_bo(pdpix);
+	if (nouveau_bo_map(bo, NOUVEAU_BO_WR))
 		return FALSE;
-	dst += (y * dst_pitch) + (x * cpp);
+	dst = (char *)bo->map + (y * dst_pitch) + (x * cpp);
 	ret = NVAccelMemcpyRect(dst, src, h, dst_pitch, src_pitch, w*cpp);
-	nouveau_exa_pixmap_unmap(pdpix);
+	nouveau_bo_unmap(bo);
 	return ret;
 }
 
@@ -611,41 +513,12 @@ nouveau_exa_init(ScreenPtr pScreen)
 	exa->PrepareAccess = nouveau_exa_prepare_access;
 	exa->FinishAccess = nouveau_exa_finish_access;
 
-#if (EXA_VERSION_MAJOR == 2 && EXA_VERSION_MINOR >= 5) || EXA_VERSION_MAJOR > 2
-	if (pNv->exa_driver_pixmaps) {
-		exa->flags |= (EXA_HANDLES_PIXMAPS | EXA_MIXED_PIXMAPS);
-		exa->pixmapOffsetAlign = 256;
-		exa->pixmapPitchAlign = 64;
+	exa->flags |= (EXA_HANDLES_PIXMAPS | EXA_MIXED_PIXMAPS);
+	exa->pixmapOffsetAlign = 256;
+	exa->pixmapPitchAlign = 64;
 
-		exa->CreatePixmap2 = nouveau_exa_create_pixmap;
-		exa->DestroyPixmap = nouveau_exa_destroy_pixmap;
-	} else
-#endif
-	{
-		exa->memoryBase = pNv->offscreen_map;
-		exa->memorySize = pNv->offscreen->size;
-		exa->offScreenBase = 0;
-
-		if (pNv->Architecture < NV_ARCH_50) {
-			exa->pixmapOffsetAlign = 256;
-		} else {
-			/* Workaround some corruption issues caused by exa's
-			 * offscreen memory allocation no understanding G8x/G9x
-			 * memory layout.  This is terrible, but it should
-			 * prevent all but the most unlikely cases from
-			 * occuring.
-			 *
-			 * See http://nouveau.freedesktop.org/wiki/NV50Support
-			 * for a far better fix until driver pixmaps are ready
-			 * to be used.
-			 */
-			exa->pixmapOffsetAlign = 65536;
-			exa->flags |= EXA_OFFSCREEN_ALIGN_POT;
-			exa->offScreenBase =
-				NOUVEAU_ALIGN(exa->offScreenBase, 0x10000);
-		}
-		exa->pixmapPitchAlign = 64;
-	}
+	exa->CreatePixmap2 = nouveau_exa_create_pixmap;
+	exa->DestroyPixmap = nouveau_exa_destroy_pixmap;
 
 	if (pNv->Architecture >= NV_ARCH_50) {
 		exa->maxX = 8192;
@@ -715,12 +588,6 @@ nouveau_exa_init(ScreenPtr pScreen)
 
 	if (!exaDriverInit(pScreen, exa))
 		return FALSE;
-	else
-		/* EXA init catches this, but only for xserver >= 1.4 */
-		if (pNv->VRAMPhysicalSize / 2 < NOUVEAU_ALIGN(pScrn->virtualX, 64) * NOUVEAU_ALIGN(pScrn->virtualY, 64) * (pScrn->bitsPerPixel >> 3)) {
-			xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "The virtual screen size's resolution is too big for the video RAM framebuffer at this colour depth.\n");
-			return FALSE;
-		}
 
 	pNv->EXADriverPtr = exa;
 	return TRUE;

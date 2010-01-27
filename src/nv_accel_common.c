@@ -261,7 +261,7 @@ NVAccelInitImageBlit(ScrnInfoPtr pScrn)
 	struct nouveau_grobj *blit;
 	uint32_t class;
 
-	class = (pNv->WaitVSyncPossible) ? NV12_IMAGE_BLIT : NV04_IMAGE_BLIT;
+	class = (pNv->dev->chipset > 0x11) ? NV12_IMAGE_BLIT : NV04_IMAGE_BLIT;
 
 	if (!pNv->NvImageBlit) {
 		if (nouveau_grobj_alloc(chan, NvImageBlit, class,
@@ -283,7 +283,7 @@ NVAccelInitImageBlit(ScrnInfoPtr pScrn)
 	BEGIN_RING(chan, blit, NV04_IMAGE_BLIT_OPERATION, 1);
 	OUT_RING  (chan, NV04_IMAGE_BLIT_OPERATION_ROP_AND);
 
-	if (pNv->WaitVSyncPossible) {
+	if (blit->grclass == NV12_IMAGE_BLIT) {
 		BEGIN_RING(chan, blit, 0x0120, 3);
 		OUT_RING  (chan, 0);
 		OUT_RING  (chan, 1);
@@ -452,12 +452,12 @@ NVAccelInit2D_NV50(ScrnInfoPtr pScrn)
 	struct nouveau_grobj *eng2d;
 
 	if (!pNv->Nv2D) {
-		if (nouveau_grobj_alloc(chan, Nv2D, 0x502d, &pNv->Nv2D))
+		if (nouveau_grobj_alloc(chan, Nv2D, NV50_2D, &pNv->Nv2D))
 			return FALSE;
 	}
 	eng2d = pNv->Nv2D;
 
-	BEGIN_RING(chan, eng2d, 0x180, 3);
+	BEGIN_RING(chan, eng2d, NV50_2D_DMA_NOTIFY, 3);
 	OUT_RING  (chan, pNv->notify0->handle);
 	OUT_RING  (chan, pNv->chan->vram->handle);
 	OUT_RING  (chan, pNv->chan->vram->handle);
@@ -467,9 +467,9 @@ NVAccelInit2D_NV50(ScrnInfoPtr pScrn)
 	 */
 	BEGIN_RING(chan, eng2d, 0x260, 1);
 	OUT_RING  (chan, 1);
-	BEGIN_RING(chan, eng2d, 0x290, 1);
+	BEGIN_RING(chan, eng2d, NV50_2D_CLIP_ENABLE, 1);
 	OUT_RING  (chan, 1);
-	BEGIN_RING(chan, eng2d, 0x29c, 1);
+	BEGIN_RING(chan, eng2d, NV50_2D_COLOR_KEY_ENABLE, 1);
 	OUT_RING  (chan, 0);
 	BEGIN_RING(chan, eng2d, 0x58c, 1);
 	OUT_RING  (chan, 0x111);

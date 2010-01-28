@@ -88,16 +88,13 @@ am__base_list = \
 am__installdirs = "$(DESTDIR)$(nouveau_drv_ladir)"
 LTLIBRARIES = $(nouveau_drv_la_LTLIBRARIES)
 nouveau_drv_la_LIBADD =
-am_nouveau_drv_la_OBJECTS = nouveau_calc.lo nouveau_hw.lo \
-	nouveau_exa.lo nouveau_xv.lo nouveau_dri2.lo nouveau_wfb.lo \
-	nv_accel_common.lo nv_bios.lo nv_cursor.lo nv_dma.lo nv_dri.lo \
-	nv_driver.lo nv_setup.lo nv_shadow.lo nv_crtc.lo nv_output.lo \
-	nv_i2c.lo nv04_exa.lo nv04_xv_ovl.lo nv04_xv_blit.lo \
-	nv10_exa.lo nv10_xv_ovl.lo nv30_shaders.lo nv30_exa.lo \
-	nv30_xv_tex.lo nv40_exa.lo nv40_xv_tex.lo nv50_accel.lo \
-	nv50_cursor.lo nv50_crtc.lo nv50_dac.lo nv50_display.lo \
-	nv50_exa.lo nv50_output.lo nv50_sor.lo nv50_randr.lo \
-	nv50_connector.lo nv50_xv.lo drmmode_display.lo vl_hwmc.lo
+am_nouveau_drv_la_OBJECTS = nouveau_exa.lo nouveau_xv.lo \
+	nouveau_dri2.lo nouveau_wfb.lo nv_accel_common.lo nv_dma.lo \
+	nv_driver.lo nv_shadow.lo nv04_exa.lo nv04_xv_ovl.lo \
+	nv04_xv_blit.lo nv10_exa.lo nv10_xv_ovl.lo nv30_shaders.lo \
+	nv30_exa.lo nv30_xv_tex.lo nv40_exa.lo nv40_xv_tex.lo \
+	nv50_accel.lo nv50_exa.lo nv50_xv.lo drmmode_display.lo \
+	vl_hwmc.lo
 nouveau_drv_la_OBJECTS = $(am_nouveau_drv_la_OBJECTS)
 AM_V_lt = $(am__v_lt_$(V))
 am__v_lt_ = $(am__v_lt_$(AM_DEFAULT_VERBOSITY))
@@ -283,33 +280,18 @@ nouveau_drv_la_LTLIBRARIES = nouveau_drv.la
 nouveau_drv_la_LDFLAGS = -module -avoid-version @LIBDRM_NOUVEAU_LIBS@
 nouveau_drv_ladir = @moduledir@/drivers
 nouveau_drv_la_SOURCES = \
-			 nouveau_bios.h \
-			 nouveau_calc.c \
-			 nouveau_hw.c nouveau_hw.h \
 			 nouveau_local.h \
-			 nouveau_ms.h \
 			 nouveau_exa.c nouveau_xv.c nouveau_dri2.c \
 			 nouveau_wfb.c \
 			 nv_accel_common.c \
-			 nv_bios.c \
 			 nv_const.h \
-			 nv_cursor.c \
 			 nv_dma.c \
 			 nv_dma.h \
-			 nv_dri.c \
-			 nv_dri.h \
 			 nv_driver.c \
 			 nv_include.h \
-			 nv_dripriv.h \
-			 nv_local.h \
 			 nv_proto.h \
-			 nvreg.h \
-			 nv_setup.c \
 			 nv_shadow.c \
 			 nv_type.h \
-			 nv_crtc.c \
-			 nv_output.c \
-			 nv_i2c.c \
 			 nv04_exa.c \
 			 nv04_xv_ovl.c \
 			 nv04_xv_blit.c \
@@ -322,23 +304,9 @@ nouveau_drv_la_SOURCES = \
 			 nv40_exa.c \
 			 nv40_xv_tex.c \
 			 nv50_accel.c nv50_accel.h \
-			 nv50_cursor.c \
-			 nv50_crtc.c \
-			 nv50_dac.c \
-			 nv50_display.c \
 			 nv50_exa.c \
-			 nv50_output.c \
-			 nv50_sor.c \
-			 nv50_randr.c \
-			 nv50_randr.h \
-			 nv50_connector.c \
 			 nv50_xv.c \
 			 nv50_texture.h \
-			 nv50reg.h \
-			 nouveau_crtc.h \
-			 nouveau_output.h \
-			 nouveau_connector.h \
-			 nouveau_modeset.h \
 			 drmmode_display.c \
 			 vl_hwmc.c \
 			 vl_hwmc.h
@@ -418,10 +386,8 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/drmmode_display.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nouveau_calc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nouveau_dri2.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nouveau_exa.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nouveau_hw.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nouveau_wfb.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nouveau_xv.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv04_exa.Plo@am__quote@
@@ -435,26 +401,11 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv40_exa.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv40_xv_tex.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv50_accel.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv50_connector.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv50_crtc.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv50_cursor.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv50_dac.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv50_display.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv50_exa.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv50_output.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv50_randr.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv50_sor.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv50_xv.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv_accel_common.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv_bios.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv_crtc.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv_cursor.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv_dma.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv_dri.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv_driver.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv_i2c.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv_output.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv_setup.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/nv_shadow.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/vl_hwmc.Plo@am__quote@
 

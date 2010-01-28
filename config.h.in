@@ -86,6 +86,3 @@
 
 /* Version number of package */
 #undef VERSION
-
-/* DRM kernel modesetting */
-#undef XF86DRM_MODE

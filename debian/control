@@ -4,15 +4,34 @@ Priority: optional
 Maintainer: Ubuntu MOTU Developers <ubuntu-motu@lists.ubuntu.com>
 XSBC-Original-Maintainer: Debian X Strike Force <debian-x@lists.debian.org>
 Uploaders: Chris Lamb <lamby@debian.org>, Matthew Johnson <mjj29@debian.org>
-Build-Depends: debhelper (>= 7), pkg-config, xserver-xorg-dev (>= 2:1.2.99.902), x11proto-video-dev, x11proto-core-dev, x11proto-fonts-dev, x11proto-randr-dev (>= 1.2), x11proto-render-dev, x11proto-xext-dev, libdrm-dev (>= 2.4.16~), x11proto-xf86dri-dev, x11proto-gl-dev, mesa-common-dev, automake, libtool, xutils-dev, xserver-xorg-dev, quilt
-Standards-Version: 3.8.2
+Build-Depends: debhelper (>= 7),
+ pkg-config,
+ xserver-xorg-dev (>= 2:1.7),
+ x11proto-video-dev,
+ x11proto-core-dev,
+ x11proto-fonts-dev,
+ x11proto-randr-dev (>= 1.2),
+ x11proto-render-dev,
+ x11proto-xext-dev,
+ libdrm-dev (>= 2.4.17-1ubuntu1~),
+ x11proto-xf86dri-dev,
+ x11proto-gl-dev,
+ mesa-common-dev,
+ automake,
+ libtool,
+ xutils-dev,
+ quilt
+Standards-Version: 3.8.4
 Homepage: http://nouveau.freedesktop.org/wiki/
 Vcs-Git: git://git.debian.org/git/pkg-xorg/driver/xserver-xorg-video-nouveau
 Vcs-Browser: http://git.debian.org/?=pkg-xorg/driver/xserver-xorg-video-nouveau.git
 
 Package: xserver-xorg-video-nouveau
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, ${xserver:Depends}, nouveau-kernel-source (>= 0.0.15+git20091122)
+Depends: ${shlibs:Depends}, 
+ ${misc:Depends}, 
+ ${xserver:Depends}, 
+ linux-backports-modules-nouveau-2.6.32-12-generic | linux-backports-modules-nouveau-2.6.32-12-generic-pae | linux-backports-modules-nouveau-2.6.32-12-server
 Provides: ${xviddriver:Provides}
 Replaces: xserver-xorg (<< 6.8.2-35), nvidia-glx
 Conflicts: nvidia-glx

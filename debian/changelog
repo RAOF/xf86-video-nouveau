@@ -14,6 +14,7 @@ xserver-xorg-video-nouveau (1:0.0.15+git20100128+2630a15-0ubuntu1) UNRELEASED; u
     + Drop the Depends: on linux-nouveau-modules.  Replace with temporary 
       Depends against apw's linux-backports-modules-nouveau* packages.
     + Bump Standards version to 3.8.4.
+    + Remove the big INCOMPLETE warnings from package description.
   * debian/README.source
     + Quilt patchsys README for standards version 3.8.4 compliance
   * Change versioning to match Sarvatt's snapshot versioning.

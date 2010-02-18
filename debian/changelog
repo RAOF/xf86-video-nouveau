@@ -1,4 +1,4 @@
-xserver-xorg-video-nouveau (1:0.0.15+git20100128+2630a15-0ubuntu1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:0.0.15+git20100128+2630a15-0ubuntu1) lucid; urgency=low
 
   * New upstream snapshot
     + Too many commits to usefully list in the changelog.

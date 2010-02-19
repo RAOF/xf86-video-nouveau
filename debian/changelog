@@ -1,3 +1,16 @@
+xserver-xorg-video-nouveau (1:0.0.15+git20100219+9b4118d-0ubuntu1) UNRELEASED; urgency=low
+
+  * debian/dirs:
+    + Create initramfs-tools hook directory.
+  * debian/rules: 
+    + Update get-orig-source target to create correctly versioned tarballs
+    + Install nouveau_kms hook with executable permissions
+  * debian/nouveau_kms
+    + initramfs-tools hook to add lbm_nouveau to the initramfs, like the other
+      KMS framebuffer drivers.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 19 Feb 2010 21:22:39 +1100
+
 xserver-xorg-video-nouveau (1:0.0.15+git20100128+2630a15-0ubuntu2) lucid; urgency=low
 
   * debian/control: Add dependency on meta package

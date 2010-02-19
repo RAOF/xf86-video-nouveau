@@ -1,3 +1,11 @@
+xserver-xorg-video-nouveau (1:0.0.15+git20100128+2630a15-0ubuntu2) lucid; urgency=low
+
+  * debian/control: Add dependency on meta package
+    linux-backports-modules-nouveau-lucid-generic instead of packages with
+    obsolete abi version.
+
+ -- Bryce Harrington <bryce@ubuntu.com>  Fri, 19 Feb 2010 00:14:04 -0800
+
 xserver-xorg-video-nouveau (1:0.0.15+git20100128+2630a15-0ubuntu1) lucid; urgency=low
 
   * New upstream snapshot

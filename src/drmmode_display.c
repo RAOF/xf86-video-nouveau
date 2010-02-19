@@ -159,8 +159,9 @@ drmmode_crtc_dpms(xf86CrtcPtr drmmode_crtc, int mode)
 }
 
 void
-drmmode_fbcon_copy(ScrnInfoPtr pScrn)
+drmmode_fbcon_copy(ScreenPtr pScreen)
 {
+	ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
 	xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
 	NVPtr pNv = NVPTR(pScrn);
 	ExaDriverPtr exa = pNv->EXADriverPtr;
@@ -212,7 +213,7 @@ drmmode_fbcon_copy(ScrnInfoPtr pScrn)
 		return;
 	}
 
-	pspix = drmmode_pixmap_wrap(pScrn->pScreen, fb->width, fb->height,
+	pspix = drmmode_pixmap_wrap(pScreen, fb->width, fb->height,
 				    fb->depth, fb->bpp, fb->pitch, bo);
 	nouveau_bo_ref(NULL, &bo);
 	drmFree(fb);
@@ -222,14 +223,14 @@ drmmode_fbcon_copy(ScrnInfoPtr pScrn)
 		return;
 	}
 
-	pdpix = drmmode_pixmap_wrap(pScrn->pScreen, pScrn->virtualX,
+	pdpix = drmmode_pixmap_wrap(pScreen, pScrn->virtualX,
 				    pScrn->virtualY, pScrn->depth,
 				    pScrn->bitsPerPixel, pScrn->displayWidth *
 				    pScrn->bitsPerPixel / 8, pNv->scanout);
 	if (!pdpix) {
 		xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
 			   "Failed to init scanout pixmap for fbcon mirror\n");
-		pScrn->pScreen->DestroyPixmap(pspix);
+		pScreen->DestroyPixmap(pspix);
 		return;
 	}
 
@@ -244,8 +245,8 @@ drmmode_fbcon_copy(ScrnInfoPtr pScrn)
 	nouveau_bo_map(pNv->scanout, NOUVEAU_BO_RDWR);
 	nouveau_bo_unmap(pNv->scanout);
 
-	pScrn->pScreen->DestroyPixmap(pdpix);
-	pScrn->pScreen->DestroyPixmap(pspix);
+	pScreen->DestroyPixmap(pdpix);
+	pScreen->DestroyPixmap(pspix);
 }
 
 static Bool
@@ -257,9 +258,6 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 	xf86CrtcConfigPtr   xf86_config = XF86_CRTC_CONFIG_PTR(crtc->scrn);
 	drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
 	drmmode_ptr drmmode = drmmode_crtc->drmmode;
-	int saved_x, saved_y;
-	Rotation saved_rotation;
-	DisplayModeRec saved_mode;
 	uint32_t *output_ids;
 	int output_count = 0;
 	int ret = TRUE;
@@ -282,24 +280,12 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 		}
 	}
 
-	saved_mode = crtc->mode;
-	saved_x = crtc->x;
-	saved_y = crtc->y;
-	saved_rotation = crtc->rotation;
-
-	crtc->mode = *mode;
-	crtc->x = x;
-	crtc->y = y;
-	crtc->rotation = rotation;
-#if XORG_VERSION_CURRENT >= XORG_VERSION_NUMERIC(1,5,99,0,0)
-	crtc->transformPresent = FALSE;
-#endif
+	if (!xf86CrtcRotate(crtc))
+		return FALSE;
 
 	output_ids = xcalloc(sizeof(uint32_t), xf86_config->num_output);
-	if (!output_ids) {
-		ret = FALSE;
-		goto done;
-	}
+	if (!output_ids)
+		return FALSE;
 
 	for (i = 0; i < xf86_config->num_output; i++) {
 		xf86OutputPtr output = xf86_config->output[i];
@@ -314,14 +300,6 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 		output_count++;
 	}
 
-#if XORG_VERSION_CURRENT < XORG_VERSION_NUMERIC(1,5,99,0,0)
-	if (!xf86CrtcRotate(crtc, mode, rotation))
-		goto done;
-#else
-	if (!xf86CrtcRotate(crtc))
-		goto done;
-#endif
-
 	drmmode_ConvertToKMode(crtc->scrn, &kmode, mode);
 
 	fb_id = drmmode->fb_id;
@@ -333,11 +311,13 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 
 	ret = drmModeSetCrtc(drmmode->fd, drmmode_crtc->mode_crtc->crtc_id,
 			     fb_id, x, y, output_ids, output_count, &kmode);
-	if (ret)
+	xfree(output_ids);
+
+	if (ret) {
 		xf86DrvMsg(crtc->scrn->scrnIndex, X_ERROR,
 			   "failed to set mode: %s", strerror(-ret));
-	else
-		ret = TRUE;
+		return FALSE;
+	}
 
 	/* Work around some xserver stupidity */
 	for (i = 0; i < xf86_config->num_output; i++) {
@@ -349,93 +329,12 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 		drmmode_output_dpms(output, DPMSModeOn);
 	}
 
-#if XF86_CRTC_VERSION >= 3
 	crtc->funcs->gamma_set(crtc, crtc->gamma_red, crtc->gamma_green,
 			       crtc->gamma_blue, crtc->gamma_size);
-	crtc->active = TRUE;
-#endif
 
 	xf86_reload_cursors(crtc->scrn->pScreen);
 
-done:
-	if (!ret) {
-		crtc->x = saved_x;
-		crtc->y = saved_y;
-		crtc->rotation = saved_rotation;
-		crtc->mode = saved_mode;
-	}
-	return ret;
-}
-
-#define SOURCE_MASK_INTERLEAVE 32
-#define TRANSPARENT_PIXEL   0
-
-/*
- * Convert a source/mask bitmap cursor to an ARGB cursor, clipping or
- * padding as necessary. source/mask are assumed to be alternated each
- * SOURCE_MASK_INTERLEAVE bits.
- */
-void
-nv_cursor_convert_cursor(uint32_t *src, void *dst, int src_stride, int dst_stride,
-			 int bpp, uint32_t fg, uint32_t bg)
-{
-	int width = min(src_stride, dst_stride);
-	uint32_t b, m, pxval;
-	int i, j, k;
-
-	for (i = 0; i < width; i++) {
-		for (j = 0; j < width / SOURCE_MASK_INTERLEAVE; j++) {
-			int src_off = i*src_stride/SOURCE_MASK_INTERLEAVE + j;
-			int dst_off = i*dst_stride + j*SOURCE_MASK_INTERLEAVE;
-
-			b = src[2*src_off];
-			m = src[2*src_off + 1];
-
-			for (k = 0; k < SOURCE_MASK_INTERLEAVE; k++) {
-				pxval = TRANSPARENT_PIXEL;
-#if X_BYTE_ORDER == X_BIG_ENDIAN
-				if (m & 0x80000000)
-					pxval = (b & 0x80000000) ? fg : bg;
-				b <<= 1;
-				m <<= 1;
-#else
-				if (m & 1)
-					pxval = (b & 1) ? fg : bg;
-				b >>= 1;
-				m >>= 1;
-#endif
-				if (bpp == 32)
-					((uint32_t *)dst)[dst_off + k] = pxval;
-				else
-					((uint16_t *)dst)[dst_off + k] = pxval;
-			}
-		}
-	}
-}
-
-static void
-drmmode_reload_cursor_image(xf86CrtcPtr crtc)
-{
-	NVPtr pNv = NVPTR(crtc->scrn);
-	xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(crtc->scrn);
-	drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
-	struct nouveau_bo *bo = drmmode_crtc->cursor;
-	drmmode_ptr drmmode = drmmode_crtc->drmmode;
-
-	nouveau_bo_map(bo, NOUVEAU_BO_WR);
-	nv_cursor_convert_cursor(pNv->curImage, bo->map, nv_cursor_width(pNv),
-				 64, 32, config->cursor_fg | (0xff << 24),
-				 config->cursor_bg | (0xff << 24));
-	nouveau_bo_unmap(bo);
-
-	drmModeSetCursor(drmmode->fd, drmmode_crtc->mode_crtc->crtc_id,
-			bo->handle, 64, 64);
-}
-
-static void
-drmmode_set_cursor_colors (xf86CrtcPtr crtc, int bg, int fg)
-{
-	drmmode_reload_cursor_image(crtc);
+	return TRUE;
 }
 
 static void
@@ -448,30 +347,32 @@ drmmode_set_cursor_position (xf86CrtcPtr crtc, int x, int y)
 }
 
 static void
-drmmode_load_cursor_image (xf86CrtcPtr crtc, CARD8 *image)
+convert_cursor(CARD32 *dst, CARD32 *src, int dw, int sw)
 {
-	NVPtr pNv = NVPTR(crtc->scrn);
+	int i, j;
 
-	/* save copy of image for colour changes */
-	memcpy(pNv->curImage, image, nv_cursor_pixels(pNv)/4);
-
-	drmmode_reload_cursor_image(crtc);
+	for (j = 0;  j < sw; j++) {
+		for (i = 0; i < sw; i++) {
+			dst[j * dw + i] = src[j * sw + i];
+		}
+	}
 }
 
 static void
 drmmode_load_cursor_argb (xf86CrtcPtr crtc, CARD32 *image)
 {
+	NVPtr pNv = NVPTR(crtc->scrn);
 	drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
 	struct nouveau_bo *cursor = drmmode_crtc->cursor;
 	drmmode_ptr drmmode = drmmode_crtc->drmmode;
 
 	nouveau_bo_map(cursor, NOUVEAU_BO_WR);
-	memcpy(cursor->map, image, 64*64*4);
+	convert_cursor(cursor->map, image, 64, nv_cursor_width(pNv));
 	nouveau_bo_unmap(cursor);
 
 	if (drmmode_crtc->cursor_visible) {
 		drmModeSetCursor(drmmode->fd, drmmode_crtc->mode_crtc->crtc_id,
-				cursor->handle, 64, 64);
+				 cursor->handle, 64, 64);
 	}
 }
 
@@ -607,17 +508,14 @@ drmmode_gamma_set(xf86CrtcPtr crtc, CARD16 *red, CARD16 *green, CARD16 *blue,
 static const xf86CrtcFuncsRec drmmode_crtc_funcs = {
 	.dpms = drmmode_crtc_dpms,
 	.set_mode_major = drmmode_set_mode_major,
-	.set_cursor_colors = drmmode_set_cursor_colors,
 	.set_cursor_position = drmmode_set_cursor_position,
 	.show_cursor = drmmode_show_cursor,
 	.hide_cursor = drmmode_hide_cursor,
-	.load_cursor_image = drmmode_load_cursor_image,
 	.load_cursor_argb = drmmode_load_cursor_argb,
 	.shadow_create = drmmode_crtc_shadow_create,
 	.shadow_allocate = drmmode_crtc_shadow_allocate,
 	.shadow_destroy = drmmode_crtc_shadow_destroy,
 	.gamma_set = drmmode_gamma_set,
-	.destroy = NULL, /* XXX */
 };
 
 
@@ -753,9 +651,6 @@ drmmode_output_dpms(xf86OutputPtr output, int mode)
 	drmModePropertyPtr props;
 	drmmode_ptr drmmode = drmmode_output->drmmode;
 	int mode_id = -1, i;
-
-	if (!NVPTR(output->scrn)->allow_dpms)
-		return;
 
 	for (i = 0; i < koutput->count_props; i++) {
 		props = drmModeGetProperty(drmmode->fd, koutput->props[i]);
@@ -944,7 +839,6 @@ drmmode_output_set_property(xf86OutputPtr output, Atom property,
 	return TRUE;
 }
 
-#ifdef RANDR_13_INTERFACE
 static Bool
 drmmode_output_get_property(xf86OutputPtr output, Atom property)
 {
@@ -993,28 +887,15 @@ drmmode_output_get_property(xf86OutputPtr output, Atom property)
 
 	return FALSE;
 }
-#endif
 
 static const xf86OutputFuncsRec drmmode_output_funcs = {
 	.create_resources = drmmode_output_create_resources,
 	.dpms = drmmode_output_dpms,
-#if 0
-
-	.save = drmmode_crt_save,
-	.restore = drmmode_crt_restore,
-	.mode_fixup = drmmode_crt_mode_fixup,
-	.prepare = drmmode_output_prepare,
-	.mode_set = drmmode_crt_mode_set,
-	.commit = drmmode_output_commit,
-#endif
 	.detect = drmmode_output_detect,
 	.mode_valid = drmmode_output_mode_valid,
-
 	.get_modes = drmmode_output_get_modes,
 	.set_property = drmmode_output_set_property,
-#ifdef RANDR_13_INTERFACE
 	.get_property = drmmode_output_get_property,
-#endif
 	.destroy = drmmode_output_destroy
 };
 

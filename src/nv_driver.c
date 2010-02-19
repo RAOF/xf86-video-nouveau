@@ -315,8 +315,6 @@ NVAdjustFrame(int scrnIndex, int x, int y, int flags)
 /*
  * This is called when VT switching back to the X server.  Its job is
  * to reinitialise the video mode.
- *
- * We may wish to unmap video/MMIO memory too.
  */
 
 /* Mandatory */
@@ -333,13 +331,8 @@ NVEnterVT(int scrnIndex, int flags)
 	if (ret)
 		ErrorF("Unable to get master: %d\n", ret);
 
-	if (!pNv->NoAccel)
-		NVAccelCommonInit(pScrn);
-
-	pNv->allow_dpms = FALSE;
 	if (!xf86SetDesiredModes(pScrn))
 		return FALSE;
-	pNv->allow_dpms = TRUE;
 
 	if (pNv->overlayAdaptor && pNv->Architecture != NV_ARCH_04)
 		NV10WriteOverlayParameters(pScrn);
@@ -350,8 +343,6 @@ NVEnterVT(int scrnIndex, int flags)
 /*
  * This is called when VT switching away from the X server.  Its job is
  * to restore the previous (text) mode.
- *
- * We may wish to remap video/MMIO memory too.
  */
 
 /* Mandatory */
@@ -509,6 +500,7 @@ NVCloseDRM(ScrnInfoPtr pScrn)
 	NVPtr pNv = NVPTR(pScrn);
 
 	nouveau_device_close(&pNv->dev);
+	drmFree(pNv->drm_device_name);
 }
 
 static Bool
@@ -562,7 +554,6 @@ NVPreInitDRM(ScrnInfoPtr pScrn)
 	if (!ret) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "[drm] error opening the drm\n");
-		xfree(bus_id);
 		return FALSE;
 	}
 
@@ -573,6 +564,8 @@ NVPreInitDRM(ScrnInfoPtr pScrn)
 			   "[drm] error creating device\n");
 		return FALSE;
 	}
+
+	pNv->drm_device_name = drmGetDeviceNameFromFd(DRIMasterFD(pScrn));
 
 	return TRUE;
 }
@@ -594,12 +587,6 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 
 		i = pEnt->index;
 		xfree(pEnt);
-
-		if (xf86LoadSubModule(pScrn, "vbe")) {
-			vbeInfoPtr pVbe = VBEInit(NULL, i);
-			ConfiguredMonitor = vbeDoEDID(pVbe, NULL);
-			vbeFree(pVbe);
-		}
 
 		return TRUE;
 	}
@@ -731,11 +718,6 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 	if (pScrn->defaultVisual != TrueColor) {
 		NVPreInitFail("Given default visual (%s) is not supported at depth %d\n",
 			      xf86GetVisualName(pScrn->defaultVisual), pScrn->depth);
-	}
-
-	/* The vgahw module should be loaded here when needed */
-	if (!xf86LoadSubModule(pScrn, "vgahw")) {
-		NVPreInitFail("\n");
 	}
 
 	/* We use a programmable clock */
@@ -905,7 +887,7 @@ NVMapMem(ScrnInfoPtr pScrn)
 }
 
 /*
- * Unmap the framebuffer and MMIO memory.
+ * Unmap the framebuffer and offscreen memory.
  */
 
 static Bool
@@ -1158,12 +1140,12 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	pNv->BlockHandler = pScreen->BlockHandler;
 	pScreen->BlockHandler = NVBlockHandler;
 
-	pScrn->vtSema = TRUE;
-	pScrn->pScreen = pScreen;
-	drmmode_fbcon_copy(pScrn);
+	drmmode_fbcon_copy(pScreen);
 
 	if (!NVEnterVT(pScrn->scrnIndex, 0))
 		return FALSE;
+	pScrn->vtSema = TRUE;
+	pScrn->pScreen = pScreen;
 
 	xf86DPMSInit(pScreen, xf86DPMSSet, 0);
 

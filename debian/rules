@@ -67,7 +67,6 @@ install: build
 	dh_testroot
 	dh_prep
 	dh_installdirs
-	install -m755 debian/nouveau_kms debian/tmp/usr/share/initramfs-tools/hooks
 
 	cd obj-$(DEB_BUILD_GNU_TYPE) && $(MAKE) DESTDIR=$(CURDIR)/debian/tmp install
 
@@ -77,6 +76,7 @@ binary-arch: build install serverabi
 	dh_installdocs
 	dh_installchangelogs
 	dh_install --sourcedir=debian/tmp --list-missing
+	install -m755 debian/nouveau_kms debian/xserver-xorg-video-nouveau/usr/share/initramfs-tools/hooks
 	dh_link
 	dh_strip
 	dh_compress

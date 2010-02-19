@@ -1,5 +1,6 @@
-xserver-xorg-video-nouveau (1:0.0.15+git20100219+9b4118d-0ubuntu1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:0.0.15+git20100219+9b4118d-0ubuntu1) lucid; urgency=low
 
+  [ Christopher James Halse Rogers ]
   * debian/dirs:
     + Create initramfs-tools hook directory.
   * debian/rules: 
@@ -15,7 +16,7 @@ xserver-xorg-video-nouveau (1:0.0.15+git20100219+9b4118d-0ubuntu1) UNRELEASED; u
   * debian/control:
     + Tighten libdrm-dev build-depend to >= 2.4.18~ for nouveau_class.h updates
 
- -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 19 Feb 2010 23:19:00 +1100
+ -- Timo Aaltonen <tjaalton@ubuntu.com>  Fri, 19 Feb 2010 14:49:30 +0200
 
 xserver-xorg-video-nouveau (1:0.0.15+git20100128+2630a15-0ubuntu2) lucid; urgency=low
 

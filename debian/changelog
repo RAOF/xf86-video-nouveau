@@ -8,6 +8,10 @@ xserver-xorg-video-nouveau (1:0.0.15+git20100219+9b4118d-0ubuntu1) UNRELEASED; u
   * debian/nouveau_kms
     + initramfs-tools hook to add lbm_nouveau to the initramfs, like the other
       KMS framebuffer drivers.
+  * debian/postinst:
+  * debian/postrm:
+    + Trigger update-initramfs on install and removal to ensure kms hook is 
+      used.
 
  -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 19 Feb 2010 21:22:39 +1100
 

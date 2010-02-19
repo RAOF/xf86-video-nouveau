@@ -12,8 +12,10 @@ xserver-xorg-video-nouveau (1:0.0.15+git20100219+9b4118d-0ubuntu1) UNRELEASED; u
   * debian/postrm:
     + Trigger update-initramfs on install and removal to ensure kms hook is 
       used.
+  * debian/control:
+    + Tighten libdrm-dev build-depend to >= 2.4.18~ for nouveau_class.h updates
 
- -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 19 Feb 2010 21:22:39 +1100
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 19 Feb 2010 23:19:00 +1100
 
 xserver-xorg-video-nouveau (1:0.0.15+git20100128+2630a15-0ubuntu2) lucid; urgency=low
 

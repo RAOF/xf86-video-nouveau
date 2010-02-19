@@ -67,6 +67,7 @@ install: build
 	dh_testroot
 	dh_prep
 	dh_installdirs
+	install -m755 debian/nouveau_kms debian/tmp/usr/share/initramfs-tools/hooks
 
 	cd obj-$(DEB_BUILD_GNU_TYPE) && $(MAKE) DESTDIR=$(CURDIR)/debian/tmp install
 

@@ -1,3 +1,10 @@
+xserver-xorg-video-nouveau (1:0.0.15+git20100219+9b4118d-0ubuntu3) UNRELEASED; urgency=low
+
+  * debian/patches/02_nouveau_bgnr
+    + Add patch from Fedora package enabling smooth Plymouth->GDM transition.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 26 Feb 2010 15:49:20 +1100
+
 xserver-xorg-video-nouveau (1:0.0.15+git20100219+9b4118d-0ubuntu2) lucid; urgency=low
 
   * debian/control

@@ -1,3 +1,11 @@
+xserver-xorg-video-nouveau (1:0.0.15+git20100219+9b4118d-0ubuntu2) lucid; urgency=low
+
+  * debian/control
+    + Add -pae as fulfilling dependency
+      (LP: #524792)
+
+ -- Bryce Harrington <bryce@ubuntu.com>  Mon, 22 Feb 2010 21:32:09 -0800
+
 xserver-xorg-video-nouveau (1:0.0.15+git20100219+9b4118d-0ubuntu1) lucid; urgency=low
 
   [ Christopher James Halse Rogers ]

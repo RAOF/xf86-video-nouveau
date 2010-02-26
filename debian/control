@@ -31,7 +31,7 @@ Architecture: any
 Depends: ${shlibs:Depends}, 
  ${misc:Depends}, 
  ${xserver:Depends}, 
- linux-backports-modules-nouveau-lucid-generic
+ linux-backports-modules-nouveau-lucid-generic | linux-backports-modules-nouveau-lucid-generic-pae
 Provides: ${xviddriver:Provides}
 Replaces: xserver-xorg (<< 6.8.2-35), nvidia-glx
 Conflicts: nvidia-glx

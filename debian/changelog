@@ -1,3 +1,25 @@
+xserver-xorg-video-nouveau (1:0.0.15+git20100219+9b4118d-0ubuntu4) lucid; urgency=low
+
+  * debian/control:
+    + Drop dependency on linux-backports-modules-nouveau-lucid-FLAVOUR.  As of
+      2.6.32-16 nouveau is in the main kernel image.  Fixes unsatisfiable 
+      depends (LP: #534978) and prevents the alternate-installer being
+      confused (LP: #526422).
+    + Drop ancient, unnecessary conflicts/replaces on non-existent nvidia-glx
+      virtual package.
+  * debian/nouveau_kms:
+  * debian/rules:
+    + Drop nouveau_kms initramfs-tools hook.  Now that nouveau is in the main
+      kernel image the existing framebuffer hook correctly copies nouveau into
+      the initramfs.
+  * debian/dirs:
+    + Drop, no longer need initramfs-tools hook directory
+  * debian/postinst:
+  * debian/postrm:
+    + Drop; update-initramfs trigger is no longer necessary.
+  
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 10 Mar 2010 08:51:31 +1100
+
 xserver-xorg-video-nouveau (1:0.0.15+git20100219+9b4118d-0ubuntu3) lucid; urgency=low
 
   * debian/patches/02_nouveau_bgnr

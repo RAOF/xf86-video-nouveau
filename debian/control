@@ -11,7 +11,7 @@ Vcs-Browser: http://git.debian.org/?=pkg-xorg/driver/xserver-xorg-video-nouveau.
 
 Package: xserver-xorg-video-nouveau
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, ${xserver:Depends}, linux-nouveau-modules
+Depends: ${shlibs:Depends}, ${misc:Depends}, ${xserver:Depends}
 Provides: ${xviddriver:Provides}
 Replaces: xserver-xorg (<< 6.8.2-35), nvidia-glx
 Conflicts: nvidia-glx
@@ -19,13 +19,8 @@ Description: X.Org X server -- Nouveau display driver (experimental)
  This driver for the X.Org X server (see xserver-xorg for a further description)
  provides support for NVIDIA Riva, TNT, GeForce, and Quadro cards.
  .
- Note that these drivers are INCOMPLETE, and are only really useful for testing
- at this point. People needing a stable driver should use the "nv" driver
- instead. Although the upstream nouveau drivers provide some 3D support, these
- packages do not include the necessary files. Users requiring 3D support should
- use the non-free "nvidia" driver.
+ Although the nouveau project aims to provide full 3D support it is not yet
+ complete, and these packages do not include any 3D support.
+ Users requiring 3D support should use the non-free "nvidia" driver.
  .
  This package is built from the FreeDesktop.org xf86-video-nouveau driver.
- .
- Users wishing to install these drivers should first use module-assistant to
- build the drm kernel modules (via ``module-assistant auto-install drm'').

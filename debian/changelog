@@ -2,6 +2,8 @@ xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-1) UNRELEASED; urgency=
 
   * New upstream snapshot.
   * Update xsfbs to 2a1b4553fc2c5ba982e8bb8be4c504e28ce79ed1.
+  * Remove dependency on linux-nouveau-modules, current Debian kernels
+    already include a nouveau module.
 
  -- Sven Joachim <svenjoac@gmx.de>  Mon, 29 Mar 2010 10:10:00 +0200
 

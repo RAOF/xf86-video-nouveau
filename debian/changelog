@@ -6,6 +6,9 @@ xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-1) UNRELEASED; urgency=
     already include a nouveau module.
   * Fold long (Build-)Depends lines in debian/control.
   * Bump Build-dependencies on xserver-xorg-dev and libdrm-dev.
+  * Drop conflict with nvidia-glx.  As long as one does not run
+    applications that require a library that nvidia-glx diverts, the
+    drivers can coexist peacefully.
 
  -- Sven Joachim <svenjoac@gmx.de>  Mon, 29 Mar 2010 10:10:00 +0200
 

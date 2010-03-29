@@ -64,6 +64,7 @@ NV30SurfaceFormat[] = {
 	{ PICT_x8b8g8r8	, 0x14f },
 	{ PICT_r5g6b5	, 0x143 },
 	{ PICT_a8       , 0x149 },
+	{ PICT_x1r5g5b5	, 0x142 },
 };
 
 static nv_pict_surface_format_t *
@@ -123,18 +124,21 @@ NV30EXAHackupA8Shaders(ScrnInfoPtr pScrn)
 }
 
 /* should be in nouveau_reg.h at some point.. */
-#define NV34TCL_TX_SWIZZLE_UNIT_S0_X_SHIFT	14
 #define NV34TCL_TX_SWIZZLE_UNIT_S0_X_ZERO	 0
 #define NV34TCL_TX_SWIZZLE_UNIT_S0_X_ONE	 1
 #define NV34TCL_TX_SWIZZLE_UNIT_S0_X_S1		 2
+
+#define NV34TCL_TX_SWIZZLE_UNIT_S0_X_SHIFT	14
 #define NV34TCL_TX_SWIZZLE_UNIT_S0_Y_SHIFT	12
 #define NV34TCL_TX_SWIZZLE_UNIT_S0_Z_SHIFT	10
 #define NV34TCL_TX_SWIZZLE_UNIT_S0_W_SHIFT	 8
-#define NV34TCL_TX_SWIZZLE_UNIT_S1_X_SHIFT	 6
+
 #define NV34TCL_TX_SWIZZLE_UNIT_S1_X_X		 3
 #define NV34TCL_TX_SWIZZLE_UNIT_S1_X_Y		 2
 #define NV34TCL_TX_SWIZZLE_UNIT_S1_X_Z		 1
 #define NV34TCL_TX_SWIZZLE_UNIT_S1_X_W		 0
+
+#define NV34TCL_TX_SWIZZLE_UNIT_S1_X_SHIFT	 6
 #define NV34TCL_TX_SWIZZLE_UNIT_S1_Y_SHIFT	 4
 #define NV34TCL_TX_SWIZZLE_UNIT_S1_Z_SHIFT	 2
 #define NV34TCL_TX_SWIZZLE_UNIT_S1_W_SHIFT	 0
@@ -159,11 +163,21 @@ NV30TextureFormat[] = {
 	_(a8b8g8r8, 0x12,   S1,   S1,   S1,   S1, Z, Y, X, W),
 	_(x8r8g8b8, 0x12,   S1,   S1,   S1,  ONE, X, Y, Z, W),
 	_(x8b8g8r8, 0x12,   S1,   S1,   S1,  ONE, Z, Y, X, W),
+
 	_(a1r5g5b5, 0x10,   S1,   S1,   S1,   S1, X, Y, Z, W),
 	_(x1r5g5b5, 0x10,   S1,   S1,   S1,  ONE, X, Y, Z, W),
+	_(a1b5g5r5, 0x10,   S1,   S1,   S1,   S1, Z, Y, X, W),
+	_(x1b5g5r5, 0x10,   S1,   S1,   S1,  ONE, Z, Y, X, W),
+
 	_(x4r4g4b4, 0x1d,   S1,   S1,   S1,  ONE, X, Y, Z, W),
 	_(a4r4g4b4, 0x1d,   S1,   S1,   S1,   S1, X, Y, Z, W),
+	_(x4b4g4r4, 0x1d,   S1,   S1,   S1,  ONE, Z, Y, X, W),
+	_(a4b4g4r4, 0x1d,   S1,   S1,   S1,   S1, Z, Y, X, W),
+
 	_(      a8, 0x1b, ZERO, ZERO, ZERO,   S1, X, X, X, X),
+
+	_(  r5g6b5, 0x11,   S1,   S1,   S1,  ONE, X, Y, Z, W),
+	_(  b5g6r5, 0x11,   S1,   S1,   S1,  ONE, Z, Y, X, W),
 };
 
 
@@ -291,9 +305,9 @@ NV30EXATexture(ScrnInfoPtr pScrn, PixmapPtr pPix, PicturePtr pPict, int unit)
 	struct nouveau_channel *chan = pNv->chan;
 	struct nouveau_grobj *rankine = pNv->Nv3D;
 	struct nouveau_bo *bo = nouveau_pixmap_bo(pPix);
-	unsigned delta = nouveau_pixmap_offset(pPix);
 	nv_pict_texture_format_t *fmt;
 	uint32_t card_filter, card_repeat;
+	uint32_t tex_reloc = NOUVEAU_BO_VRAM | NOUVEAU_BO_GART | NOUVEAU_BO_RD;
 	NV30EXA_STATE;
 
 	fmt = NV30_GetPictTextureFormat(pPict->format);
@@ -308,16 +322,16 @@ NV30EXATexture(ScrnInfoPtr pScrn, PixmapPtr pPix, PicturePtr pPict, int unit)
 		card_filter = 1;
 
 	BEGIN_RING(chan, rankine, NV34TCL_TX_OFFSET(unit), 8);
-	OUT_RELOCl(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_RD);
-
-	OUT_RING  (chan, NV34TCL_TX_FORMAT_DIMS_2D |
-			(fmt->card_fmt << NV34TCL_TX_FORMAT_FORMAT_SHIFT) |
-			(1 << 16) |
-			(log2i(pPix->drawable.width)  << NV34TCL_TX_FORMAT_BASE_SIZE_U_SHIFT) |
-			(log2i(pPix->drawable.height) << NV34TCL_TX_FORMAT_BASE_SIZE_V_SHIFT) |
-			8 |
-			NV34TCL_TX_FORMAT_DMA0);
-
+	if (OUT_RELOCl(chan, bo, 0, tex_reloc) ||
+	    OUT_RELOCd(chan, bo, NV34TCL_TX_FORMAT_DIMS_2D | (1 << 16) | 8 |
+		       (fmt->card_fmt << NV34TCL_TX_FORMAT_FORMAT_SHIFT) |
+		       (log2i(pPix->drawable.width) <<
+			NV34TCL_TX_FORMAT_BASE_SIZE_U_SHIFT) |
+		       (log2i(pPix->drawable.height) <<
+			NV34TCL_TX_FORMAT_BASE_SIZE_V_SHIFT),
+		       tex_reloc | NOUVEAU_BO_OR,
+		       NV34TCL_TX_FORMAT_DMA0, NV34TCL_TX_FORMAT_DMA1))
+		return FALSE;
 	OUT_RING  (chan, (card_repeat << NV34TCL_TX_WRAP_S_SHIFT) |
 			(card_repeat << NV34TCL_TX_WRAP_T_SHIFT) |
 			(card_repeat << NV34TCL_TX_WRAP_R_SHIFT));
@@ -345,7 +359,6 @@ NV30_SetupSurface(ScrnInfoPtr pScrn, PixmapPtr pPix, PicturePtr pPict)
 	struct nouveau_channel *chan = pNv->chan;
 	struct nouveau_grobj *rankine = pNv->Nv3D;
 	struct nouveau_bo *bo = nouveau_pixmap_bo(pPix);
-	unsigned delta = nouveau_pixmap_offset(pPix);
 	nv_pict_surface_format_t *fmt;
 
 	fmt = NV30_GetPictSurfaceFormat(pPict->format);
@@ -359,19 +372,25 @@ NV30_SetupSurface(ScrnInfoPtr pScrn, PixmapPtr pPix, PicturePtr pPict)
 	BEGIN_RING(chan, rankine, NV34TCL_RT_FORMAT, 3);
 	OUT_RING  (chan, fmt->card_fmt); /* format */
 	OUT_RING  (chan, pitch << 16 | pitch);
-	OUT_RELOCl(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
+	if (OUT_RELOCl(chan, bo, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR))
+		return FALSE;
 
 	return TRUE;
 }
 
 static Bool
-NV30EXACheckCompositeTexture(PicturePtr pPict)
+NV30EXACheckCompositeTexture(PicturePtr pPict, PicturePtr pdPict, int op)
 {
 	nv_pict_texture_format_t *fmt;
-	int w = pPict->pDrawable->width;
-	int h = pPict->pDrawable->height;
+	int w, h;
 
-	if ((w > 4096) || (h>4096))
+	if (!pPict->pDrawable)
+		NOUVEAU_FALLBACK("Solid and gradient pictures unsupported\n");
+
+	w = pPict->pDrawable->width;
+	h = pPict->pDrawable->height;
+
+	if ((w > 4096) || (h > 4096))
 		NOUVEAU_FALLBACK("picture too large, %dx%d\n", w, h);
 
 	fmt = NV30_GetPictTextureFormat(pPict->format);
@@ -386,6 +405,16 @@ NV30EXACheckCompositeTexture(PicturePtr pPict)
 	if (!(w==1 && h==1) && pPict->repeat && pPict->repeatType != RepeatNone)
 		NOUVEAU_FALLBACK("repeat 0x%x not supported (surface %dx%d)\n",
 				 pPict->repeatType,w,h);
+
+	/* Opengl and Render disagree on what should be sampled outside an XRGB 
+	 * texture (with no repeating). Opengl has a hardcoded alpha value of 
+	 * 1.0, while render expects 0.0. We assume that clipping is done for 
+	 * untranformed sources.
+	 */
+	if (NV30PictOp[op].src_alpha && !pPict->repeat &&
+		pPict->transform && (PICT_FORMAT_A(pPict->format) == 0)
+		&& (PICT_FORMAT_A(pdPict->format) != 0))
+		NOUVEAU_FALLBACK("REPEAT_NONE unsupported for XRGB source\n");
 
 	return TRUE;
 }
@@ -407,14 +436,14 @@ NV30EXACheckComposite(int op, PicturePtr psPict,
 		NOUVEAU_FALLBACK("dst picture format 0x%08x not supported\n",
 				pdPict->format);
 
-	if (!NV30EXACheckCompositeTexture(psPict))
+	if (!NV30EXACheckCompositeTexture(psPict, pdPict, op))
 		NOUVEAU_FALLBACK("src picture\n");
 	if (pmPict) {
 		if (pmPict->componentAlpha &&
 				PICT_FORMAT_RGB(pmPict->format) &&
 				opr->src_alpha && opr->src_card_op != BF(ZERO))
 			NOUVEAU_FALLBACK("mask CA + SA\n");
-		if (!NV30EXACheckCompositeTexture(pmPict))
+		if (!NV30EXACheckCompositeTexture(pmPict, pdPict, op))
 			NOUVEAU_FALLBACK("mask picture\n");
 	}
 
@@ -447,7 +476,8 @@ NV30EXAPrepareComposite(int op, PicturePtr psPict,
 	int fpid = NV30EXA_FPID_PASS_COL0;
 	NV30EXA_STATE;
 
-	WAIT_RING(chan, 128);
+	if (MARK_RING(chan, 128, 1 + 1 + 4))
+		return FALSE;
 
 	blend = NV30_GetPictOpRec(op);
 
@@ -455,8 +485,11 @@ NV30EXAPrepareComposite(int op, PicturePtr psPict,
 			(pmPict && pmPict->componentAlpha &&
 			 PICT_FORMAT_RGB(pmPict->format)));
 
-	NV30_SetupSurface(pScrn, pdPix, pdPict);
-	NV30EXATexture(pScrn, psPix, psPict, 0);
+	if (!NV30_SetupSurface(pScrn, pdPix, pdPict) ||
+	    !NV30EXATexture(pScrn, psPix, psPict, 0)) {
+		MARK_UNDO(chan);
+		return FALSE;
+	}
 
 #if 0
 #define printformat(f) ErrorF("(%xh %s %dbpp A%dR%dG%dB%d)",f,(f>>16)&0xf==2?"ARGB":"ABGR",(f>>24),(f&0xf000)>>12,(f&0xf00)>>8,(f&0xf0)>>4,f&0xf)
@@ -473,7 +506,10 @@ NV30EXAPrepareComposite(int op, PicturePtr psPict,
 #endif
 
 	if (pmPict) {
-		NV30EXATexture(pScrn, pmPix, pmPict, 1);
+		if (!NV30EXATexture(pScrn, pmPix, pmPict, 1)) {
+			MARK_UNDO(chan);
+			return FALSE;
+		}
 
 		if (pmPict->componentAlpha && PICT_FORMAT_RGB(pmPict->format)) {
 			if (blend->src_alpha)
@@ -491,10 +527,11 @@ NV30EXAPrepareComposite(int op, PicturePtr psPict,
 		state->have_mask = FALSE;
 	}
 
-	if (pdPict->format == PICT_a8)
-		NV30_LoadFragProg(pScrn, nv40_fp_map_a8[fpid]);
-	else
-		NV30_LoadFragProg(pScrn, nv40_fp_map[fpid]);
+	if (!NV30_LoadFragProg(pScrn, (pdPict->format == PICT_a8) ?
+			       nv40_fp_map_a8[fpid] : nv40_fp_map[fpid])) {
+		MARK_UNDO(chan);
+		return FALSE;
+	}
 
 	BEGIN_RING(chan, rankine, 0x23c, 1);
 	OUT_RING  (chan, pmPict?3:1);
@@ -640,7 +677,7 @@ NVAccelInitNV30TCL(ScrnInfoPtr pScrn)
 #define NV35TCL_CHIPSET_3X_MASK 0x000001e0
 #define NV34TCL_CHIPSET_3X_MASK 0x00000010
 
-	chipset = (nvReadMC(pNv, NV_PMC_BOOT_0) >> 20) & 0xff;
+	chipset = pNv->dev->chipset;
 	if ((chipset & 0xf0) != NV_ARCH_30)
 		return TRUE;
 	chipset &= 0xf;
@@ -665,9 +702,8 @@ NVAccelInitNV30TCL(ScrnInfoPtr pScrn)
 	rankine = pNv->Nv3D;
 
 	if (!pNv->shader_mem) {
-		if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_PIN |
-				   NOUVEAU_BO_MAP, 0, 0x1000,
-				   &pNv->shader_mem)) {
+		if (nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_MAP,
+				   0, 0x1000, &pNv->shader_mem)) {
 			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 				   "Couldn't alloc fragprog buffer!\n");
 			nouveau_grobj_free(&pNv->Nv3D);

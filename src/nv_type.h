@@ -2,7 +2,6 @@
 #define __NV_STRUCT_H__
 
 #include "colormapst.h"
-#include "vgaHW.h"
 #include "xf86Cursor.h"
 #include "xf86int10.h"
 #include "exa.h"
@@ -12,21 +11,11 @@
 #include "dri.h"
 #include <stdbool.h>
 #include <stdint.h>
-#include "nouveau_drm.h"
+#include "nouveau_device.h"
 #include "xf86Crtc.h"
 #else
 #error "This driver requires a DRI-enabled X server"
 #endif
-
-#include "nv_pcicompat.h"
-
-#include "nouveau_bios.h"
-
-#include "nouveau_ms.h"
-
-#include "nouveau_crtc.h"
-#include "nouveau_connector.h"
-#include "nouveau_output.h"
 
 #define NV_ARCH_03  0x03
 #define NV_ARCH_04  0x04
@@ -36,248 +25,58 @@
 #define NV_ARCH_40  0x40
 #define NV_ARCH_50  0x50
 
-#define CHIPSET_NV03     0x0010
-#define CHIPSET_NV04     0x0020
-#define CHIPSET_NV10     0x0100
-#define CHIPSET_NV11     0x0110
-#define CHIPSET_NV15     0x0150
-#define CHIPSET_NV17     0x0170
-#define CHIPSET_NV18     0x0180
-#define CHIPSET_NFORCE   0x01A0
-#define CHIPSET_NFORCE2  0x01F0
-#define CHIPSET_NV20     0x0200
-#define CHIPSET_NV25     0x0250
-#define CHIPSET_NV28     0x0280
-#define CHIPSET_NV30     0x0300
-#define CHIPSET_NV31     0x0310
-#define CHIPSET_NV34     0x0320
-#define CHIPSET_NV35     0x0330
-#define CHIPSET_NV36     0x0340
-#define CHIPSET_NV40     0x0040
-#define CHIPSET_NV41     0x00C0
-#define CHIPSET_NV43     0x0140
-#define CHIPSET_NV44     0x0160
-#define CHIPSET_NV44A    0x0220
-#define CHIPSET_NV45     0x0210
-#define CHIPSET_NV50     0x0190
-#define CHIPSET_NV84     0x0400
-#define CHIPSET_MISC_BRIDGED  0x00F0
-#define CHIPSET_G70      0x0090
-#define CHIPSET_G71      0x0290
-#define CHIPSET_G72      0x01D0
-#define CHIPSET_G73      0x0390
-// integrated GeForces (6100, 6150)
-#define CHIPSET_C51      0x0240
-// variant of C51, seems based on a G70 design
-#define CHIPSET_C512     0x03D0
-#define CHIPSET_G73_BRIDGED 0x02E0
-
-
-#undef SetBit /* some input related header also includes a macro called SetBit, which gives a lot of warnings. */
-#define BITMASK(t,b) (((unsigned)(1U << (((t)-(b)+1)))-1)  << (b))
-#define MASKEXPAND(mask) BITMASK(1?mask,0?mask)
-#define SetBF(mask,value) ((value) << (0?mask))
-#define GetBF(var,mask) (((unsigned)((var) & MASKEXPAND(mask))) >> (0?mask) )
-#define SetBitField(value,from,to) SetBF(to, GetBF(value,from))
-#define SetBit(n) (1<<(n))
-#define Set8Bits(value) ((value)&0xff)
-
 /* NV50 */
-typedef enum Head {
-	HEAD0 = 0,
-	HEAD1
-} Head;
-
-/* NV50 */
-typedef enum ORNum {
-	DAC0 = 0,
-	DAC1 = 1,
-	DAC2 = 2,
-	SOR0 = 0,
-	SOR1 = 1,
-	SOR2 = 2,
-} ORNum;
-
-typedef struct _riva_hw_state
-{
-	uint32_t bpp;
-	uint32_t width;
-	uint32_t height;
-	uint32_t interlace;
-	uint32_t repaint0;
-	uint32_t repaint1;
-	uint32_t screen;
-	uint32_t scale;
-	uint32_t dither;
-	uint32_t extra;
-	uint32_t fifo;
-	uint32_t pixel;
-	uint32_t horiz;
-	int arbitration0;
-	int arbitration1;
-	CARD32 pll;
-	CARD32 pllB;
-	uint32_t vpll;
-	uint32_t vpll2;
-	uint32_t vpllB;
-	uint32_t vpll2B;
-	uint32_t pllsel;
-	uint32_t general;
-	uint32_t crtcOwner;
-	uint32_t head;
-	uint32_t head2;
-	uint32_t cursorConfig;
-	uint32_t cursor0;
-	uint32_t cursor1;
-	uint32_t cursor2;
-	uint32_t timingH;
-	uint32_t timingV;
-	uint32_t displayV;
-	uint32_t crtcSync;
-} RIVA_HW_STATE, *NVRegPtr;
-
 typedef struct _NVRec *NVPtr;
 typedef struct _NVRec {
-    RIVA_HW_STATE       SavedReg;
-    RIVA_HW_STATE       ModeReg;
-    struct nouveau_mode_state	saved_regs;
-    struct nouveau_mode_state	set_state;
-    uint32_t saved_vga_font[4][16384];
     uint32_t              Architecture;
     EntityInfoPtr       pEnt;
-#ifndef XSERVER_LIBPCIACCESS
-	pciVideoPtr	PciInfo;
-	PCITAG		PciTag;
-#else
 	struct pci_device *PciInfo;
-#endif /* XSERVER_LIBPCIACCESS */
-    int                 Chipset;
-    int                 NVArch;
     Bool                Primary;
-    CARD32              IOAddress;
-
-    /* VRAM physical address */
-    unsigned long	VRAMPhysical;
-    /* Size of VRAM BAR */
-    unsigned long	VRAMPhysicalSize;
-    /* Accesible VRAM size (by the GPU) */
-    unsigned long	VRAMSize;
-    /* Mapped VRAM BAR */
-    void *              VRAMMap;
-    /* Accessible AGP size */
-    unsigned long	AGPSize;
 
     /* Various pinned memory regions */
-    struct nouveau_bo * FB;
-    void *              FBMap;
-    //struct nouveau_bo * FB_old; /* for KMS */
-    struct nouveau_bo * shadow[2]; /* for easy acces by exa */
-    struct nouveau_bo * Cursor;
-    struct nouveau_bo * Cursor2;
+    struct nouveau_bo * scanout;
+    struct nouveau_bo * offscreen;
+    void *              offscreen_map;
     struct nouveau_bo * GART;
 
-    struct nvbios	VBIOS;
-    struct nouveau_bios_info	*vbios;
     Bool                NoAccel;
     Bool                HWCursor;
-    Bool                FpScale;
     Bool                ShadowFB;
     unsigned char *     ShadowPtr;
     int                 ShadowPitch;
-    CARD32              MinVClockFreqKHz;
-    CARD32              MaxVClockFreqKHz;
-    CARD32              CrystalFreqKHz;
-    CARD32              RamAmountKBytes;
 
-    volatile CARD32 *REGS;
-    volatile CARD32 *FB_BAR;
-    //volatile CARD32 *PGRAPH;
-    volatile CARD8 *PCIO0;
-    volatile CARD8 *PCIO1;
-    volatile CARD8 *PVIO0;
-    volatile CARD8 *PVIO1;
-    volatile CARD8 *PDIO0;
-    volatile CARD8 *PDIO1;
-
-    uint8_t cur_head;
     ExaDriverPtr	EXADriverPtr;
-    Bool		exa_driver_pixmaps;
+    Bool                exa_force_cp;
     Bool		wfb_enabled;
+    Bool		tiled_scanout;
     ScreenBlockHandlerProcPtr BlockHandler;
+    CreateScreenResourcesProcPtr CreateScreenResources;
     CloseScreenProcPtr  CloseScreen;
-    /* Cursor */
-	uint32_t	curImage[256];
-    /* I2C / DDC */
-    xf86Int10InfoPtr    pInt10;
-    unsigned            Int10Mode;
-    I2CBusPtr           I2C;
-  void		(*VideoTimerCallback)(ScrnInfoPtr, Time);
+    void		(*VideoTimerCallback)(ScrnInfoPtr, Time);
     XF86VideoAdaptorPtr	overlayAdaptor;
     XF86VideoAdaptorPtr	blitAdaptor;
     XF86VideoAdaptorPtr	textureAdaptor[2];
     int			videoKey;
-    int			FlatPanel;
-    Bool                FPDither;
-    int                 Mobile;
-    Bool                Television;
-	int         vtOWNER;
-	Bool		crtc_active[2];
     OptionInfoPtr	Options;
-    bool                alphaCursor;
-    unsigned char       DDCBase;
-    bool                twoHeads;
-    bool		gf4_disp_arch;
-    bool                two_reg_pll;
-    Bool                fpScaler;
-    int                 fpWidth;
-    int                 fpHeight;
-    CARD32              fpSyncs;
-    Bool                usePanelTweak;
-    int                 PanelTweak;
-    Bool                LVDS;
 
     Bool                LockedUp;
 
     CARD32              currentRop;
 
-    Bool                WaitVSyncPossible;
-    Bool                BlendingPossible;
     DRIInfoPtr          pDRIInfo;
     drmVersionPtr       pLibDRMVersion;
     drmVersionPtr       pKernelDRMVersion;
 
-	Bool randr12_enable;
-	Bool kms_enable;
-
-	I2CBusPtr           pI2CBus[DCB_MAX_NUM_I2C_ENTRIES];
-	struct nouveau_encoder *encoders;
-
-#ifdef XF86DRM_MODE
 	void *drmmode; /* for KMS */
-	Bool allow_dpms;
-#endif
-
-	nouveauCrtcPtr crtc[2];
-	nouveauOutputPtr output; /* this a linked list. */
-	/* Assume a connector can exist for each i2c bus. */
-	nouveauConnectorPtr connector[DCB_MAX_NUM_I2C_ENTRIES];
-
-	struct {
-		ORNum dac;
-		ORNum sor;
-	} i2cMap[4];
-	struct {
-		Bool  present;
-		ORNum or;
-	} lvds;
 
 	/* DRM interface */
 	struct nouveau_device *dev;
-	char drm_device_name[128];
+	char *drm_device_name;
 
 	/* GPU context */
 	struct nouveau_channel *chan;
 	struct nouveau_notifier *notify0;
+	struct nouveau_notifier *vblank_sem;
 	struct nouveau_grobj *NvContextSurfaces;
 	struct nouveau_grobj *NvContextBeta1;
 	struct nouveau_grobj *NvContextBeta4;
@@ -291,6 +90,7 @@ typedef struct _NVRec {
 	struct nouveau_grobj *NvImageFromCpu;
 	struct nouveau_grobj *Nv2D;
 	struct nouveau_grobj *Nv3D;
+	struct nouveau_grobj *NvSW;
 	struct nouveau_bo *tesla_scratch;
 	struct nouveau_bo *shader_mem;
 	struct nouveau_bo *xv_filtertable_mem;
@@ -307,15 +107,6 @@ typedef struct _NVRec {
 } NVRec;
 
 #define NVPTR(p) ((NVPtr)((p)->driverPrivate))
-
-#define nvReadCurVGA(pNv, reg) NVReadVgaCrtc(pNv, pNv->cur_head, reg)
-#define nvWriteCurVGA(pNv, reg, val) NVWriteVgaCrtc(pNv, pNv->cur_head, reg, val)
-
-#define nvReadCurRAMDAC(pNv, reg) NVReadRAMDAC(pNv, pNv->cur_head, reg)
-#define nvWriteCurRAMDAC(pNv, reg, val) NVWriteRAMDAC(pNv, pNv->cur_head, reg, val)
-
-#define nvReadCurCRTC(pNv, reg) NVReadCRTC(pNv, pNv->cur_head, reg)
-#define nvWriteCurCRTC(pNv, reg, val) NVWriteCRTC(pNv, pNv->cur_head, reg, val)
 
 typedef struct _NVPortPrivRec {
 	short		brightness;
@@ -358,11 +149,13 @@ typedef struct _NVPortPrivRec {
 #define TIMER_MASK      (OFF_TIMER | FREE_TIMER)
 
 /* EXA driver-controlled pixmaps */
+#define NOUVEAU_CREATE_PIXMAP_ZETA 0x10000000
+#define NOUVEAU_CREATE_PIXMAP_TILED 0x20000000
+
 struct nouveau_pixmap {
 	struct nouveau_bo *bo;
 	void *linear;
 	unsigned size;
-	int map_refcount;
 };
 
 static inline struct nouveau_pixmap *
@@ -374,27 +167,38 @@ nouveau_pixmap(PixmapPtr ppix)
 static inline struct nouveau_bo *
 nouveau_pixmap_bo(PixmapPtr ppix)
 {
-	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
-	NVPtr pNv = NVPTR(pScrn);
+	struct nouveau_pixmap *nvpix = nouveau_pixmap(ppix);
 
-	if (pNv->exa_driver_pixmaps) {
-		struct nouveau_pixmap *nvpix = nouveau_pixmap(ppix);
-		return nvpix ? nvpix->bo : NULL;
-	}
-
-	return pNv->FB;
+	return nvpix ? nvpix->bo : NULL;
 }
 
-static inline unsigned
-nouveau_pixmap_offset(PixmapPtr ppix)
+static inline uint32_t
+nv_pitch_align(NVPtr pNv, uint32_t width, int bpp)
 {
-	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
-	NVPtr pNv = NVPTR(pScrn);
+	int mask;
 
-	if (pNv->exa_driver_pixmaps)
-		return 0;
+	if (bpp == 15)
+	        bpp = 16;
+	if (bpp == 24 || bpp == 30)
+	        bpp = 8;
 
-	return exaGetPixmapOffset(ppix);
+	/* Alignment requirements taken from the Haiku driver */
+	if (pNv->Architecture == NV_ARCH_04)
+	        mask = 128 / bpp - 1;
+	else
+	        mask = 512 / bpp - 1;
+
+	return (width + mask) & ~mask;
+}
+
+/* nv04 cursor max dimensions of 32x32 (A1R5G5B5) */
+#define NV04_CURSOR_SIZE 32
+/* limit nv10 cursors to 64x64 (ARGB8) (we could go to 64x255) */
+#define NV10_CURSOR_SIZE 64
+
+static inline int nv_cursor_width(NVPtr pNv)
+{
+	return pNv->dev->chipset >= 0x10 ? NV10_CURSOR_SIZE : NV04_CURSOR_SIZE;
 }
 
 #endif /* __NV_STRUCT_H__ */

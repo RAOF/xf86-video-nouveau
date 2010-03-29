@@ -174,22 +174,8 @@ unsigned int
 nv_window_belongs_to_crtc(ScrnInfoPtr pScrn, int x, int y, int w, int h)
 {
 	xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
-	NVPtr pNv = NVPTR(pScrn);
-	int i;
 	unsigned int mask = 0;
-
-	if (!pNv->randr12_enable) {
-		/*
-		 * Without RandR 1.2, we'll just return which CRTCs
-		 * are active.
-		 */
-		if (pNv->crtc_active[0])
-			mask |= 0x1;
-		else if (pNv->crtc_active[1])
-			mask |= 0x2;
-
-		return mask;
-	}
+	int i;
 
 	for (i = 0; i < xf86_config->num_crtc; i++) {
 		xf86CrtcPtr crtc = xf86_config->crtc[i];
@@ -253,6 +239,7 @@ nouveau_xv_bo_realloc(ScrnInfoPtr pScrn, unsigned flags, unsigned size,
 		      struct nouveau_bo **pbo)
 {
 	NVPtr pNv = NVPTR(pScrn);
+	uint32_t tile_flags;
 	int ret;
 
 	if (*pbo) {
@@ -261,11 +248,12 @@ nouveau_xv_bo_realloc(ScrnInfoPtr pScrn, unsigned flags, unsigned size,
 		nouveau_bo_ref(NULL, pbo);
 	}
 
+	tile_flags = 0;
 	if (pNv->Architecture >= NV_ARCH_50 && (flags & NOUVEAU_BO_VRAM))
-		flags |= NOUVEAU_BO_TILED;
+		tile_flags = 0x7000;
 
-	ret = nouveau_bo_new(pNv->dev, flags | NOUVEAU_BO_PIN |
-			     NOUVEAU_BO_MAP, 0, size, pbo);
+	ret = nouveau_bo_new_tile(pNv->dev, flags | NOUVEAU_BO_MAP, 0,
+				  size, 0, tile_flags, pbo);
 	if (ret)
 		return ret;
 
@@ -300,12 +288,13 @@ NVFreeOverlayMemory(ScrnInfoPtr pScrn)
 	NVPortPrivPtr pPriv = GET_OVERLAY_PRIVATE(pNv);
 
 	NVFreePortMemory(pScrn, pPriv);
-
+#if NVOVL_SUPPORT
 	/* "power cycle" the overlay */
 	nvWriteMC(pNv, NV_PMC_ENABLE,
 		  (nvReadMC(pNv, NV_PMC_ENABLE) & 0xEFFFFFFF));
 	nvWriteMC(pNv, NV_PMC_ENABLE,
 		  (nvReadMC(pNv, NV_PMC_ENABLE) | 0x10000000));
+#endif
 }
 
 /**
@@ -623,7 +612,7 @@ NV_set_dimensions(ScrnInfoPtr pScrn, int action_flags, INT32 *xa, INT32 *xb,
 	 * set in the overlay adapter flags) since pScrn->frame{X,Y}1 do not get
 	 * updated. Hence manual clipping against the CRTC dimensions
 	 */
-	if (pNv->randr12_enable && action_flags & USE_OVERLAY) {
+	if (action_flags & USE_OVERLAY) {
 		NVPortPrivPtr pPriv = GET_OVERLAY_PRIVATE(pNv);
 		unsigned id = pPriv->overlayCRTC;
 		xf86CrtcPtr crtc = XF86_CRTC_CONFIG_PTR(pScrn)->crtc[id];
@@ -645,21 +634,14 @@ NV_set_dimensions(ScrnInfoPtr pScrn, int action_flags, INT32 *xa, INT32 *xb,
 		return -1;
 
 	if (action_flags & USE_OVERLAY)	{
-		if (!pNv->randr12_enable) {
-			dstBox->x1 -= pScrn->frameX0;
-			dstBox->x2 -= pScrn->frameX0;
-			dstBox->y1 -= pScrn->frameY0;
-			dstBox->y2 -= pScrn->frameY0;
-		} else {
-			xf86CrtcConfigPtr xf86_config =
-				XF86_CRTC_CONFIG_PTR(pScrn);
-			NVPortPrivPtr pPriv = GET_OVERLAY_PRIVATE(pNv);
+		xf86CrtcConfigPtr xf86_config =
+			XF86_CRTC_CONFIG_PTR(pScrn);
+		NVPortPrivPtr pPriv = GET_OVERLAY_PRIVATE(pNv);
 
-			dstBox->x1 -= xf86_config->crtc[pPriv->overlayCRTC]->x;
-			dstBox->x2 -= xf86_config->crtc[pPriv->overlayCRTC]->x;
-			dstBox->y1 -= xf86_config->crtc[pPriv->overlayCRTC]->y;
-			dstBox->y2 -= xf86_config->crtc[pPriv->overlayCRTC]->y;
-		}
+		dstBox->x1 -= xf86_config->crtc[pPriv->overlayCRTC]->x;
+		dstBox->x2 -= xf86_config->crtc[pPriv->overlayCRTC]->x;
+		dstBox->y1 -= xf86_config->crtc[pPriv->overlayCRTC]->y;
+		dstBox->y2 -= xf86_config->crtc[pPriv->overlayCRTC]->y;
 	}
 
 	/* Convert fixed point to integer, as xf86XVClipVideoHelper probably
@@ -827,7 +809,8 @@ NV_set_action_flags(ScrnInfoPtr pScrn, DrawablePtr pDraw, NVPortPrivPtr pPriv,
 	}
 #endif
 
-	if (USING_OVERLAY && pNv->randr12_enable) {
+#ifdef NVOVL_SUPPORT
+	if (USING_OVERLAY) {
 		char crtc = nv_window_belongs_to_crtc(pScrn, drw_x, drw_y,
 						      drw_w, drw_h);
 
@@ -867,6 +850,7 @@ NV_set_action_flags(ScrnInfoPtr pScrn, DrawablePtr pDraw, NVPortPrivPtr pPriv,
 						 ->rotation != RR_Rotate_0)
 			*action_flags &= ~USE_OVERLAY;
 	}
+#endif
 
 	/* At this point the adapter we're going to use is _known_.
 	 * You cannot change it now.
@@ -888,12 +872,12 @@ NV_set_action_flags(ScrnInfoPtr pScrn, DrawablePtr pDraw, NVPortPrivPtr pPriv,
 	if (USING_OVERLAY && (pNv->Architecture == NV_ARCH_10 ||
 			      pNv->Architecture == NV_ARCH_20)) {
 		/* No YV12 overlay on NV10, 11, 15, 20, NFORCE */
-		switch (pNv->Chipset & 0xfff0) {
-		case CHIPSET_NV10:
-		case CHIPSET_NV11:
-		case CHIPSET_NV15:
-		case CHIPSET_NFORCE: /*XXX: unsure about nforce*/
-		case CHIPSET_NV20:
+		switch (pNv->dev->chipset) {
+		case 0x10:
+		case 0x11:
+		case 0x15:
+		case 0x1a: /*XXX: unsure about nforce */
+		case 0x20:
 			*action_flags |= CONVERT_TO_YUY2;
 			break;
 		default:
@@ -1003,8 +987,19 @@ NVPutImage(ScrnInfoPtr pScrn, short src_x, short src_y, short drw_x,
 	if (ret)
 		return BadAlloc;
 
+#ifdef NVOVL_SUPPORT
+	if (action_flags & USE_OVERLAY) {
+		ret = nouveau_bo_pin(pPriv->video_mem, NOUVEAU_BO_VRAM);
+		if (ret) {
+			nouveau_bo_ref(NULL, &pPriv->video_mem);
+			return BadAlloc;
+		}
+	}
+#endif
+
 	/* The overlay supports hardware double buffering. We handle this here*/
 	offset = 0;
+#ifdef NVOVL_SUPPORT
 	if (pPriv->doubleBuffer) {
 		int mask = 1 << (pPriv->currentBuffer << 2);
 
@@ -1018,6 +1013,7 @@ NVPutImage(ScrnInfoPtr pScrn, short src_x, short src_y, short drw_x,
 				offset += newFBSize >> 1;
 		}
 	}
+#endif
 
 	/* Now we take a decision regarding the way we send the data to the
 	 * card.
@@ -1114,16 +1110,19 @@ NVPutImage(ScrnInfoPtr pScrn, short src_x, short src_y, short drw_x,
 
 		nouveau_bo_unmap(destination_buffer);
 
+		if (MARK_RING(chan, 64, 4))
+			return FALSE;
+
 		BEGIN_RING(chan, m2mf,
 			   NV04_MEMORY_TO_MEMORY_FORMAT_DMA_BUFFER_IN, 2);
 		OUT_RING  (chan, pNv->chan->gart->handle);
 		OUT_RING  (chan, pNv->chan->vram->handle);
 
 		if (pNv->Architecture >= NV_ARCH_50) {
-			BEGIN_RING(chan, m2mf, 0x0200, 1);
+			BEGIN_RING(chan, m2mf, NV50_MEMORY_TO_MEMORY_FORMAT_LINEAR_IN, 1);
 			OUT_RING  (chan, 1);
 
-			BEGIN_RING(chan, m2mf, 0x021c, 7);
+			BEGIN_RING(chan, m2mf, NV50_MEMORY_TO_MEMORY_FORMAT_LINEAR_OUT, 7);
 			OUT_RING  (chan, 0);
 			OUT_RING  (chan, destination_buffer->tile_mode << 4);
 			OUT_RING  (chan, dstPitch);
@@ -1140,11 +1139,15 @@ NVPutImage(ScrnInfoPtr pScrn, short src_x, short src_y, short drw_x,
 
 			BEGIN_RING(chan, m2mf,
 				   NV04_MEMORY_TO_MEMORY_FORMAT_OFFSET_IN, 8);
-			OUT_RELOCl(chan, destination_buffer, line_len * nlines,
-				   NOUVEAU_BO_GART | NOUVEAU_BO_RD);
-			OUT_RELOCl(chan, pPriv->video_mem,
-				   offset + uv_offset,
-				   NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
+			if (OUT_RELOCl(chan, destination_buffer,
+				       line_len * nlines,
+				       NOUVEAU_BO_GART | NOUVEAU_BO_RD) ||
+			    OUT_RELOCl(chan, pPriv->video_mem,
+				       offset + uv_offset,
+				       NOUVEAU_BO_VRAM | NOUVEAU_BO_WR)) {
+				MARK_UNDO(chan);
+				return BadAlloc;
+			}
 			OUT_RING  (chan, line_len);
 			OUT_RING  (chan, dstPitch);
 			OUT_RING  (chan, line_len);
@@ -1155,10 +1158,13 @@ NVPutImage(ScrnInfoPtr pScrn, short src_x, short src_y, short drw_x,
 
 		BEGIN_RING(chan, m2mf,
 			   NV04_MEMORY_TO_MEMORY_FORMAT_OFFSET_IN, 8);
-		OUT_RELOCl(chan, destination_buffer, 0,
-			   NOUVEAU_BO_GART | NOUVEAU_BO_RD);
-		OUT_RELOCl(chan, pPriv->video_mem, offset,
-			   NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
+		if (OUT_RELOCl(chan, destination_buffer, 0,
+			       NOUVEAU_BO_GART | NOUVEAU_BO_RD) ||
+		    OUT_RELOCl(chan, pPriv->video_mem, offset,
+			       NOUVEAU_BO_VRAM | NOUVEAU_BO_WR)) {
+			MARK_UNDO(chan);
+			return BadAlloc;
+		}
 		OUT_RING  (chan, line_len);
 		OUT_RING  (chan, dstPitch);
 		OUT_RING  (chan, line_len);
@@ -1250,16 +1256,12 @@ CPU_copy:
 		ppix = NVGetDrawablePixmap(pDraw);
 
 		/* Ensure pixmap is in offscreen memory */
-		if (!pNv->exa_driver_pixmaps) {
-			exaMoveInPixmap(ppix);
+		pNv->exa_force_cp = TRUE;
+		exaMoveInPixmap(ppix);
+		pNv->exa_force_cp = FALSE;
 
-			/* check if it made it offscreen */
-			if (exaGetPixmapOffset(ppix) >= pNv->EXADriverPtr->memorySize)
-				/* we lost, insufficient space probably */
-				return BadAlloc;
-
-			ExaOffscreenMarkUsed(ppix);
-		}
+		if (!exaGetPixmapDriverPrivate(ppix))
+			return BadAlloc;
 
 #ifdef COMPOSITE
 		/* Convert screen coords to pixmap coords */
@@ -1322,9 +1324,12 @@ CPU_copy:
 		if (ret != Success)
 			return ret;
 	} else {
-		NVPutBlitImage(pScrn, pPriv->video_mem, offset, id, dstPitch,
-			       &dstBox, 0, 0, xb, yb, npixels, nlines,
-			       src_w, src_h, drw_w, drw_h, clipBoxes, ppix);
+		ret = NVPutBlitImage(pScrn, pPriv->video_mem, offset, id,
+				     dstPitch, &dstBox, 0, 0, xb, yb, npixels,
+				     nlines, src_w, src_h, drw_w, drw_h,
+				     clipBoxes, ppix);
+		if (ret != Success)
+			return ret;
 	}
 
 #ifdef COMPOSITE
@@ -1594,7 +1599,7 @@ NVSetupBlitVideo (ScreenPtr pScreen)
 	for(i = 0; i < NUM_BLIT_PORTS; i++)
 		adapt->pPortPrivates[i].ptr = (pointer)(pPriv);
 
-	if(pNv->WaitVSyncPossible) {
+	if (pNv->dev->chipset >= 0x11) {
 		adapt->pAttributes = NVBlitAttributes;
 		adapt->nAttributes = NUM_BLIT_ATTRIBUTES;
 	} else {
@@ -1621,10 +1626,9 @@ NVSetupBlitVideo (ScreenPtr pScreen)
 	pPriv->texture			= FALSE;
 	pPriv->bicubic			= FALSE;
 	pPriv->doubleBuffer		= FALSE;
-	pPriv->SyncToVBlank		= pNv->WaitVSyncPossible;
+	pPriv->SyncToVBlank		= (pNv->dev->chipset >= 0x11);
 
 	pNv->blitAdaptor		= adapt;
-	xvSyncToVBlank			= MAKE_ATOM("XV_SYNC_TO_VBLANK");
 
 	return adapt;
 }
@@ -1650,10 +1654,7 @@ NVSetupOverlayVideoAdapter(ScreenPtr pScreen)
 	}
 
 	adapt->type		= XvWindowMask | XvInputMask | XvImageMask;
-	if (pNv->randr12_enable)
-		adapt->flags		= VIDEO_OVERLAID_IMAGES;
-	else
-		adapt->flags		= VIDEO_OVERLAID_IMAGES | VIDEO_CLIP_TO_VIEWPORT;
+	adapt->flags		= VIDEO_OVERLAID_IMAGES;
 	adapt->name		= "NV Video Overlay";
 	adapt->nEncodings	= 1;
 	adapt->pEncodings	= &DummyEncoding;
@@ -1768,7 +1769,7 @@ NVChipsetHasOverlay(NVPtr pNv)
 	case NV_ARCH_30:
 		return TRUE;
 	case NV_ARCH_40:
-		if ((pNv->Chipset & 0xfff0) == CHIPSET_NV40)
+		if (pNv->dev->chipset == 0x40)
 			return TRUE;
 		break;
 	default:
@@ -1795,7 +1796,7 @@ NVSetupOverlayVideo(ScreenPtr pScreen)
 	XF86VideoAdaptorPtr  overlayAdaptor = NULL;
 	NVPtr                pNv   = NVPTR(pScrn);
 
-	if (!NVChipsetHasOverlay(pNv))
+	if (1 /*pNv->kms_enable*/ || !NVChipsetHasOverlay(pNv))
 		return NULL;
 
 	overlayAdaptor = NVSetupOverlayVideoAdapter(pScreen);
@@ -1811,13 +1812,6 @@ NVSetupOverlayVideo(ScreenPtr pScreen)
 		overlayAdaptor->name = "NV Video Overlay with Composite";
 	}
 	#endif
-
-	if (pNv->randr12_enable) {
-	    	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-			   "Xv: Randr12 is enabled, using overlay with smart "
-			   "blitter fallback and automatic CRTC switching\n");
-	}
-
 
 	return overlayAdaptor;
 }
@@ -1872,14 +1866,8 @@ NV30SetupTexturedVideo (ScreenPtr pScreen, Bool bicubic)
 	for(i = 0; i < NUM_TEXTURE_PORTS; i++)
 		adapt->pPortPrivates[i].ptr = (pointer)(pPriv);
 
-	if(pNv->WaitVSyncPossible) {
-		adapt->pAttributes = NVTexturedAttributes;
-		adapt->nAttributes = NUM_TEXTURED_ATTRIBUTES;
-	} else {
-		adapt->pAttributes = NULL;
-		adapt->nAttributes = 0;
-	}
-
+	adapt->pAttributes		= NVTexturedAttributes;
+	adapt->nAttributes		= NUM_TEXTURED_ATTRIBUTES;
 	adapt->pImages			= NV30TexturedImages;
 	adapt->nImages			= NUM_FORMAT_TEXTURED;
 	adapt->PutVideo			= NULL;
@@ -1894,12 +1882,12 @@ NV30SetupTexturedVideo (ScreenPtr pScreen, Bool bicubic)
 	adapt->QueryImageAttributes	= NVQueryImageAttributes;
 
 	pPriv->videoStatus		= 0;
-	pPriv->grabbedByV4L	= FALSE;
+	pPriv->grabbedByV4L		= FALSE;
 	pPriv->blitter			= FALSE;
 	pPriv->texture			= TRUE;
 	pPriv->bicubic			= bicubic;
 	pPriv->doubleBuffer		= FALSE;
-	pPriv->SyncToVBlank	= pNv->WaitVSyncPossible;
+	pPriv->SyncToVBlank		= TRUE;
 
 	if (bicubic)
 		pNv->textureAdaptor[1]	= adapt;
@@ -1959,14 +1947,8 @@ NV40SetupTexturedVideo (ScreenPtr pScreen, Bool bicubic)
 	for(i = 0; i < NUM_TEXTURE_PORTS; i++)
 		adapt->pPortPrivates[i].ptr = (pointer)(pPriv);
 
-	if(pNv->WaitVSyncPossible) {
-		adapt->pAttributes = NVTexturedAttributes;
-		adapt->nAttributes = NUM_TEXTURED_ATTRIBUTES;
-	} else {
-		adapt->pAttributes = NULL;
-		adapt->nAttributes = 0;
-	}
-
+	adapt->pAttributes		= NVTexturedAttributes;
+	adapt->nAttributes		= NUM_TEXTURED_ATTRIBUTES;
 	adapt->pImages			= NV40TexturedImages;
 	adapt->nImages			= NUM_FORMAT_TEXTURED;
 	adapt->PutVideo			= NULL;
@@ -1981,12 +1963,12 @@ NV40SetupTexturedVideo (ScreenPtr pScreen, Bool bicubic)
 	adapt->QueryImageAttributes	= NVQueryImageAttributes;
 
 	pPriv->videoStatus		= 0;
-	pPriv->grabbedByV4L	= FALSE;
+	pPriv->grabbedByV4L		= FALSE;
 	pPriv->blitter			= FALSE;
 	pPriv->texture			= TRUE;
 	pPriv->bicubic			= bicubic;
 	pPriv->doubleBuffer		= FALSE;
-	pPriv->SyncToVBlank	= pNv->WaitVSyncPossible;
+	pPriv->SyncToVBlank		= TRUE;
 
 	if (bicubic)
 		pNv->textureAdaptor[1]	= adapt;
@@ -2033,8 +2015,8 @@ NV50SetupTexturedVideo (ScreenPtr pScreen)
 	for(i = 0; i < NUM_TEXTURE_PORTS; i++)
 		adapt->pPortPrivates[i].ptr = (pointer)(pPriv);
 
-	adapt->pAttributes		= NULL;
-	adapt->nAttributes		= 0;
+	adapt->pAttributes		= NVTexturedAttributes;
+	adapt->nAttributes		= NUM_TEXTURED_ATTRIBUTES;
 	adapt->pImages			= NV50TexturedImages;
 	adapt->nImages			= sizeof(NV50TexturedImages) /
 					  sizeof(NV50TexturedImages[0]);
@@ -2054,7 +2036,7 @@ NV50SetupTexturedVideo (ScreenPtr pScreen)
 	pPriv->blitter			= FALSE;
 	pPriv->texture			= TRUE;
 	pPriv->doubleBuffer		= FALSE;
-	pPriv->SyncToVBlank		= 0;
+	pPriv->SyncToVBlank		= TRUE;
 
 	pNv->textureAdaptor[0]		= adapt;
 	return adapt;
@@ -2088,6 +2070,8 @@ NVInitVideo(ScreenPtr pScreen)
 	 * acceleration is disabled:
 	 */
 	if (pScrn->bitsPerPixel != 8 && !pNv->NoAccel) {
+		xvSyncToVBlank = MAKE_ATOM("XV_SYNC_TO_VBLANK");
+
 		if (pNv->Architecture < NV_ARCH_50) {
 			overlayAdaptor = NVSetupOverlayVideo(pScreen);
 			blitAdaptor    = NVSetupBlitVideo(pScreen);

@@ -45,8 +45,8 @@ NVAccelInitContextSurfaces(ScrnInfoPtr pScrn)
 	struct nouveau_grobj *surf2d;
 	uint32_t class;
 
-	class = (pNv->Architecture >= NV_10) ? NV10_CONTEXT_SURFACES_2D :
-					       NV04_CONTEXT_SURFACES_2D;
+	class = (pNv->Architecture >= NV_ARCH_10) ? NV10_CONTEXT_SURFACES_2D :
+						    NV04_CONTEXT_SURFACES_2D;
 
 	if (!pNv->NvContextSurfaces) {
 		if (nouveau_grobj_alloc(chan, NvContextSurfaces, class,
@@ -117,7 +117,10 @@ NVAccelGetCtxSurf2DFormatFromPixmap(PixmapPtr pPix, int *fmt_ret)
 		*fmt_ret = NV04_CONTEXT_SURFACES_2D_FORMAT_X8R8G8B8_Z8R8G8B8;
 		break;
 	case 16:
-		*fmt_ret = NV04_CONTEXT_SURFACES_2D_FORMAT_R5G6B5;
+		if (pPix->drawable.depth == 16)
+			*fmt_ret = NV04_CONTEXT_SURFACES_2D_FORMAT_R5G6B5;
+		else
+			*fmt_ret = NV04_CONTEXT_SURFACES_2D_FORMAT_X1R5G5B5_Z1R5G5B5;
 		break;
 	case 8:
 		*fmt_ret = NV04_CONTEXT_SURFACES_2D_FORMAT_Y8;
@@ -258,7 +261,7 @@ NVAccelInitImageBlit(ScrnInfoPtr pScrn)
 	struct nouveau_grobj *blit;
 	uint32_t class;
 
-	class = (pNv->WaitVSyncPossible) ? NV12_IMAGE_BLIT : NV04_IMAGE_BLIT;
+	class = (pNv->dev->chipset >= 0x11) ? NV12_IMAGE_BLIT : NV04_IMAGE_BLIT;
 
 	if (!pNv->NvImageBlit) {
 		if (nouveau_grobj_alloc(chan, NvImageBlit, class,
@@ -267,20 +270,20 @@ NVAccelInitImageBlit(ScrnInfoPtr pScrn)
 	}
 	blit = pNv->NvImageBlit;
 
-	BEGIN_RING(chan, blit, NV04_IMAGE_BLIT_DMA_NOTIFY, 1);
+	BEGIN_RING(chan, blit, NV01_IMAGE_BLIT_DMA_NOTIFY, 1);
 	OUT_RING  (chan, pNv->notify0->handle);
-	BEGIN_RING(chan, blit, NV04_IMAGE_BLIT_COLOR_KEY, 1);
+	BEGIN_RING(chan, blit, NV01_IMAGE_BLIT_COLOR_KEY, 1);
 	OUT_RING  (chan, chan->nullobj->handle);
 	BEGIN_RING(chan, blit, NV04_IMAGE_BLIT_SURFACE, 1);
 	OUT_RING  (chan, pNv->NvContextSurfaces->handle);
-	BEGIN_RING(chan, blit, NV04_IMAGE_BLIT_CLIP_RECTANGLE, 3);
+	BEGIN_RING(chan, blit, NV01_IMAGE_BLIT_CLIP_RECTANGLE, 3);
 	OUT_RING  (chan, chan->nullobj->handle);
 	OUT_RING  (chan, pNv->NvImagePattern->handle);
 	OUT_RING  (chan, pNv->NvRop->handle);
-	BEGIN_RING(chan, blit, NV04_IMAGE_BLIT_OPERATION, 1);
-	OUT_RING  (chan, NV04_IMAGE_BLIT_OPERATION_ROP_AND);
+	BEGIN_RING(chan, blit, NV01_IMAGE_BLIT_OPERATION, 1);
+	OUT_RING  (chan, NV01_IMAGE_BLIT_OPERATION_ROP_AND);
 
-	if (pNv->WaitVSyncPossible) {
+	if (blit->grclass == NV12_IMAGE_BLIT) {
 		BEGIN_RING(chan, blit, 0x0120, 3);
 		OUT_RING  (chan, 0);
 		OUT_RING  (chan, 1);
@@ -321,7 +324,7 @@ NVAccelInitScaledImage(ScrnInfoPtr pScrn)
 	sifm = pNv->NvScaledImage;
 
 	BEGIN_RING(chan, sifm,
-			 NV04_SCALED_IMAGE_FROM_MEMORY_DMA_NOTIFY, 7);
+			 NV03_SCALED_IMAGE_FROM_MEMORY_DMA_NOTIFY, 7);
 	OUT_RING  (chan, pNv->notify0->handle);
 	OUT_RING  (chan, pNv->chan->vram->handle);
 	OUT_RING  (chan, chan->nullobj->handle);
@@ -331,11 +334,11 @@ NVAccelInitScaledImage(ScrnInfoPtr pScrn)
 	OUT_RING  (chan, pNv->NvContextSurfaces->handle);
 	if (pNv->Architecture>=NV_ARCH_10) {
 	BEGIN_RING(chan, sifm,
-			 NV04_SCALED_IMAGE_FROM_MEMORY_COLOR_CONVERSION, 1);
-	OUT_RING  (chan, NV04_SCALED_IMAGE_FROM_MEMORY_COLOR_CONVERSION_DITHER);
+			 NV05_SCALED_IMAGE_FROM_MEMORY_COLOR_CONVERSION, 1);
+	OUT_RING  (chan, NV05_SCALED_IMAGE_FROM_MEMORY_COLOR_CONVERSION_DITHER);
 	}
-	BEGIN_RING(chan, sifm, NV04_SCALED_IMAGE_FROM_MEMORY_OPERATION, 1);
-	OUT_RING  (chan, NV04_SCALED_IMAGE_FROM_MEMORY_OPERATION_SRCCOPY);
+	BEGIN_RING(chan, sifm, NV03_SCALED_IMAGE_FROM_MEMORY_OPERATION, 1);
+	OUT_RING  (chan, NV03_SCALED_IMAGE_FROM_MEMORY_OPERATION_SRCCOPY);
 
 	return TRUE;
 }
@@ -430,10 +433,10 @@ NVAccelInitImageFromCpu(ScrnInfoPtr pScrn)
 	if (pNv->Architecture >= NV_ARCH_10) {
 		BEGIN_RING(chan, ifc, NV01_IMAGE_FROM_CPU_BETA1, 1);
 		OUT_RING  (chan, chan->nullobj->handle);
-		BEGIN_RING(chan, ifc, NV05_IMAGE_FROM_CPU_BETA4, 1);
+		BEGIN_RING(chan, ifc, NV04_IMAGE_FROM_CPU_BETA4, 1);
 		OUT_RING  (chan, chan->nullobj->handle);
 	}
-	BEGIN_RING(chan, ifc, NV05_IMAGE_FROM_CPU_SURFACE, 1);
+	BEGIN_RING(chan, ifc, NV04_IMAGE_FROM_CPU_SURFACE, 1);
 	OUT_RING  (chan, pNv->NvContextSurfaces->handle);
 	BEGIN_RING(chan, ifc, NV01_IMAGE_FROM_CPU_OPERATION, 1);
 	OUT_RING  (chan, NV01_IMAGE_FROM_CPU_OPERATION_SRCCOPY);
@@ -449,12 +452,12 @@ NVAccelInit2D_NV50(ScrnInfoPtr pScrn)
 	struct nouveau_grobj *eng2d;
 
 	if (!pNv->Nv2D) {
-		if (nouveau_grobj_alloc(chan, Nv2D, 0x502d, &pNv->Nv2D))
+		if (nouveau_grobj_alloc(chan, Nv2D, NV50_2D, &pNv->Nv2D))
 			return FALSE;
 	}
 	eng2d = pNv->Nv2D;
 
-	BEGIN_RING(chan, eng2d, 0x180, 3);
+	BEGIN_RING(chan, eng2d, NV50_2D_DMA_NOTIFY, 3);
 	OUT_RING  (chan, pNv->notify0->handle);
 	OUT_RING  (chan, pNv->chan->vram->handle);
 	OUT_RING  (chan, pNv->chan->vram->handle);
@@ -464,9 +467,9 @@ NVAccelInit2D_NV50(ScrnInfoPtr pScrn)
 	 */
 	BEGIN_RING(chan, eng2d, 0x260, 1);
 	OUT_RING  (chan, 1);
-	BEGIN_RING(chan, eng2d, 0x290, 1);
+	BEGIN_RING(chan, eng2d, NV50_2D_CLIP_ENABLE, 1);
 	OUT_RING  (chan, 1);
-	BEGIN_RING(chan, eng2d, 0x29c, 1);
+	BEGIN_RING(chan, eng2d, NV50_2D_COLOR_KEY_ENABLE, 1);
 	OUT_RING  (chan, 0);
 	BEGIN_RING(chan, eng2d, 0x58c, 1);
 	OUT_RING  (chan, 0x111);
@@ -544,6 +547,8 @@ void NVAccelFree(ScrnInfoPtr pScrn)
 		return;
 
 	nouveau_notifier_free(&pNv->notify0);
+	nouveau_notifier_free(&pNv->vblank_sem);
+
 	if (pNv->Architecture < NV_ARCH_50) {
 		nouveau_grobj_free(&pNv->NvContextSurfaces);
 		nouveau_grobj_free(&pNv->NvContextBeta1);
@@ -559,6 +564,7 @@ void NVAccelFree(ScrnInfoPtr pScrn)
 		nouveau_grobj_free(&pNv->Nv2D);
 	nouveau_grobj_free(&pNv->NvMemFormat);
 
+	nouveau_grobj_free(&pNv->NvSW);
 	nouveau_grobj_free(&pNv->Nv3D);
 
 	nouveau_bo_ref(NULL, &pNv->tesla_scratch);

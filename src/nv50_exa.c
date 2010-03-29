@@ -77,15 +77,16 @@ NV50EXA2DSurfaceFormat(PixmapPtr ppix, uint32_t *fmt)
 {
 	NV50EXA_LOCALS(ppix);
 
-	switch (ppix->drawable.depth) {
-	case 8 : *fmt = NV50_2D_SRC_FORMAT_8BPP; break;
-	case 15: *fmt = NV50_2D_SRC_FORMAT_15BPP; break;
-	case 16: *fmt = NV50_2D_SRC_FORMAT_16BPP; break;
-	case 24: *fmt = NV50_2D_SRC_FORMAT_24BPP; break;
-	case 32: *fmt = NV50_2D_SRC_FORMAT_32BPP; break;
+	switch (ppix->drawable.bitsPerPixel) {
+	case 8 : *fmt = NV50_2D_SRC_FORMAT_R8_UNORM; break;
+	case 15: *fmt = NV50_2D_SRC_FORMAT_X1R5G5B5_UNORM; break;
+	case 16: *fmt = NV50_2D_SRC_FORMAT_R5G6B5_UNORM; break;
+	case 24: *fmt = NV50_2D_SRC_FORMAT_X8R8G8B8_UNORM; break;
+	case 30: *fmt = NV50_2D_SRC_FORMAT_A2B10G10R10_UNORM; break;
+	case 32: *fmt = NV50_2D_SRC_FORMAT_A8R8G8B8_UNORM; break;
 	default:
 		 NOUVEAU_FALLBACK("Unknown surface format for bpp=%d\n",
-				  ppix->drawable.depth);
+				  ppix->drawable.bitsPerPixel);
 		 return FALSE;
 	}
 
@@ -108,7 +109,6 @@ NV50EXAAcquireSurface2D(PixmapPtr ppix, int is_src)
 {
 	NV50EXA_LOCALS(ppix);
 	struct nouveau_bo *bo = nouveau_pixmap_bo(ppix);
-	unsigned delta = nouveau_pixmap_offset(ppix);
 	int mthd = is_src ? NV50_2D_SRC_FORMAT : NV50_2D_DST_FORMAT;
 	uint32_t fmt, bo_flags;
 
@@ -118,7 +118,7 @@ NV50EXAAcquireSurface2D(PixmapPtr ppix, int is_src)
 	bo_flags  = NOUVEAU_BO_VRAM;
 	bo_flags |= is_src ? NOUVEAU_BO_RD : NOUVEAU_BO_WR;
 
-	if (!nouveau_exa_pixmap_is_tiled(ppix)) {
+	if (!nv50_style_tiled_pixmap(ppix)) {
 		BEGIN_RING(chan, eng2d, mthd, 2);
 		OUT_RING  (chan, fmt);
 		OUT_RING  (chan, 1);
@@ -136,8 +136,9 @@ NV50EXAAcquireSurface2D(PixmapPtr ppix, int is_src)
 	BEGIN_RING(chan, eng2d, mthd + 0x18, 4);
 	OUT_RING  (chan, ppix->drawable.width);
 	OUT_RING  (chan, ppix->drawable.height);
-	OUT_RELOCh(chan, bo, delta, bo_flags);
-	OUT_RELOCl(chan, bo, delta, bo_flags);
+	if (OUT_RELOCh(chan, bo, 0, bo_flags) ||
+	    OUT_RELOCl(chan, bo, 0, bo_flags))
+		return FALSE;
 
 	if (is_src == 0)
 		NV50EXASetClip(ppix, 0, 0, ppix->drawable.width, ppix->drawable.height);
@@ -177,7 +178,7 @@ NV50EXASetROP(PixmapPtr pdpix, int alu, Pixel planemask)
 	}
 
 	BEGIN_RING(chan, eng2d, NV50_2D_PATTERN_FORMAT, 2);
-	switch (pdpix->drawable.depth) {
+	switch (pdpix->drawable.bitsPerPixel) {
 		case  8: OUT_RING  (chan, 3); break;
 		case 15: OUT_RING  (chan, 1); break;
 		case 16: OUT_RING  (chan, 0); break;
@@ -225,16 +226,21 @@ NV50EXAPrepareSolid(PixmapPtr pdpix, int alu, Pixel planemask, Pixel fg)
 	NV50EXA_LOCALS(pdpix);
 	uint32_t fmt;
 
-	WAIT_RING(chan, 64);
-
 	if (!NV50EXA2DSurfaceFormat(pdpix, &fmt))
 		NOUVEAU_FALLBACK("rect format\n");
-	if (!NV50EXAAcquireSurface2D(pdpix, 0))
+
+	if (MARK_RING(chan, 64, 4))
+		NOUVEAU_FALLBACK("ring space\n");
+
+	if (!NV50EXAAcquireSurface2D(pdpix, 0)) {
+		MARK_UNDO(chan);
 		NOUVEAU_FALLBACK("dest pixmap\n");
+	}
+
 	NV50EXASetROP(pdpix, alu, planemask);
 
-	BEGIN_RING(chan, eng2d, 0x580, 3);
-	OUT_RING  (chan, 4);
+	BEGIN_RING(chan, eng2d, NV50_2D_DRAW_SHAPE, 3);
+	OUT_RING  (chan, NV50_2D_DRAW_SHAPE_RECTANGLES);
 	OUT_RING  (chan, fmt);
 	OUT_RING  (chan, fg);
 
@@ -252,7 +258,7 @@ NV50EXASolid(PixmapPtr pdpix, int x1, int y1, int x2, int y2)
 	NV50EXA_LOCALS(pdpix);
 
 	WAIT_RING (chan, 5);
-	BEGIN_RING(chan, eng2d, NV50_2D_RECT_X1, 4);
+	BEGIN_RING(chan, eng2d, NV50_2D_DRAW_POINT32_X(0), 4);
 	OUT_RING  (chan, x1);
 	OUT_RING  (chan, y1);
 	OUT_RING  (chan, x2);
@@ -286,12 +292,19 @@ NV50EXAPrepareCopy(PixmapPtr pspix, PixmapPtr pdpix, int dx, int dy,
 {
 	NV50EXA_LOCALS(pdpix);
 
-	WAIT_RING(chan, 64);
+	if (MARK_RING(chan, 64, 4))
+		NOUVEAU_FALLBACK("ring space\n");
 
-	if (!NV50EXAAcquireSurface2D(pspix, 1))
+	if (!NV50EXAAcquireSurface2D(pspix, 1)) {
+		MARK_UNDO(chan);
 		NOUVEAU_FALLBACK("src pixmap\n");
-	if (!NV50EXAAcquireSurface2D(pdpix, 0))
+	}
+
+	if (!NV50EXAAcquireSurface2D(pdpix, 0)) {
+		MARK_UNDO(chan);
 		NOUVEAU_FALLBACK("dest pixmap\n");
+	}
+
 	NV50EXASetROP(pdpix, alu, planemask);
 
 	pNv->pspix = pspix;
@@ -346,8 +359,11 @@ NV50EXAStateSIFCResubmit(struct nouveau_channel *chan)
 	ScrnInfoPtr pScrn = chan->user_private;
 	NVPtr pNv = NVPTR(pScrn);
 	
-	WAIT_RING(pNv->chan, 32);
-	NV50EXAAcquireSurface2D(pNv->pdpix, 0);
+	if (MARK_RING(pNv->chan, 32, 2))
+		return;
+
+	if (NV50EXAAcquireSurface2D(pNv->pdpix, 0))
+		MARK_UNDO(pNv->chan);
 }
 
 Bool
@@ -358,19 +374,23 @@ NV50EXAUploadSIFC(const char *src, int src_pitch,
 	int line_dwords = (w * cpp + 3) / 4;
 	uint32_t sifc_fmt;
 
-	WAIT_RING(chan, 64);
-
 	if (!NV50EXA2DSurfaceFormat(pdpix, &sifc_fmt))
 		NOUVEAU_FALLBACK("hostdata format\n");
-	if (!NV50EXAAcquireSurface2D(pdpix, 0))
+
+	if (MARK_RING(chan, 64, 2))
+		return FALSE;
+
+	if (!NV50EXAAcquireSurface2D(pdpix, 0)) {
+		MARK_UNDO(chan);
 		NOUVEAU_FALLBACK("dest pixmap\n");
+	}
 
 	/* If the pitch isn't aligned to a dword, then you can get corruption at the end of a line. */
 	NV50EXASetClip(pdpix, x, y, w, h);
 
 	BEGIN_RING(chan, eng2d, NV50_2D_OPERATION, 1);
 	OUT_RING  (chan, NV50_2D_OPERATION_SRCCOPY);
-	BEGIN_RING(chan, eng2d, NV50_2D_SIFC_UNK0800, 2);
+	BEGIN_RING(chan, eng2d, NV50_2D_SIFC_BITMAP_ENABLE, 2);
 	OUT_RING  (chan, 0);
 	OUT_RING  (chan, sifc_fmt);
 	BEGIN_RING(chan, eng2d, NV50_2D_SIFC_WIDTH, 10);
@@ -396,11 +416,10 @@ NV50EXAUploadSIFC(const char *src, int src_pitch,
 			int size = count > 1792 ? 1792 : count;
 
 			WAIT_RING (chan, size + 1);
-			BEGIN_RING(chan, eng2d,
-					 NV50_2D_SIFC_DATA | 0x40000000, size);
+			BEGIN_RING_NI(chan, eng2d, NV50_2D_SIFC_DATA, size);
 			OUT_RINGp (chan, p, size);
 
-			p += size * cpp;
+			p += size * 4;
 			count -= size;
 		}
 
@@ -410,6 +429,26 @@ NV50EXAUploadSIFC(const char *src, int src_pitch,
 	chan->flush_notify = NULL;
 	return TRUE;
 }
+
+/* Compat defines for pre 1.7 xservers. */
+#ifndef PICT_a2b10g10r10
+#define PICT_a2b10g10r10 PICT_FORMAT(32, PICT_TYPE_ABGR, 2, 10, 10, 10)
+#endif
+#ifndef PICT_x2b10g10r10
+#define PICT_x2b10g10r10  PICT_FORMAT(32, PICT_TYPE_ABGR, 0, 10, 10, 10)
+#endif
+#ifndef  PICT_a2r10g10b10
+#define PICT_a2r10g10b10 PICT_FORMAT(32, PICT_TYPE_ARGB, 2, 10, 10, 10)
+#endif
+#ifndef  PICT_x2r10g10b10
+#define PICT_x2r10g10b10 PICT_FORMAT(32, PICT_TYPE_ARGB, 0, 10, 10, 10)
+#endif 
+#ifndef PICT_b8g8r8a8
+#define PICT_b8g8r8a8 PIXMAN_FORMAT(32,PIXMAN_TYPE_BGRA,8,8,8,8)
+#endif
+#ifndef PICT_b8g8r8x8
+#define PICT_b8g8r8x8 PIXMAN_FORMAT(32,PIXMAN_TYPE_BGRA,0,8,8,8)
+#endif
 
 static Bool
 NV50EXACheckRenderTarget(PicturePtr ppict)
@@ -425,6 +464,13 @@ NV50EXACheckRenderTarget(PicturePtr ppict)
 	case PICT_x8r8g8b8:
 	case PICT_r5g6b5:
 	case PICT_a8:
+	case PICT_x1r5g5b5:
+	case PICT_a1r5g5b5:
+	case PICT_x8b8g8r8:
+	case PICT_a2b10g10r10:
+	case PICT_x2b10g10r10:
+	case PICT_a2r10g10b10:
+	case PICT_x2r10g10b10:
 		break;
 	default:
 		NOUVEAU_FALLBACK("picture format 0x%08x\n", ppict->format);
@@ -438,40 +484,56 @@ NV50EXARenderTarget(PixmapPtr ppix, PicturePtr ppict)
 {
 	NV50EXA_LOCALS(ppix);
 	struct nouveau_bo *bo = nouveau_pixmap_bo(ppix);
-	unsigned delta = nouveau_pixmap_offset(ppix);
 	unsigned format;
 
 	/*XXX: Scanout buffer not tiled, someone needs to figure it out */
-	if (!nouveau_exa_pixmap_is_tiled(ppix))
+	if (!nv50_style_tiled_pixmap(ppix))
 		NOUVEAU_FALLBACK("pixmap is scanout buffer\n");
 
 	switch (ppict->format) {
-	case PICT_a8r8g8b8: format = NV50TCL_RT_FORMAT_32BPP; break;
-	case PICT_x8r8g8b8: format = NV50TCL_RT_FORMAT_24BPP; break;
-	case PICT_r5g6b5  : format = NV50TCL_RT_FORMAT_16BPP; break;
-	case PICT_a8      : format = NV50TCL_RT_FORMAT_8BPP; break;
+	case PICT_a8r8g8b8: format = NV50TCL_RT_FORMAT_A8R8G8B8_UNORM; break;
+	case PICT_x8r8g8b8: format = NV50TCL_RT_FORMAT_X8R8G8B8_UNORM; break;
+	case PICT_r5g6b5  : format = NV50TCL_RT_FORMAT_R5G6B5_UNORM; break;
+	case PICT_a8      : format = NV50TCL_RT_FORMAT_A8_UNORM; break;
+	case PICT_x1r5g5b5:
+	case PICT_a1r5g5b5:
+		format = NV50TCL_RT_FORMAT_A1R5G5B5_UNORM;
+		break;
+	case PICT_x8b8g8r8: format = NV50TCL_RT_FORMAT_X8B8G8R8_UNORM; break;
+	case PICT_a2b10g10r10:
+	case PICT_x2b10g10r10:
+		format = NV50TCL_RT_FORMAT_A2B10G10R10_UNORM;
+		break;
+	case PICT_a2r10g10b10:
+	case PICT_x2r10g10b10:
+		format = NV50TCL_RT_FORMAT_A2R10G10B10_UNORM;
+		break;
 	default:
 		NOUVEAU_FALLBACK("invalid picture format\n");
 	}
 
 	BEGIN_RING(chan, tesla, NV50TCL_RT_ADDRESS_HIGH(0), 5);
-	OUT_RELOCh(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
-	OUT_RELOCl(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
+	if (OUT_RELOCh(chan, bo, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR) ||
+	    OUT_RELOCl(chan, bo, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR))
+		return FALSE;
 	OUT_RING  (chan, format);
 	OUT_RING  (chan, bo->tile_mode << 4);
 	OUT_RING  (chan, 0x00000000);
 	BEGIN_RING(chan, tesla, NV50TCL_RT_HORIZ(0), 2);
 	OUT_RING  (chan, ppix->drawable.width);
 	OUT_RING  (chan, ppix->drawable.height);
-	BEGIN_RING(chan, tesla, 0x1224, 1);
+	BEGIN_RING(chan, tesla, NV50TCL_RT_ARRAY_MODE, 1);
 	OUT_RING  (chan, 0x00000001);
 
 	return TRUE;
 }
 
 static Bool
-NV50EXACheckTexture(PicturePtr ppict, int op)
+NV50EXACheckTexture(PicturePtr ppict, PicturePtr pdpict, int op)
 {
+	if (!ppict->pDrawable)
+		NOUVEAU_FALLBACK("Solid and gradient pictures unsupported\n");
+
 	if (ppict->pDrawable->width > 8192 ||
 	    ppict->pDrawable->height > 8192)
 		NOUVEAU_FALLBACK("texture dimensions exceeded %dx%d\n",
@@ -485,6 +547,21 @@ NV50EXACheckTexture(PicturePtr ppict, int op)
 	case PICT_x8b8g8r8:
 	case PICT_r5g6b5:
 	case PICT_a8:
+	case PICT_x1r5g5b5:
+	case PICT_x1b5g5r5:
+	case PICT_a1r5g5b5:
+	case PICT_a1b5g5r5:
+	case PICT_b5g6r5:
+	case PICT_b8g8r8a8:
+	case PICT_b8g8r8x8:
+	case PICT_a2b10g10r10:
+	case PICT_x2b10g10r10:
+	case PICT_x2r10g10b10:
+	case PICT_a2r10g10b10:
+	case PICT_x4r4g4b4:
+	case PICT_x4b4g4r4:
+	case PICT_a4r4g4b4:
+	case PICT_a4b4g4r4:
 		break;
 	default:
 		NOUVEAU_FALLBACK("picture format 0x%08x\n", ppict->format);
@@ -498,104 +575,142 @@ NV50EXACheckTexture(PicturePtr ppict, int op)
 		NOUVEAU_FALLBACK("picture filter %d\n", ppict->filter);
 	}
 
-	/* Opengl and Render disagree on what should be sampled outside an XRGB texture (with no repeating).
-	 * Opengl has a hardcoded alpha value of 1.0, while render expects 0.0.
-	 * We assume that clipping is done for untranformed sources.
+	/* Opengl and Render disagree on what should be sampled outside an XRGB 
+	 * texture (with no repeating). Opengl has a hardcoded alpha value of 
+	 * 1.0, while render expects 0.0. We assume that clipping is done for 
+	 * untranformed sources.
 	 */
-	if (NV50EXABlendOp[op].src_alpha && !ppict->repeat && ppict->transform && PICT_FORMAT_A(ppict->format) == 0)
+	if (NV50EXABlendOp[op].src_alpha && !ppict->repeat &&
+		ppict->transform && (PICT_FORMAT_A(ppict->format) == 0)
+		&& (PICT_FORMAT_A(pdpict->format) != 0))
 		NOUVEAU_FALLBACK("REPEAT_NONE unsupported for XRGB source\n");
 
 	return TRUE;
 }
+
+#define _(X1,X2,X3,X4,FMT) (NV50TIC_0_0_TYPER_UNORM | NV50TIC_0_0_TYPEG_UNORM | NV50TIC_0_0_TYPEB_UNORM | NV50TIC_0_0_TYPEA_UNORM | \
+			    NV50TIC_0_0_MAP##X1 | NV50TIC_0_0_MAP##X2 | NV50TIC_0_0_MAP##X3 | NV50TIC_0_0_MAP##X4 | \
+			    NV50TIC_0_0_FMT_##FMT)
 
 static Bool
 NV50EXATexture(PixmapPtr ppix, PicturePtr ppict, unsigned unit)
 {
 	NV50EXA_LOCALS(ppix);
 	struct nouveau_bo *bo = nouveau_pixmap_bo(ppix);
-	unsigned delta = nouveau_pixmap_offset(ppix);
 	const unsigned tcb_flags = NOUVEAU_BO_RDWR | NOUVEAU_BO_VRAM;
+	uint32_t mode;
 
 	/*XXX: Scanout buffer not tiled, someone needs to figure it out */
-	if (!nouveau_exa_pixmap_is_tiled(ppix))
+	if (!nv50_style_tiled_pixmap(ppix))
 		NOUVEAU_FALLBACK("pixmap is scanout buffer\n");
 
 	BEGIN_RING(chan, tesla, NV50TCL_TIC_ADDRESS_HIGH, 3);
-	OUT_RELOCh(chan, pNv->tesla_scratch, TIC_OFFSET, tcb_flags);
-	OUT_RELOCl(chan, pNv->tesla_scratch, TIC_OFFSET, tcb_flags);
+	if (OUT_RELOCh(chan, pNv->tesla_scratch, TIC_OFFSET, tcb_flags) ||
+	    OUT_RELOCl(chan, pNv->tesla_scratch, TIC_OFFSET, tcb_flags))
+		return FALSE;
 	OUT_RING  (chan, 0x00000800);
 	BEGIN_RING(chan, tesla, NV50TCL_CB_DEF_ADDRESS_HIGH, 3);
-	OUT_RELOCh(chan, pNv->tesla_scratch, TIC_OFFSET, tcb_flags);
-	OUT_RELOCl(chan, pNv->tesla_scratch, TIC_OFFSET, tcb_flags);
+	if (OUT_RELOCh(chan, pNv->tesla_scratch, TIC_OFFSET, tcb_flags) ||
+	    OUT_RELOCl(chan, pNv->tesla_scratch, TIC_OFFSET, tcb_flags))
+		return FALSE;
 	OUT_RING  (chan, (CB_TIC << NV50TCL_CB_DEF_SET_BUFFER_SHIFT) | 0x4000);
 	BEGIN_RING(chan, tesla, NV50TCL_CB_ADDR, 1);
 	OUT_RING  (chan, CB_TIC | ((unit * 8) << NV50TCL_CB_ADDR_ID_SHIFT));
-	BEGIN_RING(chan, tesla, NV50TCL_CB_DATA(0) | 0x40000000, 8);
+	BEGIN_RING_NI(chan, tesla, NV50TCL_CB_DATA(0), 8);
+
 	switch (ppict->format) {
 	case PICT_a8r8g8b8:
-		OUT_RING  (chan, NV50TIC_0_0_MAPA_C3 | NV50TIC_0_0_TYPEA_UNORM |
-			 NV50TIC_0_0_MAPR_C0 | NV50TIC_0_0_TYPER_UNORM |
-			 NV50TIC_0_0_MAPG_C1 | NV50TIC_0_0_TYPEB_UNORM |
-			 NV50TIC_0_0_MAPB_C2 | NV50TIC_0_0_TYPEG_UNORM |
-			 NV50TIC_0_0_FMT_8_8_8_8);
+		OUT_RING(chan, _(B_C0, G_C1, R_C2, A_C3, 8_8_8_8));
 		break;
 	case PICT_a8b8g8r8:
-		OUT_RING  (chan, NV50TIC_0_0_MAPA_C3 | NV50TIC_0_0_TYPEA_UNORM |
-			 NV50TIC_0_0_MAPR_C2 | NV50TIC_0_0_TYPER_UNORM |
-			 NV50TIC_0_0_MAPG_C1 | NV50TIC_0_0_TYPEB_UNORM |
-			 NV50TIC_0_0_MAPB_C0 | NV50TIC_0_0_TYPEG_UNORM |
-			 NV50TIC_0_0_FMT_8_8_8_8);
+		OUT_RING(chan, _(R_C0, G_C1, B_C2, A_C3, 8_8_8_8));
 		break;
 	case PICT_x8r8g8b8:
-		OUT_RING  (chan, NV50TIC_0_0_MAPA_ONE | NV50TIC_0_0_TYPEA_UNORM |
-			 NV50TIC_0_0_MAPR_C0 | NV50TIC_0_0_TYPER_UNORM |
-			 NV50TIC_0_0_MAPG_C1 | NV50TIC_0_0_TYPEB_UNORM |
-			 NV50TIC_0_0_MAPB_C2 | NV50TIC_0_0_TYPEG_UNORM |
-			 NV50TIC_0_0_FMT_8_8_8_8);
+		OUT_RING(chan, _(B_C0, G_C1, R_C2, A_ONE, 8_8_8_8));
 		break;
 	case PICT_x8b8g8r8:
-		OUT_RING  (chan, NV50TIC_0_0_MAPA_ONE | NV50TIC_0_0_TYPEA_UNORM |
-			 NV50TIC_0_0_MAPR_C2 | NV50TIC_0_0_TYPER_UNORM |
-			 NV50TIC_0_0_MAPG_C1 | NV50TIC_0_0_TYPEB_UNORM |
-			 NV50TIC_0_0_MAPB_C0 | NV50TIC_0_0_TYPEG_UNORM |
-			 NV50TIC_0_0_FMT_8_8_8_8);
+		OUT_RING(chan, _(R_C0, G_C1, B_C2, A_ONE, 8_8_8_8));
 		break;
 	case PICT_r5g6b5:
-		OUT_RING  (chan, NV50TIC_0_0_MAPA_ONE | NV50TIC_0_0_TYPEA_UNORM |
-			 NV50TIC_0_0_MAPR_C0 | NV50TIC_0_0_TYPER_UNORM |
-			 NV50TIC_0_0_MAPG_C1 | NV50TIC_0_0_TYPEB_UNORM |
-			 NV50TIC_0_0_MAPB_C2 | NV50TIC_0_0_TYPEG_UNORM |
-			 NV50TIC_0_0_FMT_5_6_5);
+		OUT_RING(chan, _(B_C0, G_C1, R_C2, A_ONE, 5_6_5));
 		break;
 	case PICT_a8:
-		OUT_RING  (chan, NV50TIC_0_0_MAPA_C0 | NV50TIC_0_0_TYPEA_UNORM |
-			 NV50TIC_0_0_MAPR_ZERO | NV50TIC_0_0_TYPER_UNORM |
-			 NV50TIC_0_0_MAPG_ZERO | NV50TIC_0_0_TYPEB_UNORM |
-			 NV50TIC_0_0_MAPB_ZERO | NV50TIC_0_0_TYPEG_UNORM |
-			 NV50TIC_0_0_FMT_8);
+		OUT_RING(chan, _(A_C0, B_ZERO, G_ZERO, R_ZERO, 8));
+		break;
+	case PICT_x1r5g5b5:
+		OUT_RING(chan, _(B_C0, G_C1, R_C2, A_ONE, 1_5_5_5));
+		break;
+	case PICT_x1b5g5r5:
+		OUT_RING(chan, _(R_C0, G_C1, B_C2, A_ONE, 1_5_5_5));
+		break;
+	case PICT_a1r5g5b5:
+		OUT_RING(chan, _(B_C0, G_C1, R_C2, A_C3, 1_5_5_5));
+		break;
+	case PICT_a1b5g5r5:
+		OUT_RING(chan, _(R_C0, G_C1, B_C2, A_C3, 1_5_5_5));
+		break;
+	case PICT_b5g6r5:
+		OUT_RING(chan, _(R_C0, G_C1, B_C2, A_ONE, 5_6_5));
+		break;
+	case PICT_b8g8r8x8:
+		OUT_RING(chan, _(A_ONE, R_C1, G_C2, B_C3, 8_8_8_8));
+		break;
+	case PICT_b8g8r8a8:
+		OUT_RING(chan, _(A_C0, R_C1, G_C2, B_C3, 8_8_8_8));
+		break;
+	case PICT_a2b10g10r10:
+		OUT_RING(chan, _(R_C0, G_C1, B_C2, A_C3, 2_10_10_10));
+		break;
+	case PICT_x2b10g10r10:
+		OUT_RING(chan, _(R_C0, G_C1, B_C2, A_ONE, 2_10_10_10));
+		break;
+	case PICT_x2r10g10b10:
+		OUT_RING(chan, _(B_C0, G_C1, R_C2, A_ONE, 2_10_10_10));
+		break;
+	case PICT_a2r10g10b10:
+		OUT_RING(chan, _(B_C0, G_C1, R_C2, A_C3, 2_10_10_10));
+		break;
+	case PICT_x4r4g4b4:
+		OUT_RING(chan, _(B_C0, G_C1, R_C2, A_ONE, 4_4_4_4));
+		break;
+	case PICT_x4b4g4r4:
+		OUT_RING(chan, _(R_C0, G_C1, B_C2, A_ONE, 4_4_4_4));
+		break;
+	case PICT_a4r4g4b4:
+		OUT_RING(chan, _(B_C0, G_C1, R_C2, A_C3, 4_4_4_4));
+		break;
+	case PICT_a4b4g4r4:
+		OUT_RING(chan, _(R_C0, G_C1, B_C2, A_C3, 4_4_4_4));
 		break;
 	default:
 		NOUVEAU_FALLBACK("invalid picture format, this SHOULD NOT HAPPEN. Expect trouble.\n");
 	}
-	OUT_RELOCl(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_RD);
-	OUT_RING  (chan, 0xd0005000 | (bo->tile_mode << 22));
+#undef _
+
+	mode = 0xd0005000 | (bo->tile_mode << 22);
+	if (OUT_RELOCl(chan, bo, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_RD) ||
+	    OUT_RELOCd(chan, bo, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_RD |
+		       NOUVEAU_BO_HIGH | NOUVEAU_BO_OR, mode, mode))
+		return FALSE;
 	OUT_RING  (chan, 0x00300000);
 	OUT_RING  (chan, ppix->drawable.width);
 	OUT_RING  (chan, (1 << NV50TIC_0_5_DEPTH_SHIFT) | ppix->drawable.height);
 	OUT_RING  (chan, 0x03000000);
-	OUT_RELOCh(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_RD);
+	OUT_RING  (chan, 0x00000000);
 
 	BEGIN_RING(chan, tesla, NV50TCL_TSC_ADDRESS_HIGH, 3);
-	OUT_RELOCh(chan, pNv->tesla_scratch, TSC_OFFSET, tcb_flags);
-	OUT_RELOCl(chan, pNv->tesla_scratch, TSC_OFFSET, tcb_flags);
+	if (OUT_RELOCh(chan, pNv->tesla_scratch, TSC_OFFSET, tcb_flags) ||
+	    OUT_RELOCl(chan, pNv->tesla_scratch, TSC_OFFSET, tcb_flags))
+		return FALSE;
 	OUT_RING  (chan, 0x00000000);
 	BEGIN_RING(chan, tesla, NV50TCL_CB_DEF_ADDRESS_HIGH, 3);
-	OUT_RELOCh(chan, pNv->tesla_scratch, TSC_OFFSET, tcb_flags);
-	OUT_RELOCl(chan, pNv->tesla_scratch, TSC_OFFSET, tcb_flags);
+	if (OUT_RELOCh(chan, pNv->tesla_scratch, TSC_OFFSET, tcb_flags) ||
+	    OUT_RELOCl(chan, pNv->tesla_scratch, TSC_OFFSET, tcb_flags))
+		return FALSE;
 	OUT_RING  (chan, (CB_TSC << NV50TCL_CB_DEF_SET_BUFFER_SHIFT) | 0x4000);
 	BEGIN_RING(chan, tesla, NV50TCL_CB_ADDR, 1);
 	OUT_RING  (chan, CB_TSC | ((unit * 8) << NV50TCL_CB_ADDR_ID_SHIFT));
-	BEGIN_RING(chan, tesla, NV50TCL_CB_DATA(0) | 0x40000000, 8);
+	BEGIN_RING_NI(chan, tesla, NV50TCL_CB_DATA(0), 8);
 	if (ppict->repeat) {
 		switch (ppict->repeatType) {
 		case RepeatPad:
@@ -665,17 +780,10 @@ NV50EXABlend(PixmapPtr ppix, PicturePtr ppict, int op, int component_alpha)
 			else
 			if (sblend == BF(ONE_MINUS_DST_ALPHA))
 				sblend = BF(ZERO);
-		} else
-		if (ppict->format == PICT_a8) {
-			if (sblend == BF(DST_ALPHA))
-				sblend = BF(DST_COLOR);
-			else
-			if (sblend == BF(ONE_MINUS_DST_ALPHA))
-				sblend = BF(ONE_MINUS_DST_COLOR);
 		}
 	}
 
-	if (b->src_alpha && (component_alpha || ppict->format == PICT_a8)) {
+	if (b->src_alpha && component_alpha) {
 		if (dblend == BF(SRC_ALPHA))
 			dblend = BF(SRC_COLOR);
 		else
@@ -710,7 +818,7 @@ NV50EXACheckComposite(int op,
 	if (!NV50EXACheckRenderTarget(pdpict))
 		NOUVEAU_FALLBACK("render target invalid\n");
 
-	if (!NV50EXACheckTexture(pspict, op))
+	if (!NV50EXACheckTexture(pspict, pdpict, op))
 		NOUVEAU_FALLBACK("src picture invalid\n");
 
 	if (pmpict) {
@@ -720,7 +828,7 @@ NV50EXACheckComposite(int op,
 		    NV50EXABlendOp[op].src_blend != BF(ZERO))
 			NOUVEAU_FALLBACK("component-alpha not supported\n");
 
-		if (!NV50EXACheckTexture(pmpict, op))
+		if (!NV50EXACheckTexture(pmpict, pdpict, op))
 			NOUVEAU_FALLBACK("mask picture invalid\n");
 	}
 
@@ -745,28 +853,44 @@ NV50EXAPrepareComposite(int op,
 	NV50EXA_LOCALS(pspix);
 	const unsigned shd_flags = NOUVEAU_BO_VRAM | NOUVEAU_BO_RD;
 
-	WAIT_RING (chan, 128);
+	if (MARK_RING (chan, 128, 4 + 2 + 2 * 10))
+		NOUVEAU_FALLBACK("ring space\n");
+
 	BEGIN_RING(chan, eng2d, 0x0110, 1);
 	OUT_RING  (chan, 0);
 
-	if (!NV50EXARenderTarget(pdpix, pdpict))
+	if (!NV50EXARenderTarget(pdpix, pdpict)) {
+		MARK_UNDO(chan);
 		NOUVEAU_FALLBACK("render target invalid\n");
+	}
 
 	NV50EXABlend(pdpix, pdpict, op, pmpict && pmpict->componentAlpha &&
 		     PICT_FORMAT_RGB(pmpict->format));
 
 	BEGIN_RING(chan, tesla, NV50TCL_VP_ADDRESS_HIGH, 2);
-	OUT_RELOCh(chan, pNv->tesla_scratch, PVP_OFFSET, shd_flags);
-	OUT_RELOCl(chan, pNv->tesla_scratch, PVP_OFFSET, shd_flags);
+	if (OUT_RELOCh(chan, pNv->tesla_scratch, PVP_OFFSET, shd_flags) ||
+	    OUT_RELOCl(chan, pNv->tesla_scratch, PVP_OFFSET, shd_flags)) {
+		MARK_UNDO(chan);
+		return FALSE;
+	}
+
 	BEGIN_RING(chan, tesla, NV50TCL_FP_ADDRESS_HIGH, 2);
-	OUT_RELOCh(chan, pNv->tesla_scratch, PFP_OFFSET, shd_flags);
-	OUT_RELOCl(chan, pNv->tesla_scratch, PFP_OFFSET, shd_flags);
+	if (OUT_RELOCh(chan, pNv->tesla_scratch, PFP_OFFSET, shd_flags) ||
+	    OUT_RELOCl(chan, pNv->tesla_scratch, PFP_OFFSET, shd_flags)) {
+		MARK_UNDO(chan);
+		return FALSE;
+	}
+
+	if (!NV50EXATexture(pspix, pspict, 0)) {
+		MARK_UNDO(chan);
+		NOUVEAU_FALLBACK("src picture invalid\n");
+	}
 
 	if (pmpict) {
-		if (!NV50EXATexture(pspix, pspict, 0))
-			NOUVEAU_FALLBACK("src picture invalid\n");
-		if (!NV50EXATexture(pmpix, pmpict, 1))
+		if (!NV50EXATexture(pmpix, pmpict, 1)) {
+			MARK_UNDO(chan);
 			NOUVEAU_FALLBACK("mask picture invalid\n");
+		}
 		state->have_mask = TRUE;
 
 		BEGIN_RING(chan, tesla, NV50TCL_FP_START_ID, 1);
@@ -784,8 +908,6 @@ NV50EXAPrepareComposite(int op,
 			}
 		}
 	} else {
-		if (!NV50EXATexture(pspix, pspict, 0))
-			NOUVEAU_FALLBACK("src picture invalid\n");
 		state->have_mask = FALSE;
 
 		BEGIN_RING(chan, tesla, NV50TCL_FP_START_ID, 1);
@@ -798,9 +920,9 @@ NV50EXAPrepareComposite(int op,
 	BEGIN_RING(chan, tesla, 0x1334, 1);
 	OUT_RING  (chan, 0);
 
-	BEGIN_RING(chan, tesla, 0x1458, 1);
+	BEGIN_RING(chan, tesla, NV50TCL_BIND_TIC(2), 1);
 	OUT_RING  (chan, 1);
-	BEGIN_RING(chan, tesla, 0x1458, 1);
+	BEGIN_RING(chan, tesla, NV50TCL_BIND_TIC(2), 1);
 	OUT_RING  (chan, 0x203);
 
 	pNv->alu = op;
@@ -840,51 +962,45 @@ NV50EXAComposite(PixmapPtr pdpix, int sx, int sy, int mx, int my,
 		 int dx, int dy, int w, int h)
 {
 	NV50EXA_LOCALS(pdpix);
-	float sX0, sX1, sX2, sX3, sY0, sY1, sY2, sY3;
-	unsigned dX0 = dx, dX1 = dx + w, dY0 = dy, dY1 = dy + h;
+	float sX0, sX1, sX2, sY0, sY1, sY2;
 
 	WAIT_RING (chan, 64);
+	BEGIN_RING(chan, tesla, NV50TCL_SCISSOR_HORIZ(0), 2);
+	OUT_RING  (chan, (dx + w) << 16 | dx);
+	OUT_RING  (chan, (dy + h) << 16 | dy);
 	BEGIN_RING(chan, tesla, NV50TCL_VERTEX_BEGIN, 1);
-	OUT_RING  (chan, NV50TCL_VERTEX_BEGIN_QUADS);
+	OUT_RING  (chan, NV50TCL_VERTEX_BEGIN_TRIANGLES);
 
-	NV50EXATransform(state->unit[0].transform, sx, sy,
+	NV50EXATransform(state->unit[0].transform, sx, sy + (h * 2),
 			 state->unit[0].width, state->unit[0].height,
 			 &sX0, &sY0);
-	NV50EXATransform(state->unit[0].transform, sx + w, sy,
+	NV50EXATransform(state->unit[0].transform, sx, sy,
 			 state->unit[0].width, state->unit[0].height,
 			 &sX1, &sY1);
-	NV50EXATransform(state->unit[0].transform, sx + w, sy + h,
+	NV50EXATransform(state->unit[0].transform, sx + (w * 2), sy,
 			 state->unit[0].width, state->unit[0].height,
 			 &sX2, &sY2);
-	NV50EXATransform(state->unit[0].transform, sx, sy + h,
-			 state->unit[0].width, state->unit[0].height,
-			 &sX3, &sY3);
 
 	if (state->have_mask) {
-		float mX0, mX1, mX2, mX3, mY0, mY1, mY2, mY3;
+		float mX0, mX1, mX2, mY0, mY1, mY2;
 
-		NV50EXATransform(state->unit[1].transform, mx, my,
+		NV50EXATransform(state->unit[1].transform, mx, my + (h * 2),
 				 state->unit[1].width, state->unit[1].height,
 				 &mX0, &mY0);
-		NV50EXATransform(state->unit[1].transform, mx + w, my,
+		NV50EXATransform(state->unit[1].transform, mx, my,
 				 state->unit[1].width, state->unit[1].height,
 				 &mX1, &mY1);
-		NV50EXATransform(state->unit[1].transform, mx + w, my + h,
+		NV50EXATransform(state->unit[1].transform, mx + (w * 2), my,
 				 state->unit[1].width, state->unit[1].height,
 				 &mX2, &mY2);
-		NV50EXATransform(state->unit[1].transform, mx, my + h,
-				 state->unit[1].width, state->unit[1].height,
-				 &mX3, &mY3);
 
-		VTX2s(pNv, sX0, sY0, mX0, mY0, dX0, dY0);
-		VTX2s(pNv, sX1, sY1, mX1, mY1, dX1, dY0);
-		VTX2s(pNv, sX2, sY2, mX2, mY2, dX1, dY1);
-		VTX2s(pNv, sX3, sY3, mX3, mY3, dX0, dY1);
+		VTX2s(pNv, sX0, sY0, mX0, mY0, dx, dy + (h * 2));
+		VTX2s(pNv, sX1, sY1, mX1, mY1, dx, dy);
+		VTX2s(pNv, sX2, sY2, mX2, mY2, dx + (w * 2), dy);
 	} else {
-		VTX1s(pNv, sX0, sY0, dX0, dY0);
-		VTX1s(pNv, sX1, sY1, dX1, dY0);
-		VTX1s(pNv, sX2, sY2, dX1, dY1);
-		VTX1s(pNv, sX3, sY3, dX0, dY1);
+		VTX1s(pNv, sX0, sY0, dx, dy + (h * 2));
+		VTX1s(pNv, sX1, sY1, dx, dy);
+		VTX1s(pNv, sX2, sY2, dx + (w * 2), dy);
 	}
 
 	BEGIN_RING(chan, tesla, NV50TCL_VERTEX_END, 1);

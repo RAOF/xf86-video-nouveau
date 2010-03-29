@@ -239,7 +239,7 @@ NV40EXATexture(ScrnInfoPtr pScrn, PixmapPtr pPix, PicturePtr pPict, int unit)
 	struct nouveau_channel *chan = pNv->chan;
 	struct nouveau_grobj *curie = pNv->Nv3D;
 	struct nouveau_bo *bo = nouveau_pixmap_bo(pPix);
-	unsigned delta = nouveau_pixmap_offset(pPix);
+	unsigned tex_reloc = NOUVEAU_BO_VRAM | NOUVEAU_BO_GART | NOUVEAU_BO_RD;
 	nv_pict_texture_format_t *fmt;
 	NV40EXA_STATE;
 
@@ -248,14 +248,15 @@ NV40EXATexture(ScrnInfoPtr pScrn, PixmapPtr pPix, PicturePtr pPict, int unit)
 		return FALSE;
 
 	BEGIN_RING(chan, curie, NV40TCL_TEX_OFFSET(unit), 8);
-	OUT_RELOCl(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_GART |
-			 NOUVEAU_BO_RD);
-	OUT_RELOCd(chan, bo, fmt->card_fmt | NV40TCL_TEX_FORMAT_LINEAR |
-			 NV40TCL_TEX_FORMAT_DIMS_2D | 0x8000 |
-			 NV40TCL_TEX_FORMAT_NO_BORDER |
-			 (1 << NV40TCL_TEX_FORMAT_MIPMAP_COUNT_SHIFT),
-			 NOUVEAU_BO_VRAM | NOUVEAU_BO_GART | NOUVEAU_BO_RD,
-			 NV40TCL_TEX_FORMAT_DMA0, NV40TCL_TEX_FORMAT_DMA1);
+	if (OUT_RELOCl(chan, bo, 0, tex_reloc) ||
+	    OUT_RELOCd(chan, bo, fmt->card_fmt | NV40TCL_TEX_FORMAT_LINEAR |
+		       NV40TCL_TEX_FORMAT_DIMS_2D | 0x8000 |
+		       NV40TCL_TEX_FORMAT_NO_BORDER |
+		       (1 << NV40TCL_TEX_FORMAT_MIPMAP_COUNT_SHIFT),
+		       tex_reloc | NOUVEAU_BO_OR,
+		       NV40TCL_TEX_FORMAT_DMA0, NV40TCL_TEX_FORMAT_DMA1))
+		return FALSE;
+
 	if (pPict->repeat) {
 		switch(pPict->repeatType) {
 		case RepeatPad:
@@ -308,7 +309,6 @@ NV40_SetupSurface(ScrnInfoPtr pScrn, PixmapPtr pPix, PictFormatShort format)
 	struct nouveau_channel *chan = pNv->chan;
 	struct nouveau_grobj *curie = pNv->Nv3D;
 	struct nouveau_bo *bo = nouveau_pixmap_bo(pPix);
-	unsigned delta = nouveau_pixmap_offset(pPix);
 	nv_pict_surface_format_t *fmt;
 
 	fmt = NV40_GetPictSurfaceFormat(format);
@@ -322,17 +322,23 @@ NV40_SetupSurface(ScrnInfoPtr pScrn, PixmapPtr pPix, PictFormatShort format)
 		   NV40TCL_RT_FORMAT_ZETA_Z24S8 |
 		   fmt->card_fmt);
 	OUT_RING  (chan, exaGetPixmapPitch(pPix));
-	OUT_RELOCl(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
+	if (OUT_RELOCl(chan, bo, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR))
+		return FALSE;
 
 	return TRUE;
 }
 
 static Bool
-NV40EXACheckCompositeTexture(PicturePtr pPict)
+NV40EXACheckCompositeTexture(PicturePtr pPict, PicturePtr pdPict, int op)
 {
 	nv_pict_texture_format_t *fmt;
-	int w = pPict->pDrawable->width;
-	int h = pPict->pDrawable->height;
+	int w, h;
+
+	if (!pPict->pDrawable)
+		NOUVEAU_FALLBACK("Solid and gradient pictures unsupported\n");
+
+	w = pPict->pDrawable->width;
+	h = pPict->pDrawable->height;
 
 	if ((w > 4096) || (h > 4096))
 		NOUVEAU_FALLBACK("picture too large, %dx%d\n", w, h);
@@ -345,6 +351,16 @@ NV40EXACheckCompositeTexture(PicturePtr pPict)
 	if (pPict->filter != PictFilterNearest &&
 	    pPict->filter != PictFilterBilinear)
 		NOUVEAU_FALLBACK("filter 0x%x not supported\n", pPict->filter);
+
+	/* Opengl and Render disagree on what should be sampled outside an XRGB 
+	 * texture (with no repeating). Opengl has a hardcoded alpha value of 
+	 * 1.0, while render expects 0.0. We assume that clipping is done for 
+	 * untranformed sources.
+	 */
+	if (NV40PictOp[op].src_alpha && !pPict->repeat &&
+		pPict->transform && (PICT_FORMAT_A(pPict->format) == 0)
+		&& (PICT_FORMAT_A(pdPict->format) != 0))
+		NOUVEAU_FALLBACK("REPEAT_NONE unsupported for XRGB source\n");
 
 	return TRUE;
 }
@@ -366,14 +382,14 @@ NV40EXACheckComposite(int op, PicturePtr psPict,
 		NOUVEAU_FALLBACK("dst picture format 0x%08x not supported\n",
 				pdPict->format);
 
-	if (!NV40EXACheckCompositeTexture(psPict))
+	if (!NV40EXACheckCompositeTexture(psPict, pdPict, op))
 		NOUVEAU_FALLBACK("src picture\n");
 	if (pmPict) {
 		if (pmPict->componentAlpha && 
 		    PICT_FORMAT_RGB(pmPict->format) &&
 		    opr->src_alpha && opr->src_card_op != SF(ZERO))
 			NOUVEAU_FALLBACK("mask CA + SA\n");
-		if (!NV40EXACheckCompositeTexture(pmPict))
+		if (!NV40EXACheckCompositeTexture(pmPict, pdPict, op))
 			NOUVEAU_FALLBACK("mask picture\n");
 	}
 
@@ -406,7 +422,8 @@ NV40EXAPrepareComposite(int op, PicturePtr psPict,
 	int fpid = NV40EXA_FPID_PASS_COL0;
 	NV40EXA_STATE;
 
-	WAIT_RING(chan, 128);
+	if (MARK_RING(chan, 128, 1 + 1 + 2*2))
+		return FALSE;
 
 	blend = NV40_GetPictOpRec(op);
 
@@ -414,12 +431,18 @@ NV40EXAPrepareComposite(int op, PicturePtr psPict,
 			(pmPict && pmPict->componentAlpha &&
 			 PICT_FORMAT_RGB(pmPict->format)));
 
-	NV40_SetupSurface(pScrn, pdPix, pdPict->format);
-	NV40EXATexture(pScrn, psPix, psPict, 0);
+	if (!NV40_SetupSurface(pScrn, pdPix, pdPict->format) ||
+	    !NV40EXATexture(pScrn, psPix, psPict, 0)) {
+		MARK_UNDO(chan);
+		return FALSE;
+	}
 
 	NV40_LoadVtxProg(pScrn, &nv40_vp_exa_render);
 	if (pmPict) {
-		NV40EXATexture(pScrn, pmPix, pmPict, 1);
+		if (!NV40EXATexture(pScrn, pmPix, pmPict, 1)) {
+			MARK_UNDO(chan);
+			return FALSE;
+		}
 
 		if (pmPict->componentAlpha && PICT_FORMAT_RGB(pmPict->format)) {
 			if (blend->src_alpha)
@@ -437,10 +460,12 @@ NV40EXAPrepareComposite(int op, PicturePtr psPict,
 		state->have_mask = FALSE;
 	}
 
-	if (pdPict->format == PICT_a8)
-		NV40_LoadFragProg(pScrn, nv40_fp_map_a8[fpid]);
-	else
-		NV40_LoadFragProg(pScrn, nv40_fp_map[fpid]);
+
+	if (!NV40_LoadFragProg(pScrn, (pdPict->format == PICT_a8) ?
+			       nv40_fp_map_a8[fpid] : nv40_fp_map[fpid])) {
+		MARK_UNDO(chan);
+		return FALSE;
+	}
 
 	/* Appears to be some kind of cache flush, needed here at least
 	 * sometimes.. funky text rendering otherwise :)
@@ -585,9 +610,8 @@ NVAccelInitNV40TCL(ScrnInfoPtr pScrn)
 	if (!nv40_fp_map_a8[0])
 		NV40EXAHackupA8Shaders(pScrn);
 
-	chipset = (nvReadMC(pNv, NV_PMC_BOOT_0) >> 20) & 0xff;
-
-	if ( (chipset & 0xf0) == NV_ARCH_40) {
+	chipset = pNv->dev->chipset;
+	if ((chipset & 0xf0) == NV_ARCH_40) {
 		chipset &= 0xf;
 		if (NV40TCL_CHIPSET_4X_MASK & (1<<chipset))
 			class = NV40TCL;

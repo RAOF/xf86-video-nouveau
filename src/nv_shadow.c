@@ -20,7 +20,6 @@
  * SOFTWARE.
  */
 
-#include "nv_local.h"
 #include "nv_include.h"
 #include "nv_type.h"
 #include "shadowfb.h"
@@ -38,9 +37,9 @@ NVRefreshArea(ScrnInfoPtr pScrn, int num, BoxPtr pbox)
    
 	cpp = pScrn->bitsPerPixel >> 3;
 	FBPitch = pScrn->displayWidth * cpp;
-	max_height = pNv->FB->size/FBPitch;
+	max_height = pNv->scanout->size/FBPitch;
 
-	nouveau_bo_map(pNv->FB, NOUVEAU_BO_WR);
+	nouveau_bo_map(pNv->scanout, NOUVEAU_BO_WR);
 	while(num--) {
 		x1 = MAX(pbox->x1, 0);
 		y1 = MAX(pbox->y1, 0);
@@ -51,7 +50,7 @@ NVRefreshArea(ScrnInfoPtr pScrn, int num, BoxPtr pbox)
 
 		if (width > 0 && height > 0) {
 			src = pNv->ShadowPtr + (y1 * pNv->ShadowPitch) + (x1 * cpp);
-			dst = pNv->FB->map + (y1 * FBPitch) + (x1 * cpp);
+			dst = pNv->scanout->map + (y1 * FBPitch) + (x1 * cpp);
 
 			while(height--) {
 				memcpy(dst, src, width);
@@ -62,5 +61,5 @@ NVRefreshArea(ScrnInfoPtr pScrn, int num, BoxPtr pbox)
 
 		pbox++;
 	}
-	nouveau_bo_unmap(pNv->FB);
+	nouveau_bo_unmap(pNv->scanout);
 } 

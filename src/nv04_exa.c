@@ -80,10 +80,10 @@ NV04EXAPrepareSolid(PixmapPtr pPixmap, int alu, Pixel planemask, Pixel fg)
 	struct nouveau_grobj *surf2d = pNv->NvContextSurfaces;
 	struct nouveau_grobj *rect = pNv->NvRectangle;
 	struct nouveau_bo *bo = nouveau_pixmap_bo(pPixmap);
-	unsigned delta = nouveau_pixmap_offset(pPixmap);
-	unsigned int fmt, pitch, color;
+	unsigned int fmt, pitch, fmt2 = NV04_GDI_RECTANGLE_TEXT_COLOR_FORMAT_A8R8G8B8;
 
-	WAIT_RING(chan, 64);
+	if (MARK_RING(chan, 64, 2))
+		return FALSE;
 
 	planemask |= ~0 << pPixmap->drawable.bitsPerPixel;
 	if (planemask != ~0 || alu != GXcopy) {
@@ -102,13 +102,12 @@ NV04EXAPrepareSolid(PixmapPtr pPixmap, int alu, Pixel planemask, Pixel fg)
 	pitch = exaGetPixmapPitch(pPixmap);
 
 	if (pPixmap->drawable.bitsPerPixel == 16) {
-		/* convert to 32bpp */
-		uint32_t r =  (fg&0x1F)          * 255 / 31;
-		uint32_t g = ((fg&0x7E0) >> 5)   * 255 / 63;
-		uint32_t b = ((fg&0xF100) >> 11) * 255 / 31;
-		color = b<<16 | g<<8 | r;
-	} else 
-		color = fg;
+		if (pPixmap->drawable.depth == 16) {
+			fmt2 = NV04_GDI_RECTANGLE_TEXT_COLOR_FORMAT_A16R5G6B5;
+		} else if (pPixmap->drawable.depth == 15) {
+			fmt2 = NV04_GDI_RECTANGLE_TEXT_COLOR_FORMAT_X16A1R5G5B5;
+		}
+	}
 
 	/* When SURFACE_FORMAT_A8R8G8B8 is used with GDI_RECTANGLE_TEXT, the 
 	 * alpha channel gets forced to 0xFF for some reason.  We're using 
@@ -120,13 +119,16 @@ NV04EXAPrepareSolid(PixmapPtr pPixmap, int alu, Pixel planemask, Pixel fg)
 	BEGIN_RING(chan, surf2d, NV04_CONTEXT_SURFACES_2D_FORMAT, 4);
 	OUT_RING  (chan, fmt);
 	OUT_RING  (chan, (pitch << 16) | pitch);
-	OUT_RELOCl(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
-	OUT_RELOCl(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
+	if (OUT_RELOCl(chan, bo, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR) ||
+	    OUT_RELOCl(chan, bo, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR)) {
+		MARK_UNDO(chan);
+		return FALSE;
+	}
 
 	BEGIN_RING(chan, rect, NV04_GDI_RECTANGLE_TEXT_COLOR_FORMAT, 1);
-	OUT_RING  (chan, NV04_GDI_RECTANGLE_TEXT_COLOR_FORMAT_A8R8G8B8);
+	OUT_RING  (chan, fmt2);
 	BEGIN_RING(chan, rect, NV04_GDI_RECTANGLE_TEXT_COLOR1_A, 1);
-	OUT_RING (chan, color);
+	OUT_RING (chan, fg);
 
 	pNv->pdpix = pPixmap;
 	pNv->alu = alu;
@@ -185,38 +187,48 @@ NV04EXAPrepareCopy(PixmapPtr pSrcPixmap, PixmapPtr pDstPixmap, int dx, int dy,
 	struct nouveau_grobj *surf2d = pNv->NvContextSurfaces;
 	struct nouveau_grobj *blit = pNv->NvImageBlit;
 	struct nouveau_bo *src_bo = nouveau_pixmap_bo(pSrcPixmap);
-	unsigned src_delta = nouveau_pixmap_offset(pSrcPixmap);
 	struct nouveau_bo *dst_bo = nouveau_pixmap_bo(pDstPixmap);
-	unsigned dst_delta = nouveau_pixmap_offset(pDstPixmap);
 	int fmt;
 
-	WAIT_RING(chan, 64);
-
 	if (pSrcPixmap->drawable.bitsPerPixel !=
-			pDstPixmap->drawable.bitsPerPixel)
+	    pDstPixmap->drawable.bitsPerPixel)
+		return FALSE;
+
+	if (!NVAccelGetCtxSurf2DFormatFromPixmap(pDstPixmap, &fmt))
+		return FALSE;
+
+	if (MARK_RING(chan, 64, 2))
 		return FALSE;
 
 	planemask |= ~0 << pDstPixmap->drawable.bitsPerPixel;
 	if (planemask != ~0 || alu != GXcopy) {
-		if (pDstPixmap->drawable.bitsPerPixel == 32)
+		if (pDstPixmap->drawable.bitsPerPixel == 32) {
+			MARK_UNDO(chan);
 			return FALSE;
-		BEGIN_RING(chan, blit, NV04_IMAGE_BLIT_OPERATION, 1);
+		}
+
+		BEGIN_RING(chan, blit, NV04_IMAGE_BLIT_SURFACE, 1);
+		OUT_RING  (chan, pNv->NvContextSurfaces->handle);
+		BEGIN_RING(chan, blit, NV01_IMAGE_BLIT_OPERATION, 1);
 		OUT_RING  (chan, 1); /* ROP_AND */
+
 		NV04EXASetROP(pScrn, alu, planemask);
 	} else {
-		BEGIN_RING(chan, blit, NV04_IMAGE_BLIT_OPERATION, 1);
+		BEGIN_RING(chan, blit, NV04_IMAGE_BLIT_SURFACE, 1);
+		OUT_RING  (chan, pNv->NvContextSurfaces->handle);
+		BEGIN_RING(chan, blit, NV01_IMAGE_BLIT_OPERATION, 1);
 		OUT_RING  (chan, 3); /* SRCCOPY */
 	}
-
-	if (!NVAccelGetCtxSurf2DFormatFromPixmap(pDstPixmap, &fmt))
-		return FALSE;
 
 	BEGIN_RING(chan, surf2d, NV04_CONTEXT_SURFACES_2D_FORMAT, 4);
 	OUT_RING  (chan, fmt);
 	OUT_RING  (chan, (exaGetPixmapPitch(pDstPixmap) << 16) |
 		   (exaGetPixmapPitch(pSrcPixmap)));
-	OUT_RELOCl(chan, src_bo, src_delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_RD);
-	OUT_RELOCl(chan, dst_bo, dst_delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
+	if (OUT_RELOCl(chan, src_bo, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_RD) ||
+	    OUT_RELOCl(chan, dst_bo, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR)) {
+		MARK_UNDO(chan);
+		return FALSE;
+	}
 
 	pNv->pspix = pSrcPixmap;
 	pNv->pdpix = pDstPixmap;
@@ -254,29 +266,42 @@ NV04EXADoneCopy(PixmapPtr pDstPixmap)
 	pNv->chan->flush_notify = NULL;
 }
 
-static void
-NV04EXAStateIFCResubmit(struct nouveau_channel *chan)
+static Bool
+NV04EXAStateIFCSubmit(struct nouveau_channel *chan)
 {
 	ScrnInfoPtr pScrn = chan->user_private;
 	NVPtr pNv = NVPTR(pScrn);
 	struct nouveau_grobj *surf2d = pNv->NvContextSurfaces;
 	struct nouveau_grobj *ifc = pNv->NvImageFromCpu;
 	struct nouveau_bo *bo = nouveau_pixmap_bo(pNv->pdpix);
-	unsigned delta = nouveau_pixmap_offset(pNv->pdpix);
 	int surf_fmt;
 
 	NVAccelGetCtxSurf2DFormatFromPixmap(pNv->pdpix, &surf_fmt);
+
+	if (MARK_RING(chan, 64, 2))
+		return FALSE;
 
 	BEGIN_RING(chan, surf2d, NV04_CONTEXT_SURFACES_2D_FORMAT, 4);
 	OUT_RING  (chan, surf_fmt);
 	OUT_RING  (chan, (exaGetPixmapPitch(pNv->pdpix) << 16) |
 			  exaGetPixmapPitch(pNv->pdpix));
-	OUT_RELOCl(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
-	OUT_RELOCl(chan, bo, delta, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
+	if (OUT_RELOCl(chan, bo, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR) ||
+	    OUT_RELOCl(chan, bo, 0, NOUVEAU_BO_VRAM | NOUVEAU_BO_WR)) {
+		MARK_UNDO(chan);
+		return FALSE;
+	}
 	BEGIN_RING(chan, ifc, NV01_IMAGE_FROM_CPU_POINT, 3);
 	OUT_RING  (chan, (pNv->point_y << 16) | pNv->point_x);
 	OUT_RING  (chan, (pNv->height_out << 16) | pNv->width_out);
 	OUT_RING  (chan, (pNv->height_in << 16) | pNv->width_in);
+
+	return TRUE;
+}
+
+static void
+NV04EXAStateIFCResubmit(struct nouveau_channel *chan)
+{
+	NV04EXAStateIFCSubmit(chan);
 }
 
 Bool
@@ -321,8 +346,8 @@ NV04EXAUploadIFC(ScrnInfoPtr pScrn, const char *src, int src_pitch,
 		return FALSE;
 
 	BEGIN_RING(chan, clip, NV01_CONTEXT_CLIP_RECTANGLE_POINT, 2);
-	OUT_RING  (chan, 0x0); 
-	OUT_RING  (chan, 0x7FFF7FFF);
+	OUT_RING  (chan, (y << 16) | x);
+	OUT_RING  (chan, (h << 16) | w);
 	BEGIN_RING(chan, ifc, NV01_IMAGE_FROM_CPU_OPERATION, 2);
 	OUT_RING  (chan, NV01_IMAGE_FROM_CPU_OPERATION_SRCCOPY);
 	OUT_RING  (chan, ifc_fmt);
@@ -334,7 +359,8 @@ NV04EXAUploadIFC(ScrnInfoPtr pScrn, const char *src, int src_pitch,
 	pNv->width_out = w;
 	pNv->pdpix = pDst;
 	chan->flush_notify = NV04EXAStateIFCResubmit;
-	NV04EXAStateIFCResubmit(chan);
+	if (!NV04EXAStateIFCSubmit(chan))
+		return FALSE;
 
 	if (padbytes)
 		h--;

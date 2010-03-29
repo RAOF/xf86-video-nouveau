@@ -125,44 +125,63 @@ void
 nouveau_wfb_setup_wrap(ReadMemoryProcPtr *pRead, WriteMemoryProcPtr *pWrite,
 		       DrawablePtr pDraw)
 {
-	struct nouveau_pixmap *nvpix = NULL;
+	struct nouveau_bo *bo = NULL;
 	struct wfb_pixmap *wfb;
 	PixmapPtr ppix = NULL;
-	int wrap, have_tiled = 0;
+	int i, j, have_tiled = 0;
 
 	if (!pRead || !pWrite)
 		return;
 
 	ppix = NVGetDrawablePixmap(pDraw);
 	if (ppix)
-		nvpix = nouveau_pixmap(ppix);
-	if (!nvpix || !nvpix->bo) {
-		*pRead = nouveau_wfb_rd_linear;
-		*pWrite = nouveau_wfb_wr_linear;
+		bo = nouveau_pixmap_bo(ppix);
+
+	if (!ppix || !bo) {
+		for (i = 0; i < 6; i++)
+			if (wfb_pixmap[i].ppix && wfb_pixmap[i].pitch)
+				have_tiled = 1;
+
+		if (have_tiled) {
+			*pRead = nouveau_wfb_rd_tiled;
+			*pWrite = nouveau_wfb_wr_tiled;
+		} else {
+			*pRead = nouveau_wfb_rd_linear;
+			*pWrite = nouveau_wfb_wr_linear;
+		}
 		return;
 	}
 
-	wrap = 0;
-	while (wfb_pixmap[wrap].ppix) {
-		if (wfb_pixmap[wrap].pitch)
+	j = -1;
+	for (i = 0; i < 6; i++) {
+		if (!wfb_pixmap[i].ppix && j < 0)
+			j = i;
+
+		if (wfb_pixmap[i].ppix && wfb_pixmap[i].pitch)
 			have_tiled = 1;
-		wrap++;
 	}
-	wfb = &wfb_pixmap[wrap];
+
+	if (j == -1) {
+		ErrorF("We ran out of wfb indices, this is not good.\n");
+		goto out;
+	}
+
+	wfb = &wfb_pixmap[j];
 
 	wfb->ppix = ppix;
 	wfb->base = (unsigned long)ppix->devPrivate.ptr;
-	wfb->end = wfb->base + nvpix->bo->size;
-	if (!nvpix->bo->tile_flags) {
+	wfb->end = wfb->base + bo->size;
+	if (!bo->tile_flags) {
 		wfb->pitch = 0;
 	} else {
 		wfb->pitch = ppix->devKind;
 		wfb->multiply_factor = (0xFFFFFFFF / wfb->pitch) + 1;
-		wfb->tile_height = nvpix->bo->tile_mode + 2;
+		wfb->tile_height = bo->tile_mode + 2;
 		wfb->horiz_tiles = wfb->pitch / 64;
 		have_tiled = 1;
 	}
 
+out:
 	if (have_tiled) {
 		*pRead = nouveau_wfb_rd_tiled;
 		*pWrite = nouveau_wfb_wr_tiled;

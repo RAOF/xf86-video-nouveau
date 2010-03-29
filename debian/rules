@@ -28,6 +28,7 @@ confflags += --disable-static
 get-orig-source:
 	git clone git://anongit.freedesktop.org/git/nouveau/xf86-video-nouveau && \
 	cd xf86-video-nouveau && autoreconf -v --install && \
+	git log > ChangeLog && \
 	REVISION=$$(git show --pretty=format:"%h" HEAD | head -n1) && cd .. && \
 	PREFIX=xserver-xorg-video-nouveau_0.0.15+git$$(date +%Y%m%d)+$$REVISION && \
 	rm -rf xf86-video-nouveau/.git && \

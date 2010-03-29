@@ -69,6 +69,7 @@ binary-arch: build install serverabi
 	dh_testdir
 	dh_testroot
 	dh_installdocs
+	dh_installexamples
 	dh_installchangelogs
 	dh_install --sourcedir=debian/tmp --list-missing
 	dh_link

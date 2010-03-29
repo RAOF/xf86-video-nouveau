@@ -9,6 +9,7 @@ xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-1) UNRELEASED; urgency=
   * Drop conflict with nvidia-glx.  As long as one does not run
     applications that require a library that nvidia-glx diverts, the
     drivers can coexist peacefully.
+  * Bump Standards-Version to 3.8.4, no changes needed.
 
  -- Sven Joachim <svenjoac@gmx.de>  Mon, 29 Mar 2010 10:10:00 +0200
 

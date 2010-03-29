@@ -19,7 +19,7 @@ Build-Depends: debhelper (>= 7),
  automake,
  libtool,
  xutils-dev
-Standards-Version: 3.8.2
+Standards-Version: 3.8.4
 Homepage: http://nouveau.freedesktop.org/wiki/
 Vcs-Git: git://git.debian.org/git/pkg-xorg/driver/xserver-xorg-video-nouveau
 Vcs-Browser: http://git.debian.org/?=pkg-xorg/driver/xserver-xorg-video-nouveau.git

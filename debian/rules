@@ -27,16 +27,15 @@ confflags += --disable-static
 
 get-orig-source:
 	git clone git://anongit.freedesktop.org/git/nouveau/xf86-video-nouveau && \
-	cd xf86-video-nouveau && autoreconf -v --install && \
-	git log > ChangeLog && \
+	cd xf86-video-nouveau && git log > ChangeLog && \
 	REVISION=$$(git show --pretty=format:"%h" HEAD | head -n1) && cd .. && \
 	PREFIX=xserver-xorg-video-nouveau_0.0.15+git$$(date +%Y%m%d)+$$REVISION && \
 	rm -rf xf86-video-nouveau/.git && \
-	tar czf $$PREFIX.orig.tar.gz --exclude=autom4te.cache xf86-video-nouveau && \
+	tar czf $$PREFIX.orig.tar.gz xf86-video-nouveau && \
 	rm -rf xf86-video-nouveau
 
 build: build-stamp
-build-stamp:
+build-stamp: configure
 	dh_testdir
 	test -d obj-$(DEB_BUILD_GNU_TYPE) || mkdir obj-$(DEB_BUILD_GNU_TYPE)
 	cd obj-$(DEB_BUILD_GNU_TYPE) && \
@@ -45,6 +44,10 @@ build-stamp:
 	             CFLAGS="$(CFLAGS)"
 	cd obj-$(DEB_BUILD_GNU_TYPE) && $(MAKE)
 	touch $@
+
+configure: 
+	dh_testdir
+	autoreconf -vi
 
 clean:
 	dh_testdir

@@ -53,15 +53,7 @@ clean:
 	dh_testdir
 	dh_testroot
 	rm -f build-stamp
-
 	[ ! -f Makefile ] || $(MAKE) distclean
-
-	rm -f config.cache config.log config.status
-	rm -f */config.cache */config.log */config.status
-	rm -f conftest* */conftest*
-	rm -rf autom4te.cache */autom4te.cache
-	rm -rf obj-*
-
 	dh_clean
 
 install: build

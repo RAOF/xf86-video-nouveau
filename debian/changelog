@@ -1,5 +1,6 @@
 xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-1) UNRELEASED; urgency=low
 
+  [ Sven Joachim ]
   * New upstream snapshot.
   * Ship an upstream changelog generated from "git log".
   * Do not include other generated files in the .orig.tar.gz,
@@ -14,6 +15,9 @@ xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-1) UNRELEASED; urgency=
     drivers can coexist peacefully.
   * Provide a minimal example xorg.conf.
   * Bump Standards-Version to 3.8.4, no changes needed.
+
+  [ Cyril Brulebois ]
+  * Use build/ instead of obj-$(DEB_BUILD_GNU_TYPE)/.
 
  -- Sven Joachim <svenjoac@gmx.de>  Mon, 29 Mar 2010 10:10:00 +0200
 

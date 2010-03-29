@@ -37,12 +37,12 @@ get-orig-source:
 build: build-stamp
 build-stamp: configure
 	dh_testdir
-	test -d obj-$(DEB_BUILD_GNU_TYPE) || mkdir obj-$(DEB_BUILD_GNU_TYPE)
-	cd obj-$(DEB_BUILD_GNU_TYPE) && \
+	test -d build || mkdir build
+	cd build && \
 	../configure --prefix=/usr --mandir=\$${prefix}/share/man \
 	             --infodir=\$${prefix}/share/info $(confflags) \
 	             CFLAGS="$(CFLAGS)"
-	cd obj-$(DEB_BUILD_GNU_TYPE) && $(MAKE)
+	cd build && $(MAKE)
 	touch $@
 
 configure: 
@@ -54,7 +54,7 @@ clean:
 	dh_testroot
 	rm -f build-stamp
 	[ ! -f Makefile ] || $(MAKE) distclean
-	rm -rf obj-*
+	rm -rf build
 	dh_clean
 
 install: build
@@ -63,7 +63,7 @@ install: build
 	dh_prep
 	dh_installdirs
 
-	cd obj-$(DEB_BUILD_GNU_TYPE) && $(MAKE) DESTDIR=$(CURDIR)/debian/tmp install
+	cd build && $(MAKE) DESTDIR=$(CURDIR)/debian/tmp install
 
 binary-arch: build install serverabi
 	dh_testdir

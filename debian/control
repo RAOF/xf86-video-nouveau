@@ -3,7 +3,8 @@ Section: x11
 Priority: optional
 Maintainer: Debian X Strike Force <debian-x@lists.debian.org>
 Uploaders: Chris Lamb <lamby@debian.org>, Matthew Johnson <mjj29@debian.org>
-Build-Depends: debhelper (>= 7),
+Build-Depends:
+ debhelper (>= 7),
  pkg-config,
  xserver-xorg-dev (>= 2:1.7),
  x11proto-video-dev,
@@ -18,7 +19,7 @@ Build-Depends: debhelper (>= 7),
  mesa-common-dev,
  automake,
  libtool,
- xutils-dev
+ xutils-dev,
 Standards-Version: 3.8.4
 Homepage: http://nouveau.freedesktop.org/wiki/
 Vcs-Git: git://git.debian.org/git/pkg-xorg/driver/xserver-xorg-video-nouveau
@@ -26,9 +27,10 @@ Vcs-Browser: http://git.debian.org/?=pkg-xorg/driver/xserver-xorg-video-nouveau.
 
 Package: xserver-xorg-video-nouveau
 Architecture: any
-Depends: ${shlibs:Depends}, 
+Depends:
+ ${shlibs:Depends},
  ${misc:Depends},
- ${xserver:Depends}
+ ${xserver:Depends},
 Provides: ${xviddriver:Provides}
 Description: X.Org X server -- Nouveau display driver (experimental)
  This driver for the X.Org X server (see xserver-xorg for a further description)

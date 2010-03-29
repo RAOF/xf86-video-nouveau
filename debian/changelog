@@ -20,6 +20,7 @@ xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-1) UNRELEASED; urgency=
   * Use build/ instead of obj-$(DEB_BUILD_GNU_TYPE)/.
   * Delete the .la file after make install and use dh_install's
     --fail-missing instead of --list-missing, just to make sure.
+  * Pass --warnings=6 to dpkg-shlibdeps because of the plugin status.
 
  -- Sven Joachim <svenjoac@gmx.de>  Mon, 29 Mar 2010 10:10:00 +0200
 

@@ -45,9 +45,9 @@ build-stamp: configure
 	cd build && $(MAKE)
 	touch $@
 
-configure: 
+configure:
 	dh_testdir
-	autoreconf -vi
+	autoreconf -vfi
 
 clean:
 	dh_testdir

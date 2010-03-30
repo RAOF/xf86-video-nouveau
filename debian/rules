@@ -41,15 +41,15 @@ build-stamp: configure
 	cd build && \
 	../configure --prefix=/usr --mandir=\$${prefix}/share/man \
 	             --infodir=\$${prefix}/share/info $(confflags) \
-	             CFLAGS="$(CFLAGS)"
+	             CFLAGS="$(CFLAGS)" CURDIR=$(CURDIR)
 	cd build && $(MAKE)
 	touch $@
 
-configure:
+configure: $(STAMP_DIR)/patch
 	dh_testdir
 	autoreconf -vfi
 
-clean:
+clean: xsfclean
 	dh_testdir
 	dh_testroot
 	rm -f build-stamp

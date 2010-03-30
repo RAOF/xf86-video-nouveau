@@ -1,7 +1,7 @@
 xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-1) UNRELEASED; urgency=low
 
   [ Sven Joachim ]
-  * New upstream snapshot.
+  * New upstream snapshot, compatible with xorg-server 1.7 (Closes: #568168).
   * Ship an upstream changelog generated from "git log".
   * Do not include other generated files in the .orig.tar.gz,
     run autoreconf at build time instead.

@@ -74,7 +74,7 @@ binary-arch: build install serverabi
 	dh_installchangelogs
 	dh_install --sourcedir=debian/tmp --fail-missing
 	dh_link
-	dh_strip
+	dh_strip --dbg-package=xserver-xorg-video-nouveau-dbg
 	dh_compress
 	dh_fixperms
 	dh_installdeb

@@ -1,3 +1,9 @@
+xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-2) UNRELEASED; urgency=low
+
+  * Add a debug package: xserver-xorg-video-nouveau-dbg.
+
+ -- Cyril Brulebois <kibi@debian.org>  Sat, 03 Apr 2010 17:13:55 +0200
+
 xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-1) experimental; urgency=low
 
   [ Sven Joachim ]

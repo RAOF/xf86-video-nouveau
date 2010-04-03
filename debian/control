@@ -42,3 +42,21 @@ Description: X.Org X server -- Nouveau display driver (experimental)
  Users requiring 3D support should use the non-free "nvidia" driver.
  .
  This package is built from the FreeDesktop.org xf86-video-nouveau driver.
+
+Package: xserver-xorg-video-nouveau-dbg
+Architecture: any
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+ ${xserver:Depends},
+Section: debug
+Priority: extra
+Description: X.Org X server -- Nouveau display driver (debug symbols)
+ This driver for the X.Org X server (see xserver-xorg for a further description)
+ provides support for NVIDIA Riva, TNT, GeForce, and Quadro cards.
+ .
+ Although the nouveau project aims to provide full 3D support it is not yet
+ complete, and these packages do not include any 3D support.
+ Users requiring 3D support should use the non-free "nvidia" driver.
+ .
+ This package provides debugging symbols for this Xorg X driver.

@@ -30,6 +30,7 @@ xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-1) UNRELEASED; urgency=
   * Add patch:
      - 01-set-NV_DRIVER_DATE-from-ChangeLog.diff to make sure to pick
        NV_DRIVER_DATE from the ChangeLog instead of the output of git log.
+  * Add myself to Uploaders.
 
  -- Sven Joachim <svenjoac@gmx.de>  Mon, 29 Mar 2010 10:10:00 +0200
 

@@ -46,9 +46,8 @@ Description: X.Org X server -- Nouveau display driver (experimental)
 Package: xserver-xorg-video-nouveau-dbg
 Architecture: any
 Depends:
- ${shlibs:Depends},
  ${misc:Depends},
- ${xserver:Depends},
+ xserver-xorg-video-nouveau (= ${binary:Version}),
 Section: debug
 Priority: extra
 Description: X.Org X server -- Nouveau display driver (debug symbols)

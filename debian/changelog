@@ -8,6 +8,11 @@ xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-3) UNRELEASED; urgency=
   * Merge above changes by Sven, thanks!
   * Mention in README.Debian that nouveau might be preferred above nv in
     the next future if everything goes well.
+  * Some cards (nv50) used to need some firmware, but starting with
+    linux-image-2.6.32-4-$arch packages built from linux-2.6 2.6.32-11,
+    there's no need for any firmware. Since it's a transient matter, only
+    mention it in this changelog, and only mention the general case in
+    README.Debian.
 
  -- Sven Joachim <svenjoac@gmx.de>  Wed, 14 Apr 2010 18:39:33 +0200
 

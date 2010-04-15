@@ -11,6 +11,9 @@ kernels <= 2.6.32 lack the nouveau module altogether, and versions >=
 2.6.34 contain an incompatible version.  If you build your own kernel,
 you have to enable the module under Drivers -> Staging drivers.
 
+There's no need for any firmware at all, the Linux kernel takes care of
+that automatically.
+
 
 Enabling the X.Org video driver
 ===============================

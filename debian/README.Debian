@@ -20,6 +20,9 @@ add the nouveau driver to the "Device" section of /etc/X11/xorg.conf
 or change an existing section accordingly.  A minimal xorg.conf is
 provided in the examples/ directory.
 
+This will probably be changed once nouveau gets a bit more testing if
+no showstoppers get in the way.
+
 
 Incompatibilities with other drivers
 ====================================

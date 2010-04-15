@@ -6,6 +6,8 @@ xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-3) UNRELEASED; urgency=
 
   [ Cyril Brulebois ]
   * Merge above changes by Sven, thanks!
+  * Mention in README.Debian that nouveau might be preferred above nv in
+    the next future if everything goes well.
 
  -- Sven Joachim <svenjoac@gmx.de>  Wed, 14 Apr 2010 18:39:33 +0200
 

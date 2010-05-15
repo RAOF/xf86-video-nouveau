@@ -1,3 +1,9 @@
+xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-4) UNRELEASED; urgency=low
+
+  * Update xsfbs and use new ${xviddriver:Depends} substvar.
+
+ -- Julien Cristau <jcristau@debian.org>  Sat, 15 May 2010 12:00:23 +0200
+
 xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-3) unstable; urgency=low
 
   [ Sven Joachim ]

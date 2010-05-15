@@ -6,7 +6,7 @@ Uploaders: Chris Lamb <lamby@debian.org>, Matthew Johnson <mjj29@debian.org>, Cy
 Build-Depends:
  debhelper (>= 7),
  pkg-config,
- xserver-xorg-dev (>= 2:1.7),
+ xserver-xorg-dev (>= 2:1.7.6.901),
  x11proto-video-dev,
  x11proto-core-dev,
  x11proto-fonts-dev,
@@ -31,7 +31,7 @@ Architecture: any
 Depends:
  ${shlibs:Depends},
  ${misc:Depends},
- ${xserver:Depends},
+ ${xviddriver:Depends},
 Provides: ${xviddriver:Provides}
 Description: X.Org X server -- Nouveau display driver (experimental)
  This driver for the X.Org X server (see xserver-xorg for a further description)

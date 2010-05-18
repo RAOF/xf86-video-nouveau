@@ -1,8 +1,12 @@
-xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-4ubuntu1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:0.0.16+git20100518+4b8f1a0-0ubuntu1) UNRELEASED; urgency=low
 
   * Merge from Debian unstable.  Remaining Ubuntu changes:
     - debian/patches/02_nouveau_bgnr:
       + Patch from Fedora for a smooth Plymouth->GDM transition.
+  * New upstream snapshot.  
+    - Support for monitor hotplug detection added.
+  * debian/rules:
+    - get-orig-source: Upstream version is now 0.0.16
 
  -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 18 May 2010 18:32:50 +1000
 

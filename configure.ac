@@ -22,7 +22,7 @@
 
 AC_PREREQ(2.57)
 AC_INIT([xf86-video-nouveau],
-        0.0.15,
+        0.0.16,
         [https://bugs.freedesktop.org/enter_bug.cgi?product=xorg],
         xf86-video-nouveau)
 
@@ -80,6 +80,14 @@ sdkdir=$(pkg-config --variable=sdkdir xorg-server)
 
 # Checks for libraries.
 PKG_CHECK_MODULES([PCIACCESS], [pciaccess >= 0.10])
+
+PKG_CHECK_MODULES(LIBUDEV, [libudev], [LIBUDEV=yes], [LIBUDEV=no])
+if test "x$LIBUDEV" = xyes; then
+	AC_DEFINE(HAVE_LIBUDEV, 1, [libudev support])
+fi
+AM_CONDITIONAL(LIBUDEV, [ test "x$LIBUDEV" = "xyes" ] )
+AC_SUBST([LIBUDEV_CFLAGS])
+AC_SUBST([LIBUDEV_LIBS])
 
 # Checks for header files.
 AC_HEADER_STDC

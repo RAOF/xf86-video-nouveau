@@ -3,24 +3,25 @@ Section: x11
 Priority: optional
 Maintainer: Ubuntu MOTU Developers <ubuntu-motu@lists.ubuntu.com>
 XSBC-Original-Maintainer: Debian X Strike Force <debian-x@lists.debian.org>
-Uploaders: Chris Lamb <lamby@debian.org>, Matthew Johnson <mjj29@debian.org>
-Build-Depends: debhelper (>= 7),
+Uploaders: Chris Lamb <lamby@debian.org>, Matthew Johnson <mjj29@debian.org>, Cyril Brulebois <kibi@debian.org>
+Build-Depends:
+ debhelper (>= 7),
  pkg-config,
- xserver-xorg-dev (>= 2:1.7),
+ xserver-xorg-dev (>= 2:1.7.6.901),
  x11proto-video-dev,
  x11proto-core-dev,
  x11proto-fonts-dev,
  x11proto-randr-dev (>= 1.2),
  x11proto-render-dev,
  x11proto-xext-dev,
- libdrm-dev (>= 2.4.18~),
+ libdrm-dev (>= 2.4.18-4~),
  x11proto-xf86dri-dev,
  x11proto-gl-dev,
  mesa-common-dev,
  automake,
  libtool,
  xutils-dev,
- quilt
+ quilt,
 Standards-Version: 3.8.4
 Homepage: http://nouveau.freedesktop.org/wiki/
 Vcs-Git: git://git.debian.org/git/pkg-xorg/driver/xserver-xorg-video-nouveau
@@ -28,11 +29,11 @@ Vcs-Browser: http://git.debian.org/?=pkg-xorg/driver/xserver-xorg-video-nouveau.
 
 Package: xserver-xorg-video-nouveau
 Architecture: any
-Depends: ${shlibs:Depends}, 
+Depends:
+ ${shlibs:Depends},
  ${misc:Depends},
- ${xserver:Depends}
+ ${xviddriver:Depends},
 Provides: ${xviddriver:Provides}
-Replaces: xserver-xorg (<< 6.8.2-35)
 Description: X.Org X server -- Nouveau display driver (experimental)
  This driver for the X.Org X server (see xserver-xorg for a further description)
  provides support for NVIDIA Riva, TNT, GeForce, and Quadro cards.
@@ -42,3 +43,20 @@ Description: X.Org X server -- Nouveau display driver (experimental)
  Users requiring 3D support should use the non-free "nvidia" driver.
  .
  This package is built from the FreeDesktop.org xf86-video-nouveau driver.
+
+Package: xserver-xorg-video-nouveau-dbg
+Architecture: any
+Depends:
+ ${misc:Depends},
+ xserver-xorg-video-nouveau (= ${binary:Version}),
+Section: debug
+Priority: extra
+Description: X.Org X server -- Nouveau display driver (debug symbols)
+ This driver for the X.Org X server (see xserver-xorg for a further description)
+ provides support for NVIDIA Riva, TNT, GeForce, and Quadro cards.
+ .
+ Although the nouveau project aims to provide full 3D support it is not yet
+ complete, and these packages do not include any 3D support.
+ Users requiring 3D support should use the non-free "nvidia" driver.
+ .
+ This package provides debugging symbols for this Xorg X driver.

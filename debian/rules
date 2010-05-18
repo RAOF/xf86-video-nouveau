@@ -1,6 +1,6 @@
 #!/usr/bin/make -f
 
--include debian/xsfbs/xsfbs.mk
+include debian/xsfbs/xsfbs.mk
 
 CFLAGS = -Wall -g
 ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
@@ -27,39 +27,34 @@ confflags += --disable-static
 
 get-orig-source:
 	git clone git://anongit.freedesktop.org/git/nouveau/xf86-video-nouveau && \
-	cd xf86-video-nouveau && autoreconf -v --install && \
-	git log |head -3|tail -1|tr -d '\n' > snapshot-date && \
+	cd xf86-video-nouveau && git log > ChangeLog && \
 	REVISION=$$(git show --pretty=format:"%h" HEAD | head -n1) && cd .. && \
 	PREFIX=xserver-xorg-video-nouveau_0.0.15+git$$(date +%Y%m%d)+$$REVISION && \
 	rm -rf xf86-video-nouveau/.git && \
-	tar czf $$PREFIX.orig.tar.gz --exclude=autom4te.cache xf86-video-nouveau && \
+	tar czf $$PREFIX.orig.tar.gz xf86-video-nouveau && \
 	rm -rf xf86-video-nouveau
 
-build: patch build-stamp
-build-stamp:
+build: build-stamp
+build-stamp: configure
 	dh_testdir
-	test -d obj-$(DEB_BUILD_GNU_TYPE) || mkdir obj-$(DEB_BUILD_GNU_TYPE)
-	cd obj-$(DEB_BUILD_GNU_TYPE) && \
+	test -d build || mkdir build
+	cd build && \
 	../configure --prefix=/usr --mandir=\$${prefix}/share/man \
 	             --infodir=\$${prefix}/share/info $(confflags) \
-	             CFLAGS="$(CFLAGS)"
-	cd obj-$(DEB_BUILD_GNU_TYPE) && $(MAKE)
+	             CFLAGS="$(CFLAGS)" CURDIR=$(CURDIR)
+	cd build && $(MAKE)
 	touch $@
 
-clean: unpatch
+configure: $(STAMP_DIR)/patch
+	dh_testdir
+	autoreconf -vfi
+
+clean: xsfclean
 	dh_testdir
 	dh_testroot
 	rm -f build-stamp
-
 	[ ! -f Makefile ] || $(MAKE) distclean
-
-	rm -f config.cache config.log config.status
-	rm -f */config.cache */config.log */config.status
-	rm -f conftest* */conftest*
-	rm -rf autom4te.cache */autom4te.cache
-	rm -rf obj-*
-	rm -rf stampdir
-
+	rm -rf build
 	dh_clean
 
 install: build
@@ -68,20 +63,22 @@ install: build
 	dh_prep
 	dh_installdirs
 
-	cd obj-$(DEB_BUILD_GNU_TYPE) && $(MAKE) DESTDIR=$(CURDIR)/debian/tmp install
+	cd build && $(MAKE) DESTDIR=$(CURDIR)/debian/tmp install
+	find $(CURDIR)/debian/tmp -name '*.la' -delete
 
 binary-arch: build install serverabi
 	dh_testdir
 	dh_testroot
 	dh_installdocs
+	dh_installexamples
 	dh_installchangelogs
-	dh_install --sourcedir=debian/tmp --list-missing
+	dh_install --sourcedir=debian/tmp --fail-missing
 	dh_link
-	dh_strip
+	dh_strip --dbg-package=xserver-xorg-video-nouveau-dbg
 	dh_compress
 	dh_fixperms
 	dh_installdeb
-	dh_shlibdeps
+	dh_shlibdeps -- --warnings=6
 	dh_gencontrol
 	dh_md5sums
 	dh_builddeb

@@ -1,4 +1,4 @@
-xserver-xorg-video-nouveau (1:0.0.16+git20100518+4b8f1a0-0ubuntu1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:0.0.16+git20100518+4b8f1a0-0ubuntu1) maverick; urgency=low
 
   * Merge from Debian unstable.  Remaining Ubuntu changes:
     - debian/patches/02_nouveau_bgnr:

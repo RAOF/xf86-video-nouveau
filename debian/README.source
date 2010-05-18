@@ -71,5 +71,3 @@ listed in text files in debian/prune/ in the "debian-*" branch of
 the Debian repository. XSFBS' scripts then take care of removing
 these listed files during the build so as to generate a modified
 DFSG-free .orig.tar.gz tarball.
-
- -- Christopher James Halse Rogers <raof@ubuntu.com>, Tue, 18 May 2010 16:27:11 +1000

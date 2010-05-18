@@ -1,7 +1,7 @@
 Source: xserver-xorg-video-nouveau
 Section: x11
 Priority: optional
-Maintainer: Ubuntu MOTU Developers <ubuntu-motu@lists.ubuntu.com>
+Maintainer: Ubuntu X-SWAT <ubuntu-x@lists.ubuntu.com>
 XSBC-Original-Maintainer: Debian X Strike Force <debian-x@lists.debian.org>
 Uploaders: Chris Lamb <lamby@debian.org>, Matthew Johnson <mjj29@debian.org>, Cyril Brulebois <kibi@debian.org>
 Build-Depends:

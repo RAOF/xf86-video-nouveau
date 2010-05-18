@@ -143,11 +143,11 @@ NV30VideoTexture(ScrnInfoPtr pScrn, struct nouveau_bo *src, int offset,
 		card_swz = SWIZZLE(S1, S1, S1, S1, X, Y, Z, W);
 		break;
 		case 1:
-		card_fmt = NV34TCL_TX_FORMAT_FORMAT_A8_RECT2;
+		card_fmt = NV34TCL_TX_FORMAT_FORMAT_A8_RECT;
 		card_swz = SWIZZLE(S1, S1, S1, S1, X, X, X, X);
 		break;
 		case 2:
-		card_fmt = NV34TCL_TX_FORMAT_FORMAT_L8A8_RECT;
+		card_fmt = NV34TCL_TX_FORMAT_FORMAT_A8L8_RECT;
 #if X_BYTE_ORDER == X_BIG_ENDIAN
 		card_swz = SWIZZLE(S1, S1, S1, S1, Z, W, X, Y); /* x = V, y = U */
 #else
@@ -258,7 +258,7 @@ NV30PutTextureImage(ScrnInfoPtr pScrn, struct nouveau_bo *src, int src_offset,
 	struct nouveau_channel *chan = pNv->chan;
 	struct nouveau_grobj *rankine = pNv->Nv3D;
 	struct nouveau_bo *bo = nouveau_pixmap_bo(ppix);
-	Bool redirected = FALSE;
+	Bool redirected = FALSE, bicubic = pPriv->bicubic;
 	float X1, X2, Y1, Y2;
 	BoxPtr pbox;
 	int nbox;
@@ -342,7 +342,10 @@ NV30PutTextureImage(ScrnInfoPtr pScrn, struct nouveau_bo *src, int src_offset,
 	BEGIN_RING(chan, rankine, NV34TCL_TX_ENABLE(3), 1);
 	OUT_RING  (chan, 0x0);
 
-	if (!NV30_LoadFragProg(pScrn, pPriv->bicubic ?
+	if (drw_w / 2 < src_w || drw_h / 2 < src_h)
+		bicubic = FALSE;
+
+	if (!NV30_LoadFragProg(pScrn, bicubic ?
 			       &nv30_fp_yv12_bicubic :
 			       &nv30_fp_yv12_bilinear)) {
 		MARK_UNDO(chan);

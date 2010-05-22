@@ -2,7 +2,9 @@ xserver-xorg-video-nouveau (1:0.0.16+git20100518+4b8f1a0-1) UNRELEASED; urgency=
 
   * New upstream snapshot, with uevent support.
     - Add build-dependency on libudev-dev.
-
+  * Build against updated librm, kernel 2.6.34 is now required.
+  * Add a NEWS.Debian for that problem and update README.Debian.
+  
  -- Sven Joachim <svenjoac@gmx.de>  Sat, 22 May 2010 10:08:55 +0200
 
 xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-4) unstable; urgency=medium

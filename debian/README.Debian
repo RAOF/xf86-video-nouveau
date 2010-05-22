@@ -5,11 +5,10 @@ You need a Linux kernel that contains a nouveau.ko module which works
 with the libdrm-nouveau package in Debian.  Unfortunately,
 libdrm-nouveau and the kernel module are coupled very tightly, and you
 may not be able to upgrade one without the other.  As of this writing,
-supported kernels are the Debian 2.6.32 kernel, starting with
-linux-image-2.6.32-4-$arch versions, and any 2.6.33 kernel.  Upstream
-kernels <= 2.6.32 lack the nouveau module altogether, and versions >=
-2.6.34 contain an incompatible version.  If you build your own kernel,
-you have to enable the module under Drivers -> Staging drivers.
+supported kernels are 2.6.34-rc1 and newer, earlier versions lack the
+nouveau module altogether or contain an incompatible version.  If you
+build your own kernel, you have to enable the module under Drivers ->
+Staging drivers.
 
 There's no need for any firmware at all, the Linux kernel takes care of
 that automatically.
@@ -85,4 +84,4 @@ http://nouveau.freedesktop.org/wiki/
 http://nouveau.freedesktop.org/wiki/FAQ
 http://nouveau.freedesktop.org/wiki/TroubleShooting
 
- -- Sven Joachim <svenjoac@gmx.de>, Wed, 14 Apr 2010 18:29:55 +0200
+ -- Sven Joachim <svenjoac@gmx.de>, Sat, 22 May 2010 10:16:56 +0200

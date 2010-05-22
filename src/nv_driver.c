@@ -411,6 +411,8 @@ NVCloseScreen(int scrnIndex, ScreenPtr pScreen)
 	ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
 	NVPtr pNv = NVPTR(pScrn);
 
+	drmmode_uevent_fini(pScrn);
+
 	nouveau_dri2_fini(pScreen);
 
 	if (pScrn->vtSema) {
@@ -792,6 +794,10 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 						     pScrn->depth);
 	}
 
+	/* No usable mode */
+	if (!pScrn->modes)
+		return FALSE;
+
 	/* Set the current mode to the first in the list */
 	pScrn->currentMode = pScrn->modes;
 
@@ -1167,6 +1173,7 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	if (serverGeneration == 1)
 		xf86ShowUnusedOptions(pScrn->scrnIndex, pScrn->options);
 
+	drmmode_uevent_init(pScrn);
 	return TRUE;
 }
 

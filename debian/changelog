@@ -1,3 +1,9 @@
+xserver-xorg-video-nouveau (1:0.0.16+git20100518+4b8f1a0-1) UNRELEASED; urgency=low
+
+  * New upstream snapshot.
+
+ -- Sven Joachim <svenjoac@gmx.de>  Sat, 22 May 2010 10:08:55 +0200
+
 xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-4) unstable; urgency=medium
 
   * Update xsfbs and use new ${xviddriver:Depends} substvar.

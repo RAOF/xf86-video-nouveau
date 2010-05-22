@@ -1,3 +1,77 @@
+commit 4b8f1a082069a17555d4142003213cf83d4e5464
+Author: Lubomir Rintel <lkundrak@v3.sk>
+Date:   Mon May 10 09:25:55 2010 +0200
+
+    Handle startup without monitor attached more gracefully
+    
+    Refuse to configure a screen which has no valid modes. Otherwise X server
+    would crash attempting to dereference to modes list later on.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit ac8f8d14a82ae8ba5b41fa88903edcad67f339c2
+Author: Maarten Maathuis <madman2003@gmail.com>
+Date:   Fri May 7 20:51:43 2010 +0200
+
+    wfb: use 28 bits instead of 32 bits for multiply_factor optimisation
+    
+    - Avoiding division in a hot code path is noticable even on an otherwise idle
+    computer, but it's subject to rounding errors. If anyone knows a corner case
+    and has better ideas, don't hesitate to contact me. For the moment this should
+    make the problem less likely to trigger.
+    
+    Signed-off-by: Maarten Maathuis <madman2003@gmail.com>
+
+commit 13c10430ba8f7b0edff3ad8aae4a97672eea4a8f
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Apr 23 14:09:35 2010 +1000
+
+    Bump version number to 0.0.16
+    
+    Forgotten when the ABI broke a while back..
+
+commit 6ff8ade0c7cd835b4172257ea310a8d88f28e757
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Apr 16 16:09:51 2010 +1000
+
+    Add uevent support
+    
+    When a hotplug event is received from the kernel we should notify the
+    client side to reconfigure the display.
+    
+    Ported to nouveau from radeon driver, based on work by ajax in intel driver.
+
+commit 4063616938f76af8028491276039d422c0782b1b
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Apr 9 20:43:51 2010 +1000
+
+    Import latest nouveau_class.h from renouveau
+
+commit bfb95cc0ca600135474ff02a99889b09d41b3c80
+Author: Rico Tzschichholz <ricotz@t-online.de>
+Date:   Thu Apr 1 20:39:23 2010 +0200
+
+    Fix "make dist".
+    
+     - remove README.NV1 reference from Makefile.am
+     - add nv_rop.h to src/Makefile.am
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 2462b417fc550b71f021ca9736808f8f2d1cb6f0
+Author: Ben Skeggs <skeggsb@beleth.localdomain>
+Date:   Mon May 4 17:04:34 2009 +1000
+
+    xv: only use bicubic filtering when scaling >=2x
+
+commit e2146d3b29a4bea3d584c145e3190c3313692ed9
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Thu Mar 18 14:32:54 2010 +0100
+
+    Fix for the latest nouveau_class.h.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
 commit 7858345b6b384e88902ccc516715156401edec04
 Author: Ben Skeggs <bskeggs@redhat.com>
 Date:   Tue Mar 16 13:08:37 2010 +1000

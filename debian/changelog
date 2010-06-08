@@ -1,5 +1,6 @@
 xserver-xorg-video-nouveau (1:0.0.16+git20100518+4b8f1a0-0ubuntu1) maverick; urgency=low
 
+  [Christopher James Halse Rogers]
   * Merge from Debian unstable.  Remaining Ubuntu changes:
     - debian/patches/02_nouveau_bgnr:
       + Patch from Fedora for a smooth Plymouth->GDM transition.
@@ -9,6 +10,13 @@ xserver-xorg-video-nouveau (1:0.0.16+git20100518+4b8f1a0-0ubuntu1) maverick; urg
     - get-orig-source: Upstream version is now 0.0.16
   * debian/control:
     - Ubuntu X Swat is maintainer, not MOTU.
+  * Merge in useful changes from Debian experimental:
+
+  [ Sven Joachim ]
+  * New upstream snapshot, with uevent support.
+    - Add build-dependency on libudev-dev.
+  * Add a NEWS.Debian for that problem and update README.Debian.
+  * Add myself to Uploaders.
 
  -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 18 May 2010 18:32:50 +1000
 

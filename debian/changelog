@@ -6,6 +6,8 @@ xserver-xorg-video-nouveau (1:0.0.16+git20100518+4b8f1a0-0ubuntu1) maverick; urg
       + Patch from Fedora for a smooth Plymouth->GDM transition.
   * New upstream snapshot.  
     - Support for monitor hotplug detection added.
+    - Handle starting X with no monitors detected more gracefully (LP: #568079)
+  * Package now built against 0.0.16 ABI (LP: #590989)
   * debian/rules:
     - get-orig-source: Upstream version is now 0.0.16
   * debian/control:

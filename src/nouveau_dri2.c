@@ -30,7 +30,7 @@ nouveau_dri2_create_buffer(DrawablePtr pDraw, unsigned int attachment,
 	struct nouveau_dri2_buffer *nvbuf;
 	PixmapPtr ppix;
 
-	nvbuf = xcalloc(1, sizeof(*nvbuf));
+	nvbuf = calloc(1, sizeof(*nvbuf));
 	if (!nvbuf)
 		return NULL;
 
@@ -81,7 +81,7 @@ nouveau_dri2_destroy_buffer(DrawablePtr pDraw, DRI2BufferPtr buf)
 		return;
 
 	pDraw->pScreen->DestroyPixmap(nvbuf->ppix);
-	xfree(nvbuf);
+	free(nvbuf);
 }
 
 void
@@ -121,7 +121,7 @@ nouveau_dri2_init(ScreenPtr pScreen)
 {
 	ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
 	NVPtr pNv = NVPTR(pScrn);
-	DRI2InfoRec dri2;
+	DRI2InfoRec dri2 = { 0 };
 
 	if (pNv->Architecture >= NV_ARCH_30)
 		dri2.driverName = "nouveau";
@@ -135,12 +135,6 @@ nouveau_dri2_init(ScreenPtr pScreen)
 	dri2.CreateBuffer = nouveau_dri2_create_buffer;
 	dri2.DestroyBuffer = nouveau_dri2_destroy_buffer;
 	dri2.CopyRegion = nouveau_dri2_copy_region;
-#if DRI2INFOREC_VERSION >= 4
-	dri2.ScheduleSwap = NULL;
-	dri2.ScheduleWaitMSC = NULL;
-	dri2.GetMSC = NULL;
-	dri2.numDrivers = 0;
-#endif
 
 	return DRI2ScreenInit(pScreen, &dri2);
 }

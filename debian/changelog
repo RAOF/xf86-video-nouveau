@@ -1,3 +1,14 @@
+xserver-xorg-video-nouveau (1:0.0.16+git20100805+b96170a-0ubuntu1) maverick; urgency=low
+
+  * New upstream snapshot
+    - Fixes segfault in DRI2 on Xserver 1.9
+    - Fixes assert on Xserver 1.9 startup due to uninitialised scratch pixmaps
+  * debian/patches/03_work-around-exa-hangs.patch:
+    - Revert a commit which removes a work-around for EXA hangs; we do not yet
+      have the associated kernel commit in our tree.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 05 Aug 2010 15:02:37 +1000
+
 xserver-xorg-video-nouveau (1:0.0.16+git20100518+4b8f1a0-0ubuntu1) maverick; urgency=low
 
   [Christopher James Halse Rogers]

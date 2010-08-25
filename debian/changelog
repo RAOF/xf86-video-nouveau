@@ -2,6 +2,8 @@ xserver-xorg-video-nouveau (1:0.0.16+git20100825+390f1c8-1) UNRELEASED; urgency=
 
   [ Sven Joachim ]
   * New upstream snapshot.
+  * Bump build-dependency on libdrm-dev to (>= 2.4.21-2~) to ensure that
+    we keep building against the experimental libdrm.
 
   [ Christopher James Halse Rogers ]
   * debian/patches/03_work-around-exa-hangs.patch:

@@ -46,7 +46,7 @@ static struct nv50_exa_state exa_state;
 	struct nouveau_grobj *tesla = pNv->Nv3D; (void)tesla;          \
 	struct nv50_exa_state *state = &exa_state; (void)state
 
-#define BF(f) (NV50TCL_BLEND_FUNC_SRC_RGB_##f | 0x4000)
+#define BF(f) NV50TCL_BLEND_FUNC_SRC_RGB_##f
 
 struct nv50_blend_op {
 	unsigned src_alpha;
@@ -429,26 +429,6 @@ NV50EXAUploadSIFC(const char *src, int src_pitch,
 	chan->flush_notify = NULL;
 	return TRUE;
 }
-
-/* Compat defines for pre 1.7 xservers. */
-#ifndef PICT_a2b10g10r10
-#define PICT_a2b10g10r10 PICT_FORMAT(32, PICT_TYPE_ABGR, 2, 10, 10, 10)
-#endif
-#ifndef PICT_x2b10g10r10
-#define PICT_x2b10g10r10  PICT_FORMAT(32, PICT_TYPE_ABGR, 0, 10, 10, 10)
-#endif
-#ifndef  PICT_a2r10g10b10
-#define PICT_a2r10g10b10 PICT_FORMAT(32, PICT_TYPE_ARGB, 2, 10, 10, 10)
-#endif
-#ifndef  PICT_x2r10g10b10
-#define PICT_x2r10g10b10 PICT_FORMAT(32, PICT_TYPE_ARGB, 0, 10, 10, 10)
-#endif 
-#ifndef PICT_b8g8r8a8
-#define PICT_b8g8r8a8 PIXMAN_FORMAT(32,PIXMAN_TYPE_BGRA,8,8,8,8)
-#endif
-#ifndef PICT_b8g8r8x8
-#define PICT_b8g8r8x8 PIXMAN_FORMAT(32,PIXMAN_TYPE_BGRA,0,8,8,8)
-#endif
 
 static Bool
 NV50EXACheckRenderTarget(PicturePtr ppict)

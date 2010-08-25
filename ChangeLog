@@ -1,3 +1,124 @@
+commit 390f1c86d9583f4ceabd407ee47410073c2a1b55
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Aug 20 09:48:32 2010 +1000
+
+    nv50/xv: support UYVY
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 00d390952c912d4e9fc2c962caaeb90bf563d5b1
+Author: Maarten Maathuis <madman2003@gmail.com>
+Date:   Fri Aug 13 22:24:26 2010 +0200
+
+    nv50/xv: Fix the uncommon codepath to use width/height variable.
+    
+    - The common codepath should be the correct one, because that is
+      triggered often, while the other is rare.
+    - This isn't neccesarily a problem, but let's be on the safe side.
+    
+    Signed-off-by: Maarten Maathuis <madman2003@gmail.com>
+
+commit f5b486dd237679aec1987985f9ecffc6a4fd3105
+Author: Maarten Maathuis <madman2003@gmail.com>
+Date:   Fri Aug 13 22:16:51 2010 +0200
+
+    nv50/xv: We have 18 relocs, not 16, adjust MARK_RING.
+    
+    Signed-off-by: Maarten Maathuis <madman2003@gmail.com>
+
+commit 1cb6c91a9afe88d73f8a1180b00f56a9150a16ed
+Author: Roy Spliet <r.spliet@student.tudelft.nl>
+Date:   Sat Aug 7 20:59:06 2010 +0200
+
+    nouveau_exa.c: move line_count logic out of UTS/DFS loop
+    
+    Signed-off-by: Roy Spliet <r.spliet@student.tudelft.nl>
+    Signed-off-by: Maarten Maathuis <madman2003@gmail.com>
+
+commit 9f50b62229d5984ee5c16bc54953c7f8e2d5e575
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Aug 6 08:28:34 2010 +1000
+
+    nvc0: recognise these chipsets, and allow NoAccel mode on them
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit b96170a4e51c1d3167601210ca31e98283c02885
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Thu Aug 5 00:40:40 2010 +0200
+
+    nv10/exa: Bump maxX/maxY to 4096/4096.
+    
+    This way we can do accelerated 2D on larger pixmaps, it will still
+    fall back to software when we hit the 2048x2048 texturing limit in a
+    composite operation.
+
+commit 321eb2df5c8b1da4d6469037dd1d8888b508fabd
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Wed Aug 4 13:11:24 2010 +0200
+
+    Revert "nv04-nv40/exa: Match the blob behavior more closely on PrepareCopy."
+    
+    This reverts commit 9de0d97bd2fc2ee8800d48b5340a3d495525ad3e. Unnecessary
+    after kernel commit "drm/nouveau: Ack the context switch interrupt before
+    switching contexts.".
+
+commit db98ad23633958e52f84501c5a2061d42d346b64
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Tue Jun 15 15:32:36 2010 +0200
+
+    dri2: Fix for the last DRI2InfoRec ABI.
+    
+    Just pre-fill the whole structure with zeros to avoid future
+    segfaults.
+
+commit 9a3d0ab43f6335ab6cd48be4aa2f4f728386b386
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Jun 11 21:58:38 2010 +1000
+
+    call NVEnterVT from CreateScreenResources
+    
+    We need to grab DRM master here for things to work, so we may as well call
+    NVEnterVT as we used to in NVScreenInit up until the previous commit.
+    
+    Fixes server regeneration.
+
+commit 964eeac6dc2209da6aa8861aa8b0bc028700ab3d
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Jun 10 09:38:19 2010 +1000
+
+    fix for server 1.9
+
+commit c079408e287ad09e954fa3985f95912c02cf06bc
+Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+Date:   Thu Jun 10 01:07:49 2010 +0200
+
+    nv50/accel: fix perspective interps in YUV to RGB shader
+
+commit 65153490f7d74d45a92adbd9c5e2bbe11c884b00
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Wed Jun 9 16:12:28 2010 +1000
+
+    use libc directly for [cm]alloc/free
+
+commit 2958cf464dca9761f0fa21c8dd2d8fa8c8a96791
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu May 27 10:06:47 2010 +1000
+
+    nv50/exa: rip out compat defines, we depend on 1.7 anyway
+
+commit af40bf0af47ebcb7de2dc418429f0b56f8c04d15
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Wed May 26 16:11:01 2010 +1000
+
+    nv50/exa: new nouveau_class.h has correct blend func defines
+
+commit 8950c5b2a0d318e2568bec38a39d744b968c9b85
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Wed May 26 16:09:48 2010 +1000
+
+    update nouveau_class.h
+
 commit 4b8f1a082069a17555d4142003213cf83d4e5464
 Author: Lubomir Rintel <lkundrak@v3.sk>
 Date:   Mon May 10 09:25:55 2010 +0200

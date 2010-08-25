@@ -1,4 +1,4 @@
-xserver-xorg-video-nouveau (1:0.0.16+git20100825+390f1c8-1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:0.0.16+git20100825+390f1c8-1) experimental; urgency=low
 
   [ Sven Joachim ]
   * New upstream snapshot.
@@ -11,7 +11,7 @@ xserver-xorg-video-nouveau (1:0.0.16+git20100825+390f1c8-1) UNRELEASED; urgency=
     - Revert a commit which removes a work-around for EXA hangs; we do not yet
       have the associated kernel commit in our tree.
 
- -- Sven Joachim <svenjoac@gmx.de>  Wed, 25 Aug 2010 13:20:39 +0200
+ -- Julien Cristau <jcristau@debian.org>  Wed, 25 Aug 2010 23:21:29 +0200
 
 xserver-xorg-video-nouveau (1:0.0.16+git20100518+4b8f1a0-1) experimental; urgency=low
 

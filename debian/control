@@ -23,7 +23,7 @@ Build-Depends:
  libtool,
  xutils-dev,
  quilt,
-Standards-Version: 3.8.4
+Standards-Version: 3.9.1
 Homepage: http://nouveau.freedesktop.org/wiki/
 Vcs-Git: git://git.debian.org/git/pkg-xorg/driver/xserver-xorg-video-nouveau
 Vcs-Browser: http://git.debian.org/?=pkg-xorg/driver/xserver-xorg-video-nouveau.git

@@ -1,6 +1,12 @@
 xserver-xorg-video-nouveau (1:0.0.16+git20100825+390f1c8-1) UNRELEASED; urgency=low
 
+  [ Sven Joachim ]
   * New upstream snapshot.
+
+  [ Christopher James Halse Rogers ]
+  * debian/patches/03_work-around-exa-hangs.patch:
+    - Revert a commit which removes a work-around for EXA hangs; we do not yet
+      have the associated kernel commit in our tree.
 
  -- Sven Joachim <svenjoac@gmx.de>  Wed, 25 Aug 2010 13:20:39 +0200
 

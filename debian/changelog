@@ -1,3 +1,9 @@
+xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-5) UNRELEASED; urgency=low
+
+  * Fix Vcs-Browser URL, thanks to Petr Vorel (Closes: #596217).
+
+ -- Cyril Brulebois <kibi@debian.org>  Sat, 02 Oct 2010 12:05:53 +0200
+
 xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-4) unstable; urgency=medium
 
   * Update xsfbs and use new ${xviddriver:Depends} substvar.

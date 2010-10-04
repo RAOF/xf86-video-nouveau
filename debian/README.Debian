@@ -15,18 +15,6 @@ There's no need for any firmware at all, the Linux kernel takes care of
 that automatically.
 
 
-Enabling the X.Org video driver
-===============================
-
-Currently the default driver for Nvidia cards is nv, so you have to
-add the nouveau driver to the "Device" section of /etc/X11/xorg.conf
-or change an existing section accordingly.  A minimal xorg.conf is
-provided in the examples/ directory.
-
-This will probably be changed once nouveau gets a bit more testing if
-no showstoppers get in the way.
-
-
 Incompatibilities with other drivers
 ====================================
 
@@ -85,4 +73,4 @@ http://nouveau.freedesktop.org/wiki/
 http://nouveau.freedesktop.org/wiki/FAQ
 http://nouveau.freedesktop.org/wiki/TroubleShooting
 
- -- Sven Joachim <svenjoac@gmx.de>, Wed, 14 Apr 2010 18:29:55 +0200
+ -- Sven Joachim <svenjoac@gmx.de>, Mon,  4 Oct 2010 19:00:57 +0200

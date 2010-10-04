@@ -1,6 +1,12 @@
 xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-5) UNRELEASED; urgency=low
 
+  [ Cyril Brulebois ]
   * Fix Vcs-Browser URL, thanks to Petr Vorel (Closes: #596217).
+
+  [ Sven Joachim ]
+  * Update README.Debian:
+    - Drop section about enabling the X driver, it has been the default
+      for four months already.
 
  -- Cyril Brulebois <kibi@debian.org>  Sat, 02 Oct 2010 12:05:53 +0200
 

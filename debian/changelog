@@ -7,6 +7,9 @@ xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-5) UNRELEASED; urgency=
   * Update README.Debian:
     - Drop section about enabling the X driver, it has been the default
       for four months already.
+    - Only recommend to reboot before switching to the blob, the
+      KernelModeSetting page in the nouveau wiki has instructions how
+      to do this.
 
  -- Cyril Brulebois <kibi@debian.org>  Sat, 02 Oct 2010 12:05:53 +0200
 

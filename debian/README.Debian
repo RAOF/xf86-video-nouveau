@@ -25,9 +25,10 @@ including the Nvidia proprietary driver.  Among others, the following
 kernel modules must not be loaded before nouveau: vga16fb, nvidiafb,
 rivafb and nvidia.  Note that vesafb should not be a problem.
 
-If you decide to switch back to the proprietary driver, it is
-necessary to reboot since there is no way to unload the nouveau
-module.
+If you decide to switch back to the proprietary driver, it is highly
+recommended to reboot because the nvidia kernel module is incompatibe
+with nouveau, and unloading the latter is not easy and may lead to a
+blank console.
 
 
 Interferences of the Nvidia OpenGL implementation
@@ -72,5 +73,6 @@ problems.
 http://nouveau.freedesktop.org/wiki/
 http://nouveau.freedesktop.org/wiki/FAQ
 http://nouveau.freedesktop.org/wiki/TroubleShooting
+http://nouveau.freedesktop.org/wiki/KernelModeSetting
 
  -- Sven Joachim <svenjoac@gmx.de>, Mon,  4 Oct 2010 19:00:57 +0200

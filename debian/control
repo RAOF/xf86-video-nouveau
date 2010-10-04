@@ -27,7 +27,7 @@ Vcs-Git: git://git.debian.org/git/pkg-xorg/driver/xserver-xorg-video-nouveau
 Vcs-Browser: http://git.debian.org/?p=pkg-xorg/driver/xserver-xorg-video-nouveau.git
 
 Package: xserver-xorg-video-nouveau
-Architecture: any
+Architecture: linux-any
 Depends:
  ${shlibs:Depends},
  ${misc:Depends},
@@ -44,7 +44,7 @@ Description: X.Org X server -- Nouveau display driver (experimental)
  This package is built from the FreeDesktop.org xf86-video-nouveau driver.
 
 Package: xserver-xorg-video-nouveau-dbg
-Architecture: any
+Architecture: linux-any
 Depends:
  ${misc:Depends},
  xserver-xorg-video-nouveau (= ${binary:Version}),

@@ -10,6 +10,8 @@ xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-5) UNRELEASED; urgency=
     - Only recommend to reboot before switching to the blob, the
       KernelModeSetting page in the nouveau wiki has instructions how
       to do this.
+  * Restrict the package to Linux architectures for now, other kernels
+    do not have the necessary DRM/GEM/KMS infrastructure.
 
  -- Cyril Brulebois <kibi@debian.org>  Sat, 02 Oct 2010 12:05:53 +0200
 

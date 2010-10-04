@@ -9,7 +9,7 @@ xserver-xorg-video-nouveau (1:0.0.15+git20100329+7858345-5) UNRELEASED; urgency=
       for four months already.
     - Only recommend to reboot before switching to the blob, the
       KernelModeSetting page in the nouveau wiki has instructions how
-      to do this.
+      to do this.  Also mention nv as incompatible with nouveau.
   * Restrict the package to Linux architectures for now, other kernels
     do not have the necessary DRM/GEM/KMS infrastructure.
 

@@ -6,6 +6,8 @@ xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-1) UNRELEASED; urgency=
   [ Sven Joachim ]
   * New upstream snapshot.
     - X server 1.8 or higher is now required.
+    - Bump build-dependency on libdrm-dev to (>= 2.4.23) due to
+      libdrm-nouveau API changes.
   
  -- Cyril Brulebois <kibi@debian.org>  Sat, 02 Oct 2010 12:08:02 +0200
 

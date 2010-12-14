@@ -1,3 +1,264 @@
+commit 8bb8231236a6b877895663aeaa9cef731d67fe68
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue Nov 30 15:27:36 2010 +1000
+
+    dri2: fix certain clients blocking forever when sync-to-vblank unavailable
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit f29afe65b67c9b89ceba421d9b3aee590f7ded20
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Nov 29 09:23:35 2010 +1000
+
+    dri2: don't return failure from get_msc if sync-to-vblank isn't available
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 4b1d26578116f4d1745dd92a7c99413972a2bedf
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Thu Nov 25 21:33:46 2010 +0100
+
+    dri2: Don't return failure from schedule_wait if sync-to-vblank is unavailable.
+    
+    Reported-by: Ben Skeggs <bskeggs@redhat.com>
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 1143e7a97dce1b741376e178b73b8b766e03849a
+Author: Jesse Adkins <jesserayadkins@gmail.com>
+Date:   Tue Oct 26 16:05:32 2010 -0700
+
+    Purge cvs tags.
+    
+    Signed-off-by: Jesse Adkins <jesserayadkins@gmail.com>
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 22020457f43eceaf26532ecb50e46d743f4a691f
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Tue Oct 26 00:24:06 2010 +0200
+
+    dri2: Fix throttling on occluded drawables.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 9737a812aacbc544b93eeaa031cf1c2e8adbd661
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Oct 25 10:37:08 2010 +1000
+
+    kms: initial pass at supporting zaphod-mode
+    
+    This works ok from some simple testing, there's undoubtedly things that
+    will need polishing still however.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit d40c16f5497739c0215f37566db1651a74cb20ba
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Sat Oct 23 02:20:30 2010 +0200
+
+    dri2: Fix build on X server 1.8.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit a4d580bf05d7aac1d486e5d1ba9a2201c026e5f5
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Fri Oct 22 23:09:30 2010 +0200
+
+    Bump the required X server version to 1.8.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit d0f2e16bc35660d01d3cd20a770cf8e613ab5323
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Fri Oct 22 23:06:28 2010 +0200
+
+    dri2: Report damage on page-flipped drawables.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit c61e8d03161adcfbba4162172153814accf9e86b
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Fri Oct 22 23:05:24 2010 +0200
+
+    Make the sync-to-vblank helpers take a box as argument.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit a685a5c3be12f3e95a6ec1140af115e7ef28fcaa
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Wed Oct 13 18:45:04 2010 +0200
+
+    dri2: Implement the ScheduleWaitMSC/GetMSC hooks.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit eb83c830c87bce345748edef3b50660246143db7
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Thu Oct 21 22:57:08 2010 +0200
+
+    dri2: Add pageflip/exchange support.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit c88f13e25b0040c1dd0f93e0ac40f62a6005ce59
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Thu Oct 14 22:25:50 2010 +0200
+
+    Allocate a tiled scanout on pre-nv50 too.
+    
+    Pageflip between tiled and non-tiled surfaces isn't such a good idea.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 4642d71bdffc04ce0dd458225541940c65f5443d
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Thu Oct 14 22:17:58 2010 +0200
+
+    dri2: Give out buffers ready for scanout.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 75daada678d03d2e162f8003a6f2edcbe0525f92
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Thu Oct 14 22:32:54 2010 +0200
+
+    Restructure tiled pixmap allocation in a single place.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 70f0d2c886ceaa965ca4864788f4dd8e8f757a92
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Thu Oct 21 22:55:02 2010 +0200
+
+    dri2: Add sync-to-vblank support.
+    
+    Note that you need a recent enough kernel for it to work. Use the
+    "GLXVBlank" option to enable it (it defaults to disabled for now).
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 72dd4899ff036b09e3680ed2e09b3dbae3a7ba71
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Thu Oct 21 22:31:45 2010 +0200
+
+    nv04-nv40/exa: Make the copy hook blit downwards for non-overlapping regions.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 21ed642d3f76f286f23cd64ca817038ec94a1bf6
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Wed Oct 13 18:22:22 2010 +0200
+
+    Make the sync-to-vblank helpers more consistent.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 258e483d47f0f63155be18981c1118261f7675a8
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Thu Oct 21 22:41:24 2010 +0200
+
+    kms: Register a wakeup handler to poll vblank/pageflip/udev events.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 4f42708c26fa57bac7854701a6e757958c8d0654
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Sun Oct 10 04:39:27 2010 +0200
+
+    Update to the last libdrm API.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 8c8f15c9d3a31c35bf2ef20faf8c4133295a678f
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Sun Oct 10 04:36:17 2010 +0200
+
+    nv10-nv40/exa: Fix tiled pixmap pitch alignment calculation.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit a47c274f329b3b8bfbdcf155d6d832599d823dc8
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Sun Oct 10 04:43:25 2010 +0200
+
+    Fix for the last xserver ABI.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 9a5142fae6e1a0a470352f511427916e6fa01b9c
+Author: Maarten Maathuis <madman2003@gmail.com>
+Date:   Fri Aug 27 21:11:59 2010 +0200
+
+    nv50/exa: Stop using wfb by default, but add an option to enable it.
+    
+    - Some scenarios, such as those heavy in core font rendering might prefer wfb.
+    - Other (modern) situations are better of with wfb disabled.
+    
+    Signed-off-by: Maarten Maathuis <madman2003@gmail.com>
+
+commit d5a6f103113985c50bbe749ed341de34af1b47a5
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Tue Sep 28 21:49:48 2010 +0200
+
+    dri2: Throttle frontbuffer flushes.
+    
+    There was no need for throttling until the hardware interchannel sync
+    kernel changes because the pushbuf IOCTL blocked to sync the GL and X
+    channels anyway.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit f1ac413d1d3dec2ccf63d4a8c79b9bd9ea578dcf
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Sep 20 08:05:00 2010 +1000
+
+    nv50: use 0x8697 on NVAF
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 14c93acfc3fde04415e1c6a2a056465d15c86315
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Sep 17 13:17:37 2010 +1000
+
+    noaccel: fix rotation, as well as an assert during server shutdown
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 065576d5df0df4da61050d789f548801656b62d5
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Aug 26 13:22:33 2010 +1000
+
+    dri2: remove explit flush from copy_region()
+    
+    Unnecessary now that we kickoff from within the flush callback chain.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 34025f0dc9284873d4bf7e4f547ed69fc562a3c9
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Aug 26 13:19:39 2010 +1000
+
+    kickoff from the flush callback chain
+    
+    This is a port of intel commit: 69d65f9184006eac790efcff78a0e425160e95aa
+    
+        Submit batch buffers from flush callback chain
+    
+        There are a few cases where the server will flush client output buffers
+        but our block handler only catches the most common (before going into select
+        If the server flushes client buffers before we submit our batch buffer,
+        the client may receive a damage event for rendering that hasn't happened yet
+    
+        Instead, we can hook into the flush callback chain, which the server will
+        invoke just before flushing output.  This lets us submit batch buffers
+        before sending out events, preserving ordering.
+    
+        Fixes 28438: [bisected] incorrect character in gnome-terminal under compiz
+        https://bugs.freedesktop.org/show_bug.cgi?id=28438
+    
+        Signed-off-by: Kristian Høgsberg <krh@bitplanet.net>
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
 commit 390f1c86d9583f4ceabd407ee47410073c2a1b55
 Author: Ben Skeggs <bskeggs@redhat.com>
 Date:   Fri Aug 20 09:48:32 2010 +1000

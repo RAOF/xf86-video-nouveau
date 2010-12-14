@@ -1,7 +1,11 @@
-xserver-xorg-video-nouveau (1:0.0.16+git20100825+390f1c8-2) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-1) UNRELEASED; urgency=low
 
+  [ Cyril Brulebois ]
   * Fix Vcs-Browser URL, thanks to Petr Vorel (Closes: #596217).
 
+  [ Sven Joachim ]
+  * New upstream snapshot.
+  
  -- Cyril Brulebois <kibi@debian.org>  Sat, 02 Oct 2010 12:08:02 +0200
 
 xserver-xorg-video-nouveau (1:0.0.16+git20100825+390f1c8-1) experimental; urgency=low

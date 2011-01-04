@@ -1,4 +1,4 @@
-xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-1) experimental; urgency=low
 
   [ Sven Joachim ]
   * New upstream snapshot.
@@ -6,7 +6,7 @@ xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-1) UNRELEASED; urgency=
     - Bump build-dependency on libdrm-dev to (>= 2.4.23) due to
       libdrm-nouveau API changes.
 
- -- Cyril Brulebois <kibi@debian.org>  Sat, 02 Oct 2010 12:08:02 +0200
+ -- Julien Cristau <jcristau@debian.org>  Tue, 04 Jan 2011 11:59:17 +0100
 
 xserver-xorg-video-nouveau (1:0.0.16+git20100825+390f1c8-1) experimental; urgency=low
 

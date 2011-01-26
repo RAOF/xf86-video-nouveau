@@ -460,6 +460,7 @@ Date:   Wed May 26 16:09:48 2010 +1000
     update nouveau_class.h
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 commit b9f414c589d89887722942463bcbf5f85191e71a
 Author: Christopher James Halse Rogers <christopher.halse.rogers@canonical.com>
@@ -475,6 +476,8 @@ Date:   Tue May 18 16:08:22 2010 +1000
     Merge remote branch 'upstream/master' into upstream-ubuntu
 
 >>>>>>> upstream/0.0.16+git20110107+b795ca6e
+=======
+>>>>>>> debian-experimental
 commit 4b8f1a082069a17555d4142003213cf83d4e5464
 Author: Lubomir Rintel <lkundrak@v3.sk>
 Date:   Mon May 10 09:25:55 2010 +0200

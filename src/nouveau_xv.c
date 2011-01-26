@@ -35,6 +35,8 @@
 #include "nv_include.h"
 #include "nv_dma.h"
 
+#include "nv04_pushbuf.h"
+
 #include "vl_hwmc.h"
 
 #define IMAGE_MAX_W 2046
@@ -137,6 +139,17 @@ XF86AttributeRec NVTexturedAttributes[NUM_TEXTURED_ATTRIBUTES] =
 	{XvSettable | XvGettable, 0, 1, "XV_SYNC_TO_VBLANK"}
 };
 
+#define NUM_TEXTURED_ATTRIBUTES_NV50 7
+XF86AttributeRec NVTexturedAttributesNV50[NUM_TEXTURED_ATTRIBUTES_NV50] =
+{
+	{ XvSettable             , 0, 0, "XV_SET_DEFAULTS" },
+	{ XvSettable | XvGettable, 0, 1, "XV_SYNC_TO_VBLANK" },
+	{ XvSettable | XvGettable, -1000, 1000, "XV_BRIGHTNESS" },
+	{ XvSettable | XvGettable, -1000, 1000, "XV_CONTRAST" },
+	{ XvSettable | XvGettable, -1000, 1000, "XV_SATURATION" },
+	{ XvSettable | XvGettable, -1000, 1000, "XV_HUE" },
+	{ XvSettable | XvGettable, 0, 1, "XV_ITURBT_709" }
+};
 
 #define NUM_IMAGES_YUV 4
 #define NUM_IMAGES_ALL 5
@@ -191,23 +204,6 @@ nv_window_belongs_to_crtc(ScrnInfoPtr pScrn, int x, int y, int w, int h)
 	}
 
 	return mask;
-}
-
-void
-NVWaitVSync(ScrnInfoPtr pScrn, int crtc)
-{
-	NVPtr pNv = NVPTR(pScrn);
-	struct nouveau_channel *chan = pNv->chan;
-	struct nouveau_grobj *blit = pNv->NvImageBlit;
-
-	BEGIN_RING(chan, blit, 0x0000012C, 1);
-	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, blit, 0x00000134, 1);
-	OUT_RING  (chan, crtc);
-	BEGIN_RING(chan, blit, 0x00000100, 1);
-	OUT_RING  (chan, 0);
-	BEGIN_RING(chan, blit, 0x00000130, 1);
-	OUT_RING  (chan, 0);
 }
 
 /**
@@ -1579,7 +1575,7 @@ NVSetupBlitVideo (ScreenPtr pScreen)
 	NVPortPrivPtr       pPriv;
 	int i;
 
-	if (!(adapt = xcalloc(1, sizeof(XF86VideoAdaptorRec) +
+	if (!(adapt = calloc(1, sizeof(XF86VideoAdaptorRec) +
 					sizeof(NVPortPrivRec) +
 					(sizeof(DevUnion) * NUM_BLIT_PORTS)))) {
 		return NULL;
@@ -1647,7 +1643,7 @@ NVSetupOverlayVideoAdapter(ScreenPtr pScreen)
 	XF86VideoAdaptorPtr adapt;
 	NVPortPrivPtr       pPriv;
 
-	if (!(adapt = xcalloc(1, sizeof(XF86VideoAdaptorRec) +
+	if (!(adapt = calloc(1, sizeof(XF86VideoAdaptorRec) +
 					sizeof(NVPortPrivRec) +
 					sizeof(DevUnion)))) {
 		return NULL;
@@ -1843,7 +1839,7 @@ NV30SetupTexturedVideo (ScreenPtr pScreen, Bool bicubic)
 	NVPortPrivPtr pPriv;
 	int i;
 
-	if (!(adapt = xcalloc(1, sizeof(XF86VideoAdaptorRec) +
+	if (!(adapt = calloc(1, sizeof(XF86VideoAdaptorRec) +
 				 sizeof(NVPortPrivRec) +
 				 (sizeof(DevUnion) * NUM_TEXTURE_PORTS)))) {
 		return NULL;
@@ -1924,7 +1920,7 @@ NV40SetupTexturedVideo (ScreenPtr pScreen, Bool bicubic)
 	NVPortPrivPtr pPriv;
 	int i;
 
-	if (!(adapt = xcalloc(1, sizeof(XF86VideoAdaptorRec) +
+	if (!(adapt = calloc(1, sizeof(XF86VideoAdaptorRec) +
 				 sizeof(NVPortPrivRec) +
 				 (sizeof(DevUnion) * NUM_TEXTURE_PORTS)))) {
 		return NULL;
@@ -1983,7 +1979,8 @@ NV50TexturedImages[] =
 {
 	XVIMAGE_YV12,
 	XVIMAGE_I420,
-	XVIMAGE_YUY2
+	XVIMAGE_YUY2,
+	XVIMAGE_UYVY
 };
 
 static XF86VideoAdaptorPtr
@@ -1995,7 +1992,7 @@ NV50SetupTexturedVideo (ScreenPtr pScreen)
 	NVPortPrivPtr pPriv;
 	int i;
 
-	if (!(adapt = xcalloc(1, sizeof(XF86VideoAdaptorRec) +
+	if (!(adapt = calloc(1, sizeof(XF86VideoAdaptorRec) +
 				 sizeof(NVPortPrivRec) +
 				 (sizeof(DevUnion) * NUM_TEXTURE_PORTS)))) {
 		return NULL;
@@ -2015,8 +2012,8 @@ NV50SetupTexturedVideo (ScreenPtr pScreen)
 	for(i = 0; i < NUM_TEXTURE_PORTS; i++)
 		adapt->pPortPrivates[i].ptr = (pointer)(pPriv);
 
-	adapt->pAttributes		= NVTexturedAttributes;
-	adapt->nAttributes		= NUM_TEXTURED_ATTRIBUTES;
+	adapt->pAttributes		= NVTexturedAttributesNV50;
+	adapt->nAttributes		= NUM_TEXTURED_ATTRIBUTES_NV50;
 	adapt->pImages			= NV50TexturedImages;
 	adapt->nImages			= sizeof(NV50TexturedImages) /
 					  sizeof(NV50TexturedImages[0]);
@@ -2031,14 +2028,16 @@ NV50SetupTexturedVideo (ScreenPtr pScreen)
 	adapt->PutImage			= NVPutImage;
 	adapt->QueryImageAttributes	= NVQueryImageAttributes;
 
-	pPriv->videoStatus		= 0;
-	pPriv->grabbedByV4L		= FALSE;
-	pPriv->blitter			= FALSE;
-	pPriv->texture			= TRUE;
-	pPriv->doubleBuffer		= FALSE;
-	pPriv->SyncToVBlank		= TRUE;
-
 	pNv->textureAdaptor[0]		= adapt;
+
+	nv50_xv_set_port_defaults(pScrn, pPriv);
+	nv50_xv_csc_update(pScrn, pPriv);
+
+	xvBrightness = MAKE_ATOM("XV_BRIGHTNESS");
+	xvContrast   = MAKE_ATOM("XV_CONTRAST");
+	xvSaturation = MAKE_ATOM("XV_SATURATION");
+	xvHue        = MAKE_ATOM("XV_HUE");
+	xvITURBT709  = MAKE_ATOM("XV_ITURBT_709");
 	return adapt;
 }
 
@@ -2099,7 +2098,7 @@ NVInitVideo(ScreenPtr pScreen)
 		if(textureAdaptor[0]) size++;
 		if(textureAdaptor[1]) size++;
 
-		newAdaptors = xalloc(size * sizeof(XF86VideoAdaptorPtr *));
+		newAdaptors = malloc(size * sizeof(XF86VideoAdaptorPtr *));
 		if(newAdaptors) {
 			if(num_adaptors) {
 				memcpy(newAdaptors, adaptors, num_adaptors *
@@ -2133,14 +2132,14 @@ NVInitVideo(ScreenPtr pScreen)
 	if (num_adaptors)
 		xf86XVScreenInit(pScreen, adaptors, num_adaptors);
 	if (newAdaptors)
-		xfree(newAdaptors);
+		free(newAdaptors);
 	
 	/*
 	 * For now we associate with the plain texture adapter since it is logical, but we can
 	 * associate with any/all adapters since VL doesn't depend on Xv for color conversion.
 	 */
 	if (textureAdaptor[0]) {
-		XF86MCAdaptorPtr *adaptorsXvMC = xalloc(sizeof(XF86MCAdaptorPtr));
+		XF86MCAdaptorPtr *adaptorsXvMC = malloc(sizeof(XF86MCAdaptorPtr));
 		
 		if (adaptorsXvMC) {
 			adaptorsXvMC[0] = vlCreateAdaptorXvMC(pScreen, textureAdaptor[0]->name);
@@ -2150,7 +2149,7 @@ NVInitVideo(ScreenPtr pScreen)
 				vlDestroyAdaptorXvMC(adaptorsXvMC[0]);
 			}
 			
-			xfree(adaptorsXvMC);
+			free(adaptorsXvMC);
 		}
 	}
 }

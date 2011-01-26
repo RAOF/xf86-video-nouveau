@@ -22,6 +22,7 @@
 
 #include "nv_include.h"
 #include "nv30_shaders.h"
+#include "nv04_pushbuf.h"
 
 typedef struct nv_pict_surface_format {
 	int	 pict_fmt;
@@ -104,7 +105,7 @@ NV40EXAHackupA8Shaders(ScrnInfoPtr pScrn)
 		nv_shader_t *def, *a8;
 
 		def = nv40_fp_map[s];
-		a8 = xcalloc(1, sizeof(nv_shader_t));
+		a8 = calloc(1, sizeof(nv_shader_t));
 		a8->card_priv.NV30FP.num_regs = def->card_priv.NV30FP.num_regs;
 		a8->size = def->size + 4;
 		memcpy(a8->data, def->data, def->size * sizeof(uint32_t));

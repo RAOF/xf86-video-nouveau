@@ -1,3 +1,388 @@
+commit b795ca6e97fae9735843748585401098dae1c3e1
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Jan 7 13:33:36 2011 +1000
+
+    nv50: fix pitch of linear scanout buffers
+    
+    Un-breaks NoAccel on these chipsets.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit dc89dac734167bcbc667b39ca6ee2043871a60bf
+Author: Xavier Chantry <chantry.xavier@gmail.com>
+Date:   Sun Dec 19 23:17:34 2010 +0100
+
+    nv04/exa: kill useless WAIT_RING
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit b76b43928bf4dcf5ce3a4b58c7fefe780070c0d3
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue Dec 21 16:25:23 2010 +1000
+
+    add back generic include of nouveau_pushbuf.h
+    
+    So places that FIRE_RING() still work.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit c2092a458401377f421d9bdfe1d97ce580b99508
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Dec 20 11:50:57 2010 +1000
+
+    include nv04_pushbuf.h for ring macros, rather than nouveau_pushbuf.h
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit aa2821a42706ac7b69703d1869e2d00a4ced9f4b
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Dec 20 11:53:53 2010 +1000
+
+    kill NVSync(), it's rather useless
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 1fc564fe3494cf0abcc848d0e90bf2232f8fd272
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Dec 16 09:49:09 2010 +1000
+
+    nv50/xv: use mad in nv12 shader, rather than mul+add
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit b6cb21b91f7d0409794a14ddbdd606728d4d49e3
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Feb 8 12:51:47 2010 +1000
+
+    set canDoBGNoneRoot if building against new enough server
+
+commit 11510f9ce8c9eab15e7f6d5962b83fc0052c8619
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue Dec 14 15:39:01 2010 +1000
+
+    nv50/xv: implement brightness/contrast/saturation/hue controls
+    
+    Adapted from the code in xf86-video-ati.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 214ea264cdb386520a1308a29f204e441f349cb1
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue Dec 14 14:42:24 2010 +1000
+
+    nv50/xv: kick csc parameters out into a constant buffer
+    
+    These were previously inlined into the shader, which is simple, but makes
+    implementing brightness/contrast adjustments impossible.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 8bb8231236a6b877895663aeaa9cef731d67fe68
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue Nov 30 15:27:36 2010 +1000
+
+    dri2: fix certain clients blocking forever when sync-to-vblank unavailable
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit f29afe65b67c9b89ceba421d9b3aee590f7ded20
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Nov 29 09:23:35 2010 +1000
+
+    dri2: don't return failure from get_msc if sync-to-vblank isn't available
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 4b1d26578116f4d1745dd92a7c99413972a2bedf
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Thu Nov 25 21:33:46 2010 +0100
+
+    dri2: Don't return failure from schedule_wait if sync-to-vblank is unavailable.
+    
+    Reported-by: Ben Skeggs <bskeggs@redhat.com>
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 1143e7a97dce1b741376e178b73b8b766e03849a
+Author: Jesse Adkins <jesserayadkins@gmail.com>
+Date:   Tue Oct 26 16:05:32 2010 -0700
+
+    Purge cvs tags.
+    
+    Signed-off-by: Jesse Adkins <jesserayadkins@gmail.com>
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 22020457f43eceaf26532ecb50e46d743f4a691f
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Tue Oct 26 00:24:06 2010 +0200
+
+    dri2: Fix throttling on occluded drawables.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 9737a812aacbc544b93eeaa031cf1c2e8adbd661
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Oct 25 10:37:08 2010 +1000
+
+    kms: initial pass at supporting zaphod-mode
+    
+    This works ok from some simple testing, there's undoubtedly things that
+    will need polishing still however.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit d40c16f5497739c0215f37566db1651a74cb20ba
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Sat Oct 23 02:20:30 2010 +0200
+
+    dri2: Fix build on X server 1.8.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit a4d580bf05d7aac1d486e5d1ba9a2201c026e5f5
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Fri Oct 22 23:09:30 2010 +0200
+
+    Bump the required X server version to 1.8.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit d0f2e16bc35660d01d3cd20a770cf8e613ab5323
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Fri Oct 22 23:06:28 2010 +0200
+
+    dri2: Report damage on page-flipped drawables.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit c61e8d03161adcfbba4162172153814accf9e86b
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Fri Oct 22 23:05:24 2010 +0200
+
+    Make the sync-to-vblank helpers take a box as argument.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit a685a5c3be12f3e95a6ec1140af115e7ef28fcaa
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Wed Oct 13 18:45:04 2010 +0200
+
+    dri2: Implement the ScheduleWaitMSC/GetMSC hooks.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit eb83c830c87bce345748edef3b50660246143db7
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Thu Oct 21 22:57:08 2010 +0200
+
+    dri2: Add pageflip/exchange support.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit c88f13e25b0040c1dd0f93e0ac40f62a6005ce59
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Thu Oct 14 22:25:50 2010 +0200
+
+    Allocate a tiled scanout on pre-nv50 too.
+    
+    Pageflip between tiled and non-tiled surfaces isn't such a good idea.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 4642d71bdffc04ce0dd458225541940c65f5443d
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Thu Oct 14 22:17:58 2010 +0200
+
+    dri2: Give out buffers ready for scanout.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 75daada678d03d2e162f8003a6f2edcbe0525f92
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Thu Oct 14 22:32:54 2010 +0200
+
+    Restructure tiled pixmap allocation in a single place.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 70f0d2c886ceaa965ca4864788f4dd8e8f757a92
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Thu Oct 21 22:55:02 2010 +0200
+
+    dri2: Add sync-to-vblank support.
+    
+    Note that you need a recent enough kernel for it to work. Use the
+    "GLXVBlank" option to enable it (it defaults to disabled for now).
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 72dd4899ff036b09e3680ed2e09b3dbae3a7ba71
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Thu Oct 21 22:31:45 2010 +0200
+
+    nv04-nv40/exa: Make the copy hook blit downwards for non-overlapping regions.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 21ed642d3f76f286f23cd64ca817038ec94a1bf6
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Wed Oct 13 18:22:22 2010 +0200
+
+    Make the sync-to-vblank helpers more consistent.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 258e483d47f0f63155be18981c1118261f7675a8
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Thu Oct 21 22:41:24 2010 +0200
+
+    kms: Register a wakeup handler to poll vblank/pageflip/udev events.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 4f42708c26fa57bac7854701a6e757958c8d0654
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Sun Oct 10 04:39:27 2010 +0200
+
+    Update to the last libdrm API.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 8c8f15c9d3a31c35bf2ef20faf8c4133295a678f
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Sun Oct 10 04:36:17 2010 +0200
+
+    nv10-nv40/exa: Fix tiled pixmap pitch alignment calculation.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit a47c274f329b3b8bfbdcf155d6d832599d823dc8
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Sun Oct 10 04:43:25 2010 +0200
+
+    Fix for the last xserver ABI.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit 9a5142fae6e1a0a470352f511427916e6fa01b9c
+Author: Maarten Maathuis <madman2003@gmail.com>
+Date:   Fri Aug 27 21:11:59 2010 +0200
+
+    nv50/exa: Stop using wfb by default, but add an option to enable it.
+    
+    - Some scenarios, such as those heavy in core font rendering might prefer wfb.
+    - Other (modern) situations are better of with wfb disabled.
+    
+    Signed-off-by: Maarten Maathuis <madman2003@gmail.com>
+
+commit d5a6f103113985c50bbe749ed341de34af1b47a5
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Tue Sep 28 21:49:48 2010 +0200
+
+    dri2: Throttle frontbuffer flushes.
+    
+    There was no need for throttling until the hardware interchannel sync
+    kernel changes because the pushbuf IOCTL blocked to sync the GL and X
+    channels anyway.
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit f1ac413d1d3dec2ccf63d4a8c79b9bd9ea578dcf
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Sep 20 08:05:00 2010 +1000
+
+    nv50: use 0x8697 on NVAF
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 14c93acfc3fde04415e1c6a2a056465d15c86315
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Sep 17 13:17:37 2010 +1000
+
+    noaccel: fix rotation, as well as an assert during server shutdown
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 065576d5df0df4da61050d789f548801656b62d5
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Aug 26 13:22:33 2010 +1000
+
+    dri2: remove explit flush from copy_region()
+    
+    Unnecessary now that we kickoff from within the flush callback chain.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 34025f0dc9284873d4bf7e4f547ed69fc562a3c9
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Aug 26 13:19:39 2010 +1000
+
+    kickoff from the flush callback chain
+    
+    This is a port of intel commit: 69d65f9184006eac790efcff78a0e425160e95aa
+    
+        Submit batch buffers from flush callback chain
+    
+        There are a few cases where the server will flush client output buffers
+        but our block handler only catches the most common (before going into select
+        If the server flushes client buffers before we submit our batch buffer,
+        the client may receive a damage event for rendering that hasn't happened yet
+    
+        Instead, we can hook into the flush callback chain, which the server will
+        invoke just before flushing output.  This lets us submit batch buffers
+        before sending out events, preserving ordering.
+    
+        Fixes 28438: [bisected] incorrect character in gnome-terminal under compiz
+        https://bugs.freedesktop.org/show_bug.cgi?id=28438
+    
+        Signed-off-by: Kristian Høgsberg <krh@bitplanet.net>
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 390f1c86d9583f4ceabd407ee47410073c2a1b55
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Aug 20 09:48:32 2010 +1000
+
+    nv50/xv: support UYVY
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 00d390952c912d4e9fc2c962caaeb90bf563d5b1
+Author: Maarten Maathuis <madman2003@gmail.com>
+Date:   Fri Aug 13 22:24:26 2010 +0200
+
+    nv50/xv: Fix the uncommon codepath to use width/height variable.
+    
+    - The common codepath should be the correct one, because that is
+      triggered often, while the other is rare.
+    - This isn't neccesarily a problem, but let's be on the safe side.
+    
+    Signed-off-by: Maarten Maathuis <madman2003@gmail.com>
+
+commit f5b486dd237679aec1987985f9ecffc6a4fd3105
+Author: Maarten Maathuis <madman2003@gmail.com>
+Date:   Fri Aug 13 22:16:51 2010 +0200
+
+    nv50/xv: We have 18 relocs, not 16, adjust MARK_RING.
+    
+    Signed-off-by: Maarten Maathuis <madman2003@gmail.com>
+
+commit 1cb6c91a9afe88d73f8a1180b00f56a9150a16ed
+Author: Roy Spliet <r.spliet@student.tudelft.nl>
+Date:   Sat Aug 7 20:59:06 2010 +0200
+
+    nouveau_exa.c: move line_count logic out of UTS/DFS loop
+    
+    Signed-off-by: Roy Spliet <r.spliet@student.tudelft.nl>
+    Signed-off-by: Maarten Maathuis <madman2003@gmail.com>
+
+commit 9f50b62229d5984ee5c16bc54953c7f8e2d5e575
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Aug 6 08:28:34 2010 +1000
+
+    nvc0: recognise these chipsets, and allow NoAccel mode on them
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
 commit b96170a4e51c1d3167601210ca31e98283c02885
 Author: Francisco Jerez <currojerez@riseup.net>
 Date:   Thu Aug 5 00:40:40 2010 +0200
@@ -74,6 +459,22 @@ Date:   Wed May 26 16:09:48 2010 +1000
 
     update nouveau_class.h
 
+<<<<<<< HEAD
+=======
+commit b9f414c589d89887722942463bcbf5f85191e71a
+Author: Christopher James Halse Rogers <christopher.halse.rogers@canonical.com>
+Date:   Tue May 18 18:36:33 2010 +1000
+
+    Imported Upstream version 0.0.15+git20100518+4b8f1a0
+
+commit 429576639e3d463e821505eaf45c6a2ec764b456
+Merge: 9dc12f0 4b8f1a0
+Author: Christopher James Halse Rogers <raof@ubuntu.com>
+Date:   Tue May 18 16:08:22 2010 +1000
+
+    Merge remote branch 'upstream/master' into upstream-ubuntu
+
+>>>>>>> upstream/0.0.16+git20110107+b795ca6e
 commit 4b8f1a082069a17555d4142003213cf83d4e5464
 Author: Lubomir Rintel <lkundrak@v3.sk>
 Date:   Mon May 10 09:25:55 2010 +0200
@@ -192,6 +593,19 @@ Date:   Tue Feb 23 15:03:38 2010 +1000
 
     Add connector name for eDP
 
+commit 9dc12f0de18594c12301535bf89590671ef463f6
+Author: Christopher James Halse Rogers <raof@ubuntu.com>
+Date:   Fri Feb 19 20:33:58 2010 +1100
+
+    Imported Upstream version 0.0.15+git+20100219+9b4118d
+
+commit 9f2672351b2028ac78edaeadf012f968ae237f08
+Merge: d4fd2c0 9b4118d
+Author: Christopher James Halse Rogers <raof@ubuntu.com>
+Date:   Fri Feb 19 20:20:45 2010 +1100
+
+    Merge remote branch 'upstream/master' into upstream-ubuntu
+
 commit 29647021044463768cbfa3eead1416ef1cf27fa1
 Author: Ben Skeggs <bskeggs@redhat.com>
 Date:   Thu Feb 18 14:17:57 2010 +1000
@@ -304,6 +718,42 @@ Date:   Sun Jan 31 17:43:54 2010 +0100
     nv10/exa: Fix build after the last nouveau_class.h changes.
     
     Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit d4fd2c0762967c985e219e16914ae63fea2a5718
+Author: Christopher James Halse Rogers <raof@ubuntu.com>
+Date:   Thu Jan 28 11:52:46 2010 +1100
+
+    Imported Upstream version 0.0.10~git+20100128+2630a15
+
+commit b08689b2ed227df98429b9926276e78f791357b6
+Merge: 4162e08 2630a15
+Author: Christopher James Halse Rogers <raof@ubuntu.com>
+Date:   Thu Jan 28 10:45:16 2010 +1100
+
+    Merge remote branch 'upstream/master' into upstream-ubuntu
+    
+    * upstream/master: (31 commits)
+      Remove nv_dripriv.h, nv_local.h
+      xv: use nouveau_bo_new_tile()
+      Remove deprecated NV1 readme
+      exa: remove nouveau_pixmap_offset()
+      exa: remove nouveau_exa_pixmap_{map,unmap}
+      Check for drm+kms availability in NVPciProbe()
+      bump xorg-server requirement to 1.7
+      remove more unused code
+      exa: Remove non-driver pixmaps path
+      Remove pNv->NVArch
+      Remove pNv->Chipset use
+      remove pNv->VRAMPhysical
+      dri1: remove DRI1 support
+      xv: ifdef out another problematic piece of overlay support for the moment
+      Initial pass at removal of non-KMS support.
+      exa: Some compat defines for new pixman formats.
+      start using BEGIN_RING_NI
+      nv50: always set semaphore handle and offset
+      nv50: upgrade nv50_texture.h
+      nv50/exa: add support for more color formats
+      ...
 
 commit 2630a1553d560ce2c7391bc103d4a543f7d3d0da
 Author: Marcin Kościelnicki <koriakin@0x04.net>
@@ -568,6 +1018,12 @@ Date:   Mon Dec 7 15:31:53 2009 +1000
     Unfortunately NV_CONTEXT_SURFACES_2D on most cards (probably only PCIE cards
     work actually, but that's not confirmed) rejects a GART DMA object, so the
     usefulness is a bit more limited than I'd hoped.
+
+commit 4162e080f2922f8aac0606b216990666b1f6e006
+Author: Christopher James Halse Rogers <raof@ubuntu.com>
+Date:   Mon Dec 7 13:11:46 2009 +1100
+
+    Imported Upstream version 0.0.10+git20091207+60a3942
 
 commit 60a394222b410da8bb832935fc525132218b4d94
 Author: Ben Skeggs <bskeggs@redhat.com>

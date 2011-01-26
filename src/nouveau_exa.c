@@ -21,6 +21,7 @@
  */
 
 #include "nv_include.h"
+#include "nv04_pushbuf.h"
 #include "exa.h"
 
 static inline Bool
@@ -52,6 +53,8 @@ NVAccelDownloadM2MF(PixmapPtr pspix, int x, int y, int w, int h,
 	unsigned cpp = pspix->drawable.bitsPerPixel / 8;
 	unsigned line_len = w * cpp;
 	unsigned src_offset = 0, src_pitch = 0, linear = 0;
+	/* Maximum DMA transfer */
+	unsigned line_count = pNv->GART->size / line_len;
 
 	if (!nv50_style_tiled_pixmap(pspix)) {
 		linear     = 1;
@@ -59,21 +62,16 @@ NVAccelDownloadM2MF(PixmapPtr pspix, int x, int y, int w, int h,
 		src_offset += (y * src_pitch) + (x * cpp);
 	}
 
+	/* HW limitations */
+	if (line_count > 2047)
+		line_count = 2047;
+
 	while (h) {
-		int line_count, i;
+		int i;
 		char *src;
 
-		if (h * line_len <= pNv->GART->size) {
+		if (line_count > h)
 			line_count = h;
-		} else {
-			line_count = pNv->GART->size / line_len;
-			if (line_count > h)
-				line_count = h;
-		}
-
-		/* HW limitations */
-		if (line_count > 2047)
-			line_count = 2047;
 
 		if (MARK_RING(chan, 32, 6))
 			return FALSE;
@@ -169,6 +167,8 @@ NVAccelUploadM2MF(PixmapPtr pdpix, int x, int y, int w, int h,
 	unsigned cpp = pdpix->drawable.bitsPerPixel / 8;
 	unsigned line_len = w * cpp;
 	unsigned dst_offset = 0, dst_pitch = 0, linear = 0;
+	/* Maximum DMA transfer */
+	unsigned line_count = pNv->GART->size / line_len;
 
 	if (!nv50_style_tiled_pixmap(pdpix)) {
 		linear     = 1;
@@ -176,22 +176,16 @@ NVAccelUploadM2MF(PixmapPtr pdpix, int x, int y, int w, int h,
 		dst_offset += (y * dst_pitch) + (x * cpp);
 	}
 
+	/* HW limitations */
+	if (line_count > 2047)
+		line_count = 2047;
+
 	while (h) {
-		int line_count, i;
+		int i;
 		char *dst;
 
-		/* Determine max amount of data we can DMA at once */
-		if (h * line_len <= pNv->GART->size) {
+		if (line_count > h)
 			line_count = h;
-		} else {
-			line_count = pNv->GART->size / line_len;
-			if (line_count > h)
-				line_count = h;
-		}
-
-		/* HW limitations */
-		if (line_count > 2047)
-			line_count = 2047;
 
 		/* Upload to GART */
 		if (nouveau_bo_map(pNv->GART, NOUVEAU_BO_WR))
@@ -291,7 +285,10 @@ static Bool
 nouveau_exa_prepare_access(PixmapPtr ppix, int index)
 {
 	struct nouveau_bo *bo = nouveau_pixmap_bo(ppix);
+	NVPtr pNv = NVPTR(xf86Screens[ppix->drawable.pScreen->myNum]);
 
+	if (nv50_style_tiled_pixmap(ppix) && !pNv->wfb_enabled)
+		return FALSE;
 	if (nouveau_bo_map(bo, NOUVEAU_BO_RDWR))
 		return FALSE;
 	ppix->devPrivate.ptr = bo->map;
@@ -316,10 +313,10 @@ static void *
 nouveau_exa_create_pixmap(ScreenPtr pScreen, int width, int height, int depth,
 			  int usage_hint, int bitsPerPixel, int *new_pitch)
 {
-	NVPtr pNv = NVPTR(xf86Screens[pScreen->myNum]);
+	ScrnInfoPtr scrn = xf86Screens[pScreen->myNum];
+	NVPtr pNv = NVPTR(scrn);
 	struct nouveau_pixmap *nvpix;
-	uint32_t flags = NOUVEAU_BO_MAP, tile_mode = 0, tile_flags = 0;
-	int ret, size, cpp = bitsPerPixel >> 3;
+	int ret;
 
 	if (!width || !height)
 		return calloc(1, sizeof(*nvpix));
@@ -332,43 +329,9 @@ nouveau_exa_create_pixmap(ScreenPtr pScreen, int width, int height, int depth,
 	if (!nvpix)
 		return NULL;
 
-	if (cpp) {
-		flags |= NOUVEAU_BO_VRAM;
-		*new_pitch = width * cpp;
-
-		if (pNv->Architecture >= NV_ARCH_50) {
-			if      (height > 32) tile_mode = 4;
-			else if (height > 16) tile_mode = 3;
-			else if (height >  8) tile_mode = 2;
-			else if (height >  4) tile_mode = 1;
-			else                  tile_mode = 0;
-
-			if (usage_hint & NOUVEAU_CREATE_PIXMAP_ZETA)
-				tile_flags = 0x2800;
-			else
-				tile_flags = 0x7000;
-
-			height = NOUVEAU_ALIGN(height, 1 << (tile_mode + 2));
-		} else {
-			if (usage_hint & NOUVEAU_CREATE_PIXMAP_TILED) {
-				int pitch_align =
-					pNv->dev->chipset >= 0x40 ? 1024 : 256;
-
-				*new_pitch = NOUVEAU_ALIGN(*new_pitch,
-							   pitch_align);
-				tile_mode = *new_pitch;
-			}
-		}
-	} else {
-		*new_pitch = (width * bitsPerPixel + 7) / 8;
-	}
-
-	*new_pitch = NOUVEAU_ALIGN(*new_pitch, 64);
-	size  = *new_pitch * height;
-
-	ret = nouveau_bo_new_tile(pNv->dev, flags, 0, size, tile_mode,
-				  tile_flags, &nvpix->bo);
-	if (ret) {
+	ret = nouveau_allocate_surface(scrn, width, height, bitsPerPixel,
+				       usage_hint, new_pitch, &nvpix->bo);
+	if (!ret) {
 		free(nvpix);
 		return NULL;
 	}
@@ -395,7 +358,8 @@ nv50_style_tiled_pixmap(PixmapPtr ppix)
 	NVPtr pNv = NVPTR(pScrn);
 
 	return pNv->Architecture == NV_ARCH_50 &&
-		nouveau_pixmap_bo(ppix)->tile_flags;
+		(nouveau_pixmap_bo(ppix)->tile_flags &
+		 NOUVEAU_BO_TILE_LAYOUT_MASK);
 }
 
 static Bool

@@ -1,5 +1,3 @@
-/* $XFree86: xc/programs/Xserver/hw/xfree86/drivers/nv/nv_include.h,v 1.9 2000/10/06 12:31:03 eich Exp $ */
-
 #ifndef __NV_INCLUDE_H__
 #define __NV_INCLUDE_H__
 
@@ -77,10 +75,10 @@
 #include "nouveau_drmif.h"
 #include "nouveau_device.h"
 #include "nouveau_channel.h"
-#include "nouveau_pushbuf.h"
 #include "nouveau_bo.h"
 #include "nouveau_grobj.h"
 #include "nouveau_notifier.h"
 #include "nouveau_local.h"
+#include "nouveau_pushbuf.h"
 
 #endif /* __NV_INCLUDE_H__ */

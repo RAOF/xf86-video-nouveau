@@ -23,6 +23,8 @@
 #include "nv_include.h"
 #include "nv_rop.h"
 
+#include "nv04_pushbuf.h"
+
 static void 
 NV04EXASetPattern(ScrnInfoPtr pScrn, CARD32 clr0, CARD32 clr1,
 		  CARD32 pat0, CARD32 pat1)
@@ -148,7 +150,6 @@ NV04EXASolid (PixmapPtr pPixmap, int x1, int y1, int x2, int y2)
 	int width = x2-x1;
 	int height = y2-y1;
 
-	WAIT_RING (chan, 3);
 	BEGIN_RING(chan, rect,
 		   NV04_GDI_RECTANGLE_TEXT_UNCLIPPED_RECTANGLE_POINT(0), 2);
 	OUT_RING  (chan, (x1 << 16) | y1);
@@ -242,8 +243,42 @@ NV04EXACopy(PixmapPtr pDstPixmap, int srcX, int srcY, int dstX, int dstY,
 	NVPtr pNv = NVPTR(pScrn);
 	struct nouveau_channel *chan = pNv->chan;
 	struct nouveau_grobj *blit = pNv->NvImageBlit;
+	int split_dstY = NOUVEAU_ALIGN(dstY + 1, 64);
+	int split_height = split_dstY - dstY;
 
-	WAIT_RING (chan, 4);
+	if ((width * height) >= 200000 && pNv->pspix != pNv->pdpix &&
+	    (dstY > srcY || dstX > srcX) && split_height < height) {
+		/*
+		 * KLUDGE - Split the destination rectangle in an
+		 * upper misaligned half and a lower tile-aligned
+		 * half, then get IMAGE_BLIT to blit the lower piece
+		 * downwards (required for sync-to-vblank if the area
+		 * to be blitted is large enough). The blob does a
+		 * different (not nicer) trick to achieve the same
+		 * effect.
+		 */
+		struct nouveau_grobj *surf2d = pNv->NvContextSurfaces;
+		struct nouveau_bo *dst_bo = nouveau_pixmap_bo(pNv->pdpix);
+		unsigned dst_pitch = exaGetPixmapPitch(pNv->pdpix);
+
+		if (MARK_RING(chan, 10, 1))
+			return;
+
+		BEGIN_RING(chan, blit, NV01_IMAGE_BLIT_POINT_IN, 3);
+		OUT_RING  (chan, (srcY << 16) | srcX);
+		OUT_RING  (chan, (dstY << 16) | dstX);
+		OUT_RING  (chan, (split_height  << 16) | width);
+
+		BEGIN_RING(chan, surf2d,
+			   NV04_CONTEXT_SURFACES_2D_OFFSET_DESTIN, 1);
+		OUT_RELOCl(chan, dst_bo, split_dstY * dst_pitch,
+			   NOUVEAU_BO_VRAM | NOUVEAU_BO_WR);
+
+		srcY += split_height;
+		height -= split_height;
+		dstY = 0;
+	}
+
 	BEGIN_RING(chan, blit, NV01_IMAGE_BLIT_POINT_IN, 3);
 	OUT_RING  (chan, (srcY << 16) | srcX);
 	OUT_RING  (chan, (dstY << 16) | dstX);

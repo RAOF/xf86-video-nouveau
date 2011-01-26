@@ -1,0 +1,205 @@
+commit c2092a458401377f421d9bdfe1d97ce580b99508
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Dec 20 11:50:57 2010 +1000
+
+    include nv04_pushbuf.h for ring macros, rather than nouveau_pushbuf.h
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+diff --git a/src/nouveau_dri2.c b/src/nouveau_dri2.c
+index 2dd6da4..45add0f 100644
+--- a/src/nouveau_dri2.c
++++ b/src/nouveau_dri2.c
+@@ -5,6 +5,7 @@
+ 
+ #include "xorg-server.h"
+ #include "nv_include.h"
++#include "nouveau_pushbuf.h"
+ #ifdef DRI2
+ #include "dri2.h"
+ #endif
+diff --git a/src/nouveau_exa.c b/src/nouveau_exa.c
+index 4618994..4e9f946 100644
+--- a/src/nouveau_exa.c
++++ b/src/nouveau_exa.c
+@@ -21,6 +21,7 @@
+  */
+ 
+ #include "nv_include.h"
++#include "nv04_pushbuf.h"
+ #include "exa.h"
+ 
+ static inline Bool
+diff --git a/src/nouveau_xv.c b/src/nouveau_xv.c
+index dba153c..c1d4ccb 100644
+--- a/src/nouveau_xv.c
++++ b/src/nouveau_xv.c
+@@ -35,6 +35,8 @@
+ #include "nv_include.h"
+ #include "nv_dma.h"
+ 
++#include "nv04_pushbuf.h"
++
+ #include "vl_hwmc.h"
+ 
+ #define IMAGE_MAX_W 2046
+diff --git a/src/nv04_exa.c b/src/nv04_exa.c
+index 2760d4b..f2819d2 100644
+--- a/src/nv04_exa.c
++++ b/src/nv04_exa.c
+@@ -23,6 +23,8 @@
+ #include "nv_include.h"
+ #include "nv_rop.h"
+ 
++#include "nv04_pushbuf.h"
++
+ static void 
+ NV04EXASetPattern(ScrnInfoPtr pScrn, CARD32 clr0, CARD32 clr1,
+ 		  CARD32 pat0, CARD32 pat1)
+diff --git a/src/nv04_xv_blit.c b/src/nv04_xv_blit.c
+index be39c0d..1b8de4f 100644
+--- a/src/nv04_xv_blit.c
++++ b/src/nv04_xv_blit.c
+@@ -34,6 +34,8 @@
+ #include "nv_include.h"
+ #include "nv_dma.h"
+ 
++#include "nv04_pushbuf.h"
++
+ #define FOURCC_RGB 0x0000003
+ 
+ #define VSYNC_POSSIBLE (pNv->dev->chipset >= 0x11)
+diff --git a/src/nv10_exa.c b/src/nv10_exa.c
+index 1acb583..1cf7a5b 100644
+--- a/src/nv10_exa.c
++++ b/src/nv10_exa.c
+@@ -28,6 +28,7 @@
+ #endif
+ 
+ #include "nv_include.h"
++#include "nv04_pushbuf.h"
+ 
+ /* Texture/Render target formats. */
+ static struct pict_format {
+diff --git a/src/nv30_exa.c b/src/nv30_exa.c
+index b34b29c..a4dd37d 100644
+--- a/src/nv30_exa.c
++++ b/src/nv30_exa.c
+@@ -25,6 +25,7 @@
+ 
+ #include "nv_include.h"
+ #include "nv30_shaders.h"
++#include "nv04_pushbuf.h"
+ 
+ typedef struct nv_pict_surface_format {
+ 	int	 pict_fmt;
+diff --git a/src/nv30_shaders.c b/src/nv30_shaders.c
+index 7316082..fb93ef8 100644
+--- a/src/nv30_shaders.c
++++ b/src/nv30_shaders.c
+@@ -22,6 +22,7 @@
+ 
+ 
+ #include "nv30_shaders.h"
++#include "nv04_pushbuf.h"
+ 
+ void NV30_UploadFragProg(NVPtr pNv, nv_shader_t *shader, int *hw_offset)
+ {
+diff --git a/src/nv30_xv_tex.c b/src/nv30_xv_tex.c
+index ffa68e4..6d4e089 100644
+--- a/src/nv30_xv_tex.c
++++ b/src/nv30_xv_tex.c
+@@ -37,6 +37,7 @@
+ #include "nv_dma.h"
+ 
+ #include "nv30_shaders.h"
++#include "nv04_pushbuf.h"
+ 
+ extern Atom xvSyncToVBlank, xvSetDefaults;
+ 
+diff --git a/src/nv40_exa.c b/src/nv40_exa.c
+index ffee0e6..b14a829 100644
+--- a/src/nv40_exa.c
++++ b/src/nv40_exa.c
+@@ -22,6 +22,7 @@
+ 
+ #include "nv_include.h"
+ #include "nv30_shaders.h"
++#include "nv04_pushbuf.h"
+ 
+ typedef struct nv_pict_surface_format {
+ 	int	 pict_fmt;
+diff --git a/src/nv40_xv_tex.c b/src/nv40_xv_tex.c
+index e0444e8..0910e12 100644
+--- a/src/nv40_xv_tex.c
++++ b/src/nv40_xv_tex.c
+@@ -37,6 +37,7 @@
+ #include "nv_dma.h"
+ 
+ #include "nv30_shaders.h"
++#include "nv04_pushbuf.h"
+ 
+ extern Atom xvSyncToVBlank, xvSetDefaults;
+ 
+diff --git a/src/nv50_accel.h b/src/nv50_accel.h
+index 9cdbbab..fac5cbb 100644
+--- a/src/nv50_accel.h
++++ b/src/nv50_accel.h
+@@ -1,6 +1,8 @@
+ #ifndef __NV50_ACCEL_H__
+ #define __NV50_ACCEL_H__
+ 
++#include "nv04_pushbuf.h"
++
+ /* "Tesla scratch buffer" offsets */
+ #define PVP_OFFSET  0x00000000 /* Vertex program */
+ #define PFP_OFFSET  0x00001000 /* Fragment program */
+diff --git a/src/nv50_exa.c b/src/nv50_exa.c
+index e86f903..e8ff5aa 100644
+--- a/src/nv50_exa.c
++++ b/src/nv50_exa.c
+@@ -24,6 +24,7 @@
+ #include "nv_include.h"
+ #include "nv_rop.h"
+ 
++#include "nv04_pushbuf.h"
+ #include "nv50_accel.h"
+ #include "nv50_texture.h"
+ 
+diff --git a/src/nv_accel_common.c b/src/nv_accel_common.c
+index 1ade291..b1553f6 100644
+--- a/src/nv_accel_common.c
++++ b/src/nv_accel_common.c
+@@ -21,6 +21,7 @@
+  */
+ 
+ #include "nv_include.h"
++#include "nv04_pushbuf.h"
+ 
+ Bool
+ nouveau_allocate_surface(ScrnInfoPtr scrn, int width, int height, int bpp,
+diff --git a/src/nv_driver.c b/src/nv_driver.c
+index e2df82e..f4aa2bc 100644
+--- a/src/nv_driver.c
++++ b/src/nv_driver.c
+@@ -24,6 +24,8 @@
+ 
+ #include "nv_include.h"
+ 
++#include "nouveau_pushbuf.h"
++
+ #include "xorg-server.h"
+ #include "xf86int10.h"
+ #include "xf86drm.h"
+diff --git a/src/nv_include.h b/src/nv_include.h
+index 48f0b21..9cb697a 100644
+--- a/src/nv_include.h
++++ b/src/nv_include.h
+@@ -75,7 +75,6 @@
+ #include "nouveau_drmif.h"
+ #include "nouveau_device.h"
+ #include "nouveau_channel.h"
+-#include "nouveau_pushbuf.h"
+ #include "nouveau_bo.h"
+ #include "nouveau_grobj.h"
+ #include "nouveau_notifier.h"

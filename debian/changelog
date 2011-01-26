@@ -6,8 +6,14 @@ xserver-xorg-video-nouveau (1:0.0.16+git20110107+b795ca6e-0ubuntu1) natty; urgen
   * Drop debian/patches/03_work-around-exa-hangs.patch; natty's 2.6.37 kernel
     now has the accompanying kernel commit.
   * New upstream snapshot
+  * debian/patches/03_use_older_libdrm_headers.diff:
+    - Revert git commit c2092a45 which switches to post-2.4.23 split libdrm
+      headers.
+  * debian/patches/02_nouveau_bgnr:
+    - Update to build against both Ubuntu-patched and upstream 1.10 BG None
+      ABIs.
 
- -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 26 Jan 2011 13:05:54 +1100
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 26 Jan 2011 13:48:15 +1100
 
 xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-1) experimental; urgency=low
 

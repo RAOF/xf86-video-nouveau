@@ -1,3 +1,14 @@
+xserver-xorg-video-nouveau (1:0.0.16+git20110107+b795ca6e-0ubuntu1) natty; urgency=low
+
+  * Merge from Debian experimental.  Remaining Ubuntu changes:
+    - debian/patches/02_nouveau_bgnr:
+      + Patch from Fedora for a smooth Plymouth->GDM transition.
+  * Drop debian/patches/03_work-around-exa-hangs.patch; natty's 2.6.37 kernel
+    now has the accompanying kernel commit.
+  * New upstream snapshot
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 26 Jan 2011 13:05:54 +1100
+
 xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-1) experimental; urgency=low
 
   [ Sven Joachim ]

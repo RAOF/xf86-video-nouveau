@@ -12,6 +12,8 @@ xserver-xorg-video-nouveau (1:0.0.16+git20110107+b795ca6e-0ubuntu1) natty; urgen
   * debian/patches/02_nouveau_bgnr:
     - Update to build against both Ubuntu-patched and upstream 1.10 BG None
       ABIs.
+  * debian/README.source:
+    - Document how to update to a new upstream snapshot.
 
  -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 26 Jan 2011 13:48:15 +1100
 

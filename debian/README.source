@@ -14,6 +14,26 @@ Quick Guide To Patching This Package For The Impatient
 Alternatively, instead of using quilt directly, you can drop the patch in to 
 debian/patches and add the name of the patch to debian/patches/series.
 
+---------------------
+Updating this package
+---------------------
+
+Because nouveau has no releases, packaging a new upstream version has a
+slightly different process to normal.  As there is no canonical tarball,
+we need to generate one ourselves in such a way that it can be regenerated
+properly.  To do this, we use the pristine-tar functionality of git-buildpackage
+
+The outline of an update is:
+
+ * Merge upstream into upstream-ubuntu
+ * Create a source tarball, including the git log as $(TOP)/ChangeLog
+ * Import this tarball with git-import-orig
+ * Update debian/changelog
+
+The easiest way to create a new source tarball is to run the get-orig-source
+target of debian/rules, which will create a tarball of upstream/master.
+git-buildpackage is set up to do the right thing when git-import-orig is called.
+
 ------------------------------------
 Guide To The X Strike Force Packages
 ------------------------------------

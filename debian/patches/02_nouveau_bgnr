@@ -9,17 +9,26 @@ Subject: [PATCH 2/2] set canDoBGNoneRoot
 
 Index: xserver-xorg-video-nouveau/src/nv_driver.c
 ===================================================================
---- xserver-xorg-video-nouveau.orig/src/nv_driver.c	2011-01-26 13:23:04.621550002 +1100
-+++ xserver-xorg-video-nouveau/src/nv_driver.c	2011-01-26 13:28:28.711550002 +1100
-@@ -690,6 +690,11 @@
+--- xserver-xorg-video-nouveau.orig/src/nv_driver.c	2011-01-31 18:37:19.986515660 +1100
++++ xserver-xorg-video-nouveau/src/nv_driver.c	2011-01-31 18:43:01.277016240 +1100
+@@ -690,6 +690,9 @@
  	/* Set pScrn->monitor */
  	pScrn->monitor = pScrn->confScreen->monitor;
  
-+#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) >= 9
-+	pScrn->pScreen->canDoBGNoneRoot = 1;
-+#else
++#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 9
 +	pScrn->canDoBGNoneRoot = 1;
 +#endif
  	/*
  	 * The first thing we should figure out is the depth, bpp, etc.
  	 */
+@@ -1024,6 +1027,10 @@
+ 		}
+ 	}
+ 
++#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) >= 9
++	pScreen->canDoBGNoneRoot = TRUE;
++#endif
++
+ 	if (!pNv->NoAccel)
+ 		nouveau_dri2_init(pScreen);
+ 

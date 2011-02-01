@@ -1,3 +1,9 @@
+xserver-xorg-video-nouveau (1:0.0.16+git20110107+b795ca6e-0ubuntu3) natty; urgency=low
+
+  * Rebuild against Xserver 1.10
+
+ -- Bryce Harrington <bryce@ubuntu.com>  Mon, 31 Jan 2011 18:52:13 -0800
+
 xserver-xorg-video-nouveau (1:0.0.16+git20110107+b795ca6e-0ubuntu2) natty; urgency=low
 
   * debian/patches/02_nouveau_bgnr: Fix Xserver 1.10 codepath to not crash the

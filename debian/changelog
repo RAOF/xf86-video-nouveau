@@ -1,3 +1,14 @@
+xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-2) UNRELEASED; urgency=low
+
+  * Switch to dh:
+    - Use debhelper 8.
+    - Use dh-autoreconf.
+    - Get rid of debian/clean accordingly.
+    - Bump xserver-xorg-dev build-dep for dh_xsf_substvars and xsf
+      debhelper sequence.
+
+ -- Cyril Brulebois <kibi@debian.org>  Fri, 04 Feb 2011 14:08:48 +0100
+
 xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-1) experimental; urgency=low
 
   [ Sven Joachim ]

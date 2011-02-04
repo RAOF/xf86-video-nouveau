@@ -5,9 +5,10 @@ Maintainer: Debian X Strike Force <debian-x@lists.debian.org>
 Uploaders: Chris Lamb <lamby@debian.org>, Matthew Johnson <mjj29@debian.org>,
  Cyril Brulebois <kibi@debian.org>, Sven Joachim <svenjoac@gmx.de>
 Build-Depends:
- debhelper (>= 7),
+ debhelper (>= 8),
+ dh-autoreconf,
  pkg-config,
- xserver-xorg-dev (>= 2:1.8),
+ xserver-xorg-dev (>= 2:1.9.4),
  x11proto-video-dev,
  x11proto-core-dev,
  x11proto-fonts-dev,

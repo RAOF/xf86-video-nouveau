@@ -1,4 +1,4 @@
-xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-2) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-2) unstable; urgency=low
 
   * Switch to dh:
     - Use debhelper 8.
@@ -9,7 +9,7 @@ xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-2) UNRELEASED; urgency=
   * Remove xsfbs accordingly.
   * Update Uploaders list. Thanks, Chris & Matthew!
 
- -- Cyril Brulebois <kibi@debian.org>  Fri, 04 Feb 2011 14:08:48 +0100
+ -- Cyril Brulebois <kibi@debian.org>  Sat, 05 Feb 2011 14:52:43 +0100
 
 xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-1) experimental; urgency=low
 

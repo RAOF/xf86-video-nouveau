@@ -1,3 +1,9 @@
+xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-2+exp1) UNRELEASED; urgency=low
+
+  * Rebuild against Xserver 1.10 rc2.
+
+ -- Cyril Brulebois <kibi@debian.org>  Sun, 20 Feb 2011 20:57:00 +0100
+
 xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-2) unstable; urgency=low
 
   * Switch to dh:

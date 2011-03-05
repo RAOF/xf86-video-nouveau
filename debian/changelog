@@ -9,6 +9,7 @@ xserver-xorg-video-nouveau (1:0.0.16+git20110305+92db2bc-1) UNRELEASED; urgency=
       packages which divert the Mesa/Xorg files in Squeeze and later.
     - Drop vga16fb from the list of incompatible drivers, KMS handover should
       work as of Linux 2.6.35.
+    - Don't mention nv anymore, it has been removed from Debian.
 
  -- Sven Joachim <svenjoac@gmx.de>  Sat, 05 Mar 2011 10:13:42 +0100
 

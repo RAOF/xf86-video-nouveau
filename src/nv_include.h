@@ -75,10 +75,10 @@
 #include "nouveau_drmif.h"
 #include "nouveau_device.h"
 #include "nouveau_channel.h"
-#include "nouveau_pushbuf.h"
 #include "nouveau_bo.h"
 #include "nouveau_grobj.h"
 #include "nouveau_notifier.h"
 #include "nouveau_local.h"
+#include "nouveau_pushbuf.h"
 
 #endif /* __NV_INCLUDE_H__ */

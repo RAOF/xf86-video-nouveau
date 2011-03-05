@@ -1,11 +1,14 @@
 #ifndef __NV50_ACCEL_H__
 #define __NV50_ACCEL_H__
 
+#include "nv04_pushbuf.h"
+
 /* "Tesla scratch buffer" offsets */
-#define PVP_OFFSET 0x00000000 /* Vertex program */
-#define PFP_OFFSET 0x00001000 /* Fragment program */
-#define TIC_OFFSET 0x00002000 /* Texture Image Control */
-#define TSC_OFFSET 0x00003000 /* Texture Sampler Control */
+#define PVP_OFFSET  0x00000000 /* Vertex program */
+#define PFP_OFFSET  0x00001000 /* Fragment program */
+#define TIC_OFFSET  0x00002000 /* Texture Image Control */
+#define TSC_OFFSET  0x00003000 /* Texture Sampler Control */
+#define PFP_DATA    0x00004000 /* FP constbuf */
 
 /* Fragment programs */
 #define PFP_S     0x0000 /* (src) */
@@ -19,6 +22,7 @@
 /* Constant buffer assignments */
 #define CB_TSC 0
 #define CB_TIC 1
+#define CB_PFP 2
 
 static __inline__ void
 VTX1s(NVPtr pNv, float sx, float sy, unsigned dx, unsigned dy)

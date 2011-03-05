@@ -21,6 +21,7 @@
  */
 
 #include "nv_include.h"
+#include "nv04_pushbuf.h"
 #include "exa.h"
 
 static inline Bool
@@ -356,7 +357,7 @@ nv50_style_tiled_pixmap(PixmapPtr ppix)
 	ScrnInfoPtr pScrn = xf86Screens[ppix->drawable.pScreen->myNum];
 	NVPtr pNv = NVPTR(pScrn);
 
-	return pNv->Architecture == NV_ARCH_50 &&
+	return pNv->Architecture >= NV_ARCH_50 &&
 		(nouveau_pixmap_bo(ppix)->tile_flags &
 		 NOUVEAU_BO_TILE_LAYOUT_MASK);
 }
@@ -377,8 +378,15 @@ nouveau_exa_download_from_screen(PixmapPtr pspix, int x, int y, int w, int h,
 	offset = (y * src_pitch) + (x * cpp);
 
 	if (pNv->GART) {
-		if (NVAccelDownloadM2MF(pspix, x, y, w, h, dst, dst_pitch))
-			return TRUE;
+		if (pNv->Architecture >= NV_ARCH_C0) {
+			if (NVC0AccelDownloadM2MF(pspix, x, y, w, h,
+						  dst, dst_pitch))
+				return TRUE;
+		} else {
+			if (NVAccelDownloadM2MF(pspix, x, y, w, h,
+						dst, dst_pitch))
+				return TRUE;
+		}
 	}
 
 	bo = nouveau_pixmap_bo(pspix);
@@ -413,8 +421,15 @@ nouveau_exa_upload_to_screen(PixmapPtr pdpix, int x, int y, int w, int h,
 				exaMarkSync(pdpix->drawable.pScreen);
 				return TRUE;
 			}
-		} else {
+		} else
+		if (pNv->Architecture < NV_ARCH_C0) {
 			if (NV50EXAUploadSIFC(src, src_pitch, pdpix,
+					      x, y, w, h, cpp)) {
+				exaMarkSync(pdpix->drawable.pScreen);
+				return TRUE;
+			}
+		} else {
+			if (NVC0EXAUploadSIFC(src, src_pitch, pdpix,
 					      x, y, w, h, cpp)) {
 				exaMarkSync(pdpix->drawable.pScreen);
 				return TRUE;
@@ -424,7 +439,15 @@ nouveau_exa_upload_to_screen(PixmapPtr pdpix, int x, int y, int w, int h,
 
 	/* try gart-based transfer */
 	if (pNv->GART) {
-		if (NVAccelUploadM2MF(pdpix, x, y, w, h, src, src_pitch)) {
+		if (pNv->Architecture < NV_ARCH_C0) {
+			ret = NVAccelUploadM2MF(pdpix, x, y, w, h,
+						src, src_pitch);
+		} else {
+			ret = NVC0AccelUploadM2MF(pdpix, x, y, w, h,
+						  src, src_pitch);
+		}
+
+		if (ret) {
 			exaMarkSync(pdpix->drawable.pScreen);
 			return TRUE;
 		}
@@ -509,7 +532,8 @@ nouveau_exa_init(ScreenPtr pScreen)
 		exa->PrepareSolid = NV04EXAPrepareSolid;
 		exa->Solid = NV04EXASolid;
 		exa->DoneSolid = NV04EXADoneSolid;
-	} else {
+	} else
+	if (pNv->Architecture < NV_ARCH_C0) {
 		exa->PrepareCopy = NV50EXAPrepareCopy;
 		exa->Copy = NV50EXACopy;
 		exa->DoneCopy = NV50EXADoneCopy;
@@ -517,6 +541,14 @@ nouveau_exa_init(ScreenPtr pScreen)
 		exa->PrepareSolid = NV50EXAPrepareSolid;
 		exa->Solid = NV50EXASolid;
 		exa->DoneSolid = NV50EXADoneSolid;
+	} else {
+		exa->PrepareCopy = NVC0EXAPrepareCopy;
+		exa->Copy        = NVC0EXACopy;
+		exa->DoneCopy    = NVC0EXADoneCopy;
+
+		exa->PrepareSolid = NVC0EXAPrepareSolid;
+		exa->Solid        = NVC0EXASolid;
+		exa->DoneSolid    = NVC0EXADoneSolid;
 	}
 
 	switch (pNv->Architecture) {	
@@ -544,6 +576,12 @@ nouveau_exa_init(ScreenPtr pScreen)
 		exa->PrepareComposite = NV50EXAPrepareComposite;
 		exa->Composite        = NV50EXAComposite;
 		exa->DoneComposite    = NV50EXADoneComposite;
+		break;
+	case NV_ARCH_C0:
+		exa->CheckComposite   = NVC0EXACheckComposite;
+		exa->PrepareComposite = NVC0EXAPrepareComposite;
+		exa->Composite        = NVC0EXAComposite;
+		exa->DoneComposite    = NVC0EXADoneComposite;
 		break;
 	default:
 		break;

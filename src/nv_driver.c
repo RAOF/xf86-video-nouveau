@@ -24,6 +24,8 @@
 
 #include "nv_include.h"
 
+#include "nouveau_pushbuf.h"
+
 #include "xorg-server.h"
 #include "xf86int10.h"
 #include "xf86drm.h"
@@ -110,6 +112,8 @@ static struct NvFamily NVKnownFamilies[] =
   { "GeForce 6",   "NV4x" },
   { "GeForce 7",   "G7x" },
   { "GeForce 8",   "G8x" },
+  { "GeForce GTX 200", "NVA0" },
+  { "GeForce GTX 400", "NVC0" },
   { NULL, NULL}
 };
 
@@ -330,7 +334,7 @@ NVEnterVT(int scrnIndex, int flags)
 
 	ret = drmSetMaster(nouveau_device(pNv->dev)->fd);
 	if (ret)
-		ErrorF("Unable to get master: %d\n", ret);
+		ErrorF("Unable to get master: %s\n", strerror(errno));
 
 	if (!xf86SetDesiredModes(pScrn))
 		return FALSE;
@@ -356,8 +360,6 @@ NVLeaveVT(int scrnIndex, int flags)
 
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "NVLeaveVT is called.\n");
 
-	NVSync(pScrn);
-
 	ret = drmDropMaster(nouveau_device(pNv->dev)->fd);
 	if (ret)
 		ErrorF("Error dropping master: %d\n", ret);
@@ -382,15 +384,18 @@ NVBlockHandler (
 )
 {
 	ScreenPtr pScreen = screenInfo.screens[i];
-	ScrnInfoPtr pScrnInfo = xf86Screens[i];
-	NVPtr pNv = NVPTR(pScrnInfo);
+	ScrnInfoPtr pScrn = xf86Screens[i];
+	NVPtr pNv = NVPTR(pScrn);
 
 	pScreen->BlockHandler = pNv->BlockHandler;
 	(*pScreen->BlockHandler) (i, blockData, pTimeout, pReadmask);
 	pScreen->BlockHandler = NVBlockHandler;
 
+	if (pScrn->vtSema && !pNv->NoAccel)
+		FIRE_RING (pNv->chan);
+
 	if (pNv->VideoTimerCallback) 
-		(*pNv->VideoTimerCallback)(pScrnInfo, currentTime.milliseconds);
+		(*pNv->VideoTimerCallback)(pScrn, currentTime.milliseconds);
 }
 
 static Bool
@@ -594,8 +599,9 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 	struct nouveau_device *dev;
 	NVPtr pNv;
 	MessageType from;
+	const char *reason;
 	uint64_t v;
-	int ret, i;
+	int ret;
 
 	if (flags & PROBE_DETECT) {
 		EntityInfoPtr pEnt = xf86GetEntityInfo(pScrn->entityList[0]);
@@ -603,7 +609,6 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 		if (!pEnt)
 			return FALSE;
 
-		i = pEnt->index;
 		free(pEnt);
 
 		return TRUE;
@@ -810,13 +815,23 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 	}
 
 #ifdef NOUVEAU_GETPARAM_HAS_PAGEFLIP
+	reason = ": no kernel support";
+	from = X_DEFAULT;
+
 	ret = nouveau_device_get_param(pNv->dev,
 				       NOUVEAU_GETPARAM_HAS_PAGEFLIP, &v);
-	if (!ret)
-		pNv->has_pageflip = v;
+	if (ret == 0 && v == 1) {
+		pNv->has_pageflip = TRUE;
+		if (xf86GetOptValBool(pNv->Options, OPTION_PAGE_FLIP, &pNv->has_pageflip))
+			from = X_CONFIG;
+		reason = "";
+	}
 #else
-	(void)v;
+	reason = ": not available at build time";
 #endif
+
+	xf86DrvMsg(pScrn->scrnIndex, from, "Page flipping %sabled%s\n",
+		   pNv->has_pageflip ? "en" : "dis", reason);
 
 	if(xf86GetOptValInteger(pNv->Options, OPTION_VIDEO_KEY, &(pNv->videoKey))) {
 		xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, "video key set to 0x%x\n",
@@ -1210,7 +1225,6 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 		xf86ShowUnusedOptions(pScrn->scrnIndex, pScrn->options);
 
 	drmmode_screen_init(pScreen);
-
 	return TRUE;
 }
 

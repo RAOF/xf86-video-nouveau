@@ -5,6 +5,7 @@
 
 #include "xorg-server.h"
 #include "nv_include.h"
+#include "nouveau_pushbuf.h"
 #ifdef DRI2
 #include "dri2.h"
 #endif
@@ -28,6 +29,7 @@ nouveau_dri2_create_buffer(DrawablePtr pDraw, unsigned int attachment,
 	ScreenPtr pScreen = pDraw->pScreen;
 	NVPtr pNv = NVPTR(xf86Screens[pScreen->myNum]);
 	struct nouveau_dri2_buffer *nvbuf;
+	struct nouveau_pixmap *nvpix;
 	PixmapPtr ppix;
 
 	nvbuf = calloc(1, sizeof(*nvbuf));
@@ -69,7 +71,14 @@ nouveau_dri2_create_buffer(DrawablePtr pDraw, unsigned int attachment,
 	nvbuf->base.flags = 0;
 	nvbuf->ppix = ppix;
 
-	nouveau_bo_handle_get(nouveau_pixmap(ppix)->bo, &nvbuf->base.name);
+	nvpix = nouveau_pixmap(ppix);
+	if (!nvpix || !nvpix->bo ||
+	    nouveau_bo_handle_get(nvpix->bo, &nvbuf->base.name)) {
+		pScreen->DestroyPixmap(nvbuf->ppix);
+		free(nvbuf);
+		return NULL;
+	}
+
 	return &nvbuf->base;
 }
 
@@ -133,7 +142,16 @@ static Bool
 can_exchange(DrawablePtr draw, PixmapPtr dst_pix, PixmapPtr src_pix)
 {
 	ScrnInfoPtr scrn = xf86Screens[draw->pScreen->myNum];
+	xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(scrn);
 	NVPtr pNv = NVPTR(scrn);
+	int i;
+
+	for (i = 0; i < xf86_config->num_crtc; i++) {
+		xf86CrtcPtr crtc = xf86_config->crtc[i];
+		if (crtc->enabled && crtc->rotatedData)
+			return FALSE;
+
+	}
 
 	return (!nouveau_exa_pixmap_is_onscreen(dst_pix) ||
 		(DRI2CanFlip(draw) && pNv->has_pageflip)) &&

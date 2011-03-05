@@ -1,3 +1,9 @@
+xserver-xorg-video-nouveau (1:0.0.16+git20110305+92db2bc-1) UNRELEASED; urgency=low
+
+  * New upstream snapshot.
+
+ -- Sven Joachim <svenjoac@gmx.de>  Sat, 05 Mar 2011 10:13:42 +0100
+
 xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-2+exp2) experimental; urgency=low
 
   * Rebuild against Xserver 1.10 rc3.

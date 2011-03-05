@@ -1,3 +1,341 @@
+commit 92db2bc192a074d4b7fc3e9c16e9aa62a8deaeb6
+Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+Date:   Thu Mar 3 22:17:23 2011 +0100
+
+    nvc0/accel: allow nvc1,nvc3,nvc4 in 3D engine init and use 9097
+
+commit ace98a492353e6de712f4f717e6d3f562e3591f0
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue Mar 1 13:54:38 2011 +1000
+
+    dri2: return an error rather than crashing if we can't allocate a buffer
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit bc5dec2ca7ca7edc340a99bd73946e228117dfd8
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Feb 24 15:15:00 2011 +1000
+
+    dri2: disable page flipping if any crtc is rotated
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit c123618470b5ff32c6377a4cae0f148d4a518a5d
+Author: Francesco Marella <francesco.marella@gmail.com>
+Date:   Thu Feb 17 03:48:16 2011 +0100
+
+    Fix gcc 4.6.0 set but unused variable warnings
+    
+    Signed-off-by: Francesco Marella <fmarl@paranoici.org>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 3531b2aa13e9c78288d96fe5e1492f0b6e899b00
+Author: Francesco Marella <francesco.marella@gmail.com>
+Date:   Thu Feb 17 03:47:46 2011 +0100
+
+    Page flipping man page update
+    
+    Signed-off-by: Francesco Marella <fmarl@paranoici.org>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 85a706df6f7986158c964e3afd0aa8e352ff5cea
+Author: Francesco Marella <francesco.marella@gmail.com>
+Date:   Thu Feb 17 03:47:08 2011 +0100
+
+    Update configure.ac with autoupdate
+    
+    Signed-off-by: Francesco Marella <fmarl@paranoici.org>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 42c16ff33dcca6cd9bae62fe0d71a40452e03581
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Wed Feb 16 13:51:54 2011 +1000
+
+    nv50: attempt to allocate compressed Z buffers
+    
+    This should automagically fallback to the non-compressed version on kernels
+    that don't support compression.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 46acb7e095e9c0d55b90070b77c64679fcfb9d4e
+Author: Marcin Slusarz <marcin.slusarz@gmail.com>
+Date:   Sun Feb 13 20:46:42 2011 +0100
+
+    fix drmSetMaster error reporting
+    
+    On error, drmSetMaster returns -1 and sets errno.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 54764980411b4b8124c36edb8730612b04f292a9
+Author: Maarten Maathuis <madman2003@gmail.com>
+Date:   Thu Feb 10 20:12:07 2011 +0100
+
+    Also flush from the BlockHandler.
+    
+    - The fact that commit 02c50db307a4e4eeb87f7db5d401bc53cce3b21f
+      fixed missing text for some people proves this is needed.
+      That commit should have only improved latency a bit.
+    - The FlushCallback is still needed for DRI2 texture_from_pixmap.
+    - See bugs.fd.o #33977 for discussion.
+    
+    Signed-off-by: Maarten Maathuis <madman2003@gmail.com>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 02c50db307a4e4eeb87f7db5d401bc53cce3b21f
+Author: Maarten Maathuis <madman2003@gmail.com>
+Date:   Mon Feb 7 19:37:47 2011 +0100
+
+    exa: Flush (S)IFC to the frontbuffer immediately.
+    
+    This avoids high latency while typing with core fonts for example.
+    
+    Signed-off-by: Maarten Maathuis <madman2003@gmail.com>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit e4fb9fd2f790ed66e4be61ca00d55522525619f4
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Wed Feb 9 13:46:32 2011 +1000
+
+    dri2: allow page flipping to be disabled in xorg.conf
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 38e8809bb415bae5c182fc79c8fc62992c5e4ed0
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Jan 17 09:14:31 2011 +1000
+
+    nvc0: merge initial acceleration support
+    
+    Squashed commit of the following:
+    
+    commit e8ce1ef351ee51bec51211dca6fda88fdbfbefee
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Mon Jan 17 08:55:04 2011 +1000
+    
+        fix hardcoding of nvc0 wfb path
+    
+    commit b414b1f948da18d96309bad84c54948d877efaa6
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Mon Jan 17 08:52:53 2011 +1000
+    
+        general tidy-ups in preparation for merge to master
+    
+    commit 73bf71d5de0cb990178a1d2a31e0ea1717c214a4
+    Merge: fb499a4 b795ca6
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Mon Jan 17 08:47:40 2011 +1000
+    
+        Merge branch 'master' into nvc0
+    
+    commit fb499a4e9d95650dc89f4c1820b94d01344733f6
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Mon Dec 20 12:54:43 2010 +1000
+    
+        nvc0: switch to "standard" RING macros
+    
+    commit 64f0e1d0e9e29c5437ad4e52d01ccfb0b03a2ae9
+    Merge: eba7e17 c2092a4
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Mon Dec 20 11:58:42 2010 +1000
+    
+        Merge branch 'master' into nvc0
+    
+        Conflicts:
+        	src/nv_dma.c
+    
+    commit eba7e173a5006ff50b950d0e8b8154564471a9ce
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Fri Dec 17 11:04:40 2010 +1000
+    
+        nvc0/xv: use mad in nv12 shader, rather than mul+add
+    
+        Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+    
+    commit b025ceb40a5e94a3657f3c7f76044c49a1a05e8d
+    Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+    Date:   Thu Dec 16 23:34:29 2010 +0100
+    
+        nvc0: fix offset of 17bc buffer
+    
+        I had messed it up in 5e4da3451c3c0f645f98fea7fb0ce2629b1bfd2f.
+    
+    commit 6ff5a9a7f3411ef218f17fa481c583596ffde2cc
+    Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+    Date:   Thu Dec 16 01:07:25 2010 +0100
+    
+        nvc0/xv: bind textures for the FP, not the TEP
+    
+    commit 5e4da3451c3c0f645f98fea7fb0ce2629b1bfd2f
+    Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+    Date:   Thu Dec 16 01:02:58 2010 +0100
+    
+        nvc0: switch to rnn headers
+    
+    commit 0839041e79dbb0e629326d0f240220b33921db1a
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Wed Dec 15 16:42:41 2010 +1000
+    
+        nvc0/exa: fix m2mf dfs
+    
+    commit 88c1c43302331e1cb8b7035bfb4677a5e7da3090
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Mon Dec 13 12:00:23 2010 +1000
+    
+        nvc0: add Xv implementation
+    
+    commit ad5b4cfe388a102a0c93f7281cb4bba532b1796b
+    Merge: 1942a81 b6cb21b
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Wed Dec 15 14:57:04 2010 +1000
+    
+        Merge branch 'master' into nvc0
+    
+    commit 1942a81c0eb592972d4a3e8c46b80192ae8d1a59
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Thu Dec 9 12:48:27 2010 +1000
+    
+        nvc0: call grobj_alloc for all used object classes
+    
+        Though the hardware has no concept of object handles any more, the nouveau
+        DRM still uses this call to know what engines are in use.
+    
+    commit 0c670a6d406fe0a57373fa9e03005be6f28ecc3e
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Thu Dec 9 12:44:41 2010 +1000
+    
+        nvc0: don't try and create DmaNotifier0
+    
+    commit 5d3d20d908a50ad7742567d58969c7f12dd944f7
+    Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+    Date:   Thu Dec 9 01:36:32 2010 +0100
+    
+        nvc0: change tile_mode to contain 0xZYX instead of 0xZY
+    
+        Warning: the kernel will not like that (EVO)
+    
+    commit dd7fd8263e0e9f92412fb20086e4c8acf8cab099
+    Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+    Date:   Thu Dec 9 00:29:58 2010 +0100
+    
+        exa: don't fall back to nv04 m2mf if nvc0 m2mf fails
+    
+    commit b4cf5a8f2276392945c2530f0d6fe96b5ab4b5da
+    Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+    Date:   Thu Dec 9 00:07:59 2010 +0100
+    
+        nvc0/exa: remove noisy debug messages
+    
+    commit 5419ef6d2cfabb7329982cb8dbdb5bbc8e973fe3
+    Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+    Date:   Wed Dec 8 23:55:51 2010 +0100
+    
+        nvc0/accel: remove unneeded scratch method 0x3420 init
+    
+        It was intended be read by a MACRO method to get the address for
+        constants upload.
+    
+    commit 178356391ff6831599eba257a5912079894641a1
+    Merge: 8573280 8bb8231
+    Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+    Date:   Thu Dec 9 01:31:40 2010 +0100
+    
+        Merge remote branch 'origin/master' into nvc0
+    
+        Conflicts:
+        	src/drmmode_display.c
+        	src/nouveau_exa.c
+        	src/nv_driver.c
+        	src/nv_type.h
+    
+    commit 8573280871401e29f27fa24d0b7c6ac5e35b2cc1
+    Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+    Date:   Sat Jul 3 14:27:36 2010 +0200
+    
+        nvc0: initial implementation
+    
+        EXA should work, Xv not yet done.
+
+commit b795ca6e97fae9735843748585401098dae1c3e1
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Jan 7 13:33:36 2011 +1000
+
+    nv50: fix pitch of linear scanout buffers
+    
+    Un-breaks NoAccel on these chipsets.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit dc89dac734167bcbc667b39ca6ee2043871a60bf
+Author: Xavier Chantry <chantry.xavier@gmail.com>
+Date:   Sun Dec 19 23:17:34 2010 +0100
+
+    nv04/exa: kill useless WAIT_RING
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit b76b43928bf4dcf5ce3a4b58c7fefe780070c0d3
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue Dec 21 16:25:23 2010 +1000
+
+    add back generic include of nouveau_pushbuf.h
+    
+    So places that FIRE_RING() still work.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit c2092a458401377f421d9bdfe1d97ce580b99508
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Dec 20 11:50:57 2010 +1000
+
+    include nv04_pushbuf.h for ring macros, rather than nouveau_pushbuf.h
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit aa2821a42706ac7b69703d1869e2d00a4ced9f4b
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Dec 20 11:53:53 2010 +1000
+
+    kill NVSync(), it's rather useless
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 1fc564fe3494cf0abcc848d0e90bf2232f8fd272
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Dec 16 09:49:09 2010 +1000
+
+    nv50/xv: use mad in nv12 shader, rather than mul+add
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit b6cb21b91f7d0409794a14ddbdd606728d4d49e3
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Feb 8 12:51:47 2010 +1000
+
+    set canDoBGNoneRoot if building against new enough server
+
+commit 11510f9ce8c9eab15e7f6d5962b83fc0052c8619
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue Dec 14 15:39:01 2010 +1000
+
+    nv50/xv: implement brightness/contrast/saturation/hue controls
+    
+    Adapted from the code in xf86-video-ati.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 214ea264cdb386520a1308a29f204e441f349cb1
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue Dec 14 14:42:24 2010 +1000
+
+    nv50/xv: kick csc parameters out into a constant buffer
+    
+    These were previously inlined into the shader, which is simple, but makes
+    implementing brightness/contrast adjustments impossible.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
 commit 8bb8231236a6b877895663aeaa9cef731d67fe68
 Author: Ben Skeggs <bskeggs@redhat.com>
 Date:   Tue Nov 30 15:27:36 2010 +1000

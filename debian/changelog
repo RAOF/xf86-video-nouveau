@@ -4,6 +4,9 @@ xserver-xorg-video-nouveau (1:0.0.16+git20110305+92db2bc-1) UNRELEASED; urgency=
     - Fixes sluggish rendering of X core fonts (Closes: #614938).
     - Bump build-dependency on libdrm-dev to (>= 2.4.24) due to
       libdrm-nouveau API changes.
+  * Update README.Debian:
+    - Former nvidia-glx users should remove the libgl{1,x}-nvidia-alternatives
+      packages which divert the Mesa/Xorg files in Squeeze and later.
 
  -- Sven Joachim <svenjoac@gmx.de>  Sat, 05 Mar 2011 10:13:42 +0100
 

@@ -36,9 +36,10 @@ The proprietary Nvidia driver comes with its own OpenGL implementation
 that is incompatible with free drivers.  To be able to use OpenGL
 programs with nouveau, you need to uninstall the Nvidia files.  If you
 have used the nvidia-glx package or any of its legacy variants, it
-suffices to remove it.  If you ran the Nvidia installer, you need to
-reinstall the xserver-xorg-core and libgl1-mesa-glx packages.  In
-either case, restarting X is also necessary.
+suffices to remove the libgl1-nvidia-alternatives and
+libglx-nvidia-alternatives packages.  If you ran the Nvidia installer,
+you need to reinstall the xserver-xorg-core and libgl1-mesa-glx
+packages.  In either case, restarting X is also necessary.
 
 A simple OpenGL test program is glxgears, contained in the mesa-utils
 package.  Note that OpenGL with nouveau will not be much fun, see the
@@ -73,4 +74,4 @@ http://nouveau.freedesktop.org/wiki/FAQ
 http://nouveau.freedesktop.org/wiki/TroubleShooting
 http://nouveau.freedesktop.org/wiki/KernelModeSetting
 
- -- Sven Joachim <svenjoac@gmx.de>, Mon,  4 Oct 2010 19:00:57 +0200
+ -- Sven Joachim <svenjoac@gmx.de>, Sat,  5 Mar 2011 10:45:13 +0100

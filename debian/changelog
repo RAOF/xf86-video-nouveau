@@ -2,6 +2,8 @@ xserver-xorg-video-nouveau (1:0.0.16+git20110305+92db2bc-1) UNRELEASED; urgency=
 
   * New upstream snapshot.
     - Fixes sluggish rendering of X core fonts (Closes: #614938).
+    - Better support for NVC0 (aka Fermi) cards. Linux 2.6.38 and not readily
+      available firmware is required for acceleration, see README.Debian.
     - Bump build-dependency on libdrm-dev to (>= 2.4.24) due to
       libdrm-nouveau API changes.
   * Update README.Debian:

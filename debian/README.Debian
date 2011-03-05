@@ -10,8 +10,10 @@ nouveau module altogether or contain an incompatible version.  If you
 build your own kernel, you have to enable the module under Drivers ->
 Staging drivers.
 
-There's no need for any firmware at all, the Linux kernel takes care of
-that automatically.
+Fermi cards (GeForce 4xx/5xx series, NVC0 in Nouveau terminology)
+currently need non-free and not readily available firmware to provide
+any acceleration. At http://nouveau.freedesktop.org/wiki/NVC0_Firmware
+you can find intructions how to extract it from the blob.
 
 
 Incompatibilities with other drivers
@@ -74,4 +76,4 @@ http://nouveau.freedesktop.org/wiki/FAQ
 http://nouveau.freedesktop.org/wiki/TroubleShooting
 http://nouveau.freedesktop.org/wiki/KernelModeSetting
 
- -- Sven Joachim <svenjoac@gmx.de>, Sat,  5 Mar 2011 10:57:32 +0100
+ -- Sven Joachim <svenjoac@gmx.de>, Sat,  5 Mar 2011 11:13:05 +0100

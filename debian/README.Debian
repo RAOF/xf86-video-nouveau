@@ -21,8 +21,8 @@ The nouveau kernel module includes a framebuffer driver for the
 virtual console, giving you a nice high resolution text console.
 Unfortunately, this is incompatible with other display drivers,
 including the Nvidia proprietary driver.  Among others, the following
-kernel modules must not be loaded before nouveau: vga16fb, nvidiafb,
-rivafb and nvidia.  Note that vesafb should not be a problem.
+kernel modules must not be loaded before nouveau: nvidiafb, rivafb and
+nvidia.  Note that vesafb should not be a problem.
 
 If you decide to switch to nv or the proprietary driver, it is highly
 recommended to reboot because they are incompatible with nouveau, and
@@ -74,4 +74,4 @@ http://nouveau.freedesktop.org/wiki/FAQ
 http://nouveau.freedesktop.org/wiki/TroubleShooting
 http://nouveau.freedesktop.org/wiki/KernelModeSetting
 
- -- Sven Joachim <svenjoac@gmx.de>, Sat,  5 Mar 2011 10:45:13 +0100
+ -- Sven Joachim <svenjoac@gmx.de>, Sat,  5 Mar 2011 10:53:27 +0100

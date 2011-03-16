@@ -16,6 +16,7 @@ xserver-xorg-video-nouveau (1:0.0.16+git20110305+92db2bc-1) UNRELEASED; urgency=
     - Don't mention nv anymore, it has been removed from Debian.
   * Drop unnecessary leading asterisk from NEWS.Debian.
   * Drop the sample xorg.conf, no longer needed.
+  * Build against Xserver 1.9.
 
  -- Sven Joachim <svenjoac@gmx.de>  Sat, 05 Mar 2011 10:13:42 +0100
 

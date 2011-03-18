@@ -8,7 +8,7 @@ Uploaders: Chris Lamb <lamby@debian.org>, Matthew Johnson <mjj29@debian.org>,
 Build-Depends:
  debhelper (>= 7),
  pkg-config,
- xserver-xorg-dev (>= 2:1.9.99.901+git20110131),
+ xserver-xorg-dev (>= 2:1.9.99.902-2ubuntu1~),
  x11proto-video-dev,
  x11proto-core-dev,
  x11proto-fonts-dev,

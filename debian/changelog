@@ -1,3 +1,9 @@
+xserver-xorg-video-nouveau (1:0.0.16+git20110107+b795ca6e-0ubuntu6) natty; urgency=low
+
+  * Rebuild to pick up new Xserver dependencies
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 09 Mar 2011 14:50:26 +1100
+
 xserver-xorg-video-nouveau (1:0.0.16+git20110107+b795ca6e-0ubuntu5) natty; urgency=low
 
   * Rebuild to pick up new Xserver dependencies

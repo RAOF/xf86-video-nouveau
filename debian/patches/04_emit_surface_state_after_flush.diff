@@ -1,0 +1,21 @@
+commit 8378443bd3b26b57ef2ae424a700e01ead813d33
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Mar 24 02:13:12 2011 +1000
+
+    nv50-nvc0/exa: fix bug causing surface state to not be reemitted after flush
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+Index: xserver-xorg-video-nouveau/src/nv50_exa.c
+===================================================================
+--- xserver-xorg-video-nouveau.orig/src/nv50_exa.c	2011-04-01 15:32:37.000000000 +1100
++++ xserver-xorg-video-nouveau/src/nv50_exa.c	2011-04-01 15:32:46.973917560 +1100
+@@ -362,7 +362,7 @@
+ 	if (MARK_RING(pNv->chan, 32, 2))
+ 		return;
+ 
+-	if (NV50EXAAcquireSurface2D(pNv->pdpix, 0))
++	if (!NV50EXAAcquireSurface2D(pNv->pdpix, 0))
+ 		MARK_UNDO(pNv->chan);
+ }
+ 

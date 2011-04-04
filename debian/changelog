@@ -4,8 +4,10 @@ xserver-xorg-video-nouveau (1:0.0.16+git20110107+b795ca6e-0ubuntu7) UNRELEASED; 
     + Cherry-pick from upstream.  Re-emit surface state after flush, or
       PGRAPH_TRAP_CCACHE_FAULTs will ruin your day and cause [mi] EQ overflow
       to eat your X.
+  * debian/patches/03_use_older_libdrm_headers.diff:
+    + Drop now that libdrm 2.4.24 is available.
 
- -- Christopher James Halse Rogers <raof@ubuntu.com>  Fri, 01 Apr 2011 17:45:47 +1100
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 04 Apr 2011 16:00:15 +1000
 
 xserver-xorg-video-nouveau (1:0.0.16+git20110107+b795ca6e-0ubuntu6) natty; urgency=low
 

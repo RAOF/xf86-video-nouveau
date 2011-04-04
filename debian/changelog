@@ -8,8 +8,11 @@ xserver-xorg-video-nouveau (1:0.0.16+git20110107+b795ca6e-0ubuntu7) UNRELEASED; 
     + Drop now that libdrm 2.4.24 is available.
   * debian/control:
     + Build-depend on libdrm 2.4.24 for moved nouveau headers
+  * debian/patches/05_dri2_buffer_failure_path_crash.diff:
+    + Cherry-pick from upstream.  Return an error rather than crash the X
+      server when failing to create a dri2 buffer.
 
- -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 04 Apr 2011 16:00:15 +1000
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 04 Apr 2011 16:58:30 +1000
 
 xserver-xorg-video-nouveau (1:0.0.16+git20110107+b795ca6e-0ubuntu6) natty; urgency=low
 

@@ -6,6 +6,8 @@ xserver-xorg-video-nouveau (1:0.0.16+git20110107+b795ca6e-0ubuntu7) UNRELEASED; 
       to eat your X.
   * debian/patches/03_use_older_libdrm_headers.diff:
     + Drop now that libdrm 2.4.24 is available.
+  * debian/control:
+    + Build-depend on libdrm 2.4.24 for moved nouveau headers
 
  -- Christopher James Halse Rogers <raof@ubuntu.com>  Mon, 04 Apr 2011 16:00:15 +1000
 

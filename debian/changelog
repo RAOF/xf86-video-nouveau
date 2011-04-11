@@ -1,5 +1,6 @@
-xserver-xorg-video-nouveau (1:0.0.16+git20110411+8378443-1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:0.0.16+git20110411+8378443-1) unstable; urgency=low
 
+  [ Sven Joachim ]
   * New upstream snapshot.
     - Fixes sluggish rendering of X core fonts (Closes: #614938).
     - Better support for NVC0 (aka Fermi) cards. Linux 2.6.38 and not readily
@@ -18,7 +19,7 @@ xserver-xorg-video-nouveau (1:0.0.16+git20110411+8378443-1) UNRELEASED; urgency=
   * Drop the sample xorg.conf, no longer needed.
   * Build against Xserver 1.9.
 
- -- Sven Joachim <svenjoac@gmx.de>  Sat, 05 Mar 2011 10:13:42 +0100
+ -- Cyril Brulebois <kibi@debian.org>  Tue, 12 Apr 2011 01:33:01 +0200
 
 xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-2+exp2) experimental; urgency=low
 

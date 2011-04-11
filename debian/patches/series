@@ -1,4 +1,5 @@
 01-set-NV_DRIVER_DATE-from-ChangeLog.diff
 02_nouveau_bgnr
+03_use_older_libdrm_headers.diff -R
 04_emit_surface_state_after_flush.diff
 05_dri2_buffer_failure_path_crash.diff

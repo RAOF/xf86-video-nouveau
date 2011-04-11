@@ -4,8 +4,6 @@ xserver-xorg-video-nouveau (1:0.0.16+git20110107+b795ca6e-0ubuntu7) UNRELEASED; 
     + Cherry-pick from upstream.  Re-emit surface state after flush, or
       PGRAPH_TRAP_CCACHE_FAULTs will ruin your day and cause [mi] EQ overflow
       to eat your X.
-  * debian/control:
-    + Build-depend on libdrm 2.4.24 for moved nouveau headers
   * debian/patches/05_dri2_buffer_failure_path_crash.diff:
     + Cherry-pick from upstream.  Return an error rather than crash the X
       server when failing to create a dri2 buffer.

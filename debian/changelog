@@ -1,4 +1,4 @@
-xserver-xorg-video-nouveau (1:0.0.16+git20110107+b795ca6e-0ubuntu7) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:0.0.16+git20110107+b795ca6e-0ubuntu7) natty; urgency=low
 
   * debian/patches/04_emit_surface_state_after_flush.diff:
     + Cherry-pick from upstream.  Re-emit surface state after flush, or

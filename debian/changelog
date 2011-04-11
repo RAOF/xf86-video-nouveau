@@ -1,4 +1,4 @@
-xserver-xorg-video-nouveau (1:0.0.16+git20110305+92db2bc-1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:0.0.16+git20110411+8378443-1) UNRELEASED; urgency=low
 
   * New upstream snapshot.
     - Fixes sluggish rendering of X core fonts (Closes: #614938).

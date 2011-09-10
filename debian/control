@@ -35,7 +35,7 @@ Depends:
  ${misc:Depends},
  ${xviddriver:Depends},
 Provides: ${xviddriver:Provides}
-Description: X.Org X server -- Nouveau display driver (experimental)
+Description: X.Org X server -- Nouveau display driver
  This driver for the X.Org X server (see xserver-xorg for a further description)
  provides support for NVIDIA Riva, TNT, GeForce, and Quadro cards.
  .

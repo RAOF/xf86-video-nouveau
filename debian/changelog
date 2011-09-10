@@ -3,6 +3,9 @@ xserver-xorg-video-nouveau (1:0.0.16+git20110823+169512f-1) unstable; urgency=lo
   * New upstream snapshot.
   * Bump Standards-Version to 3.9.2, no changes needed.
   * Don't claim that the driver is experimental in the description.
+  * Update README.Debian:
+    - No need to uninstall nvidia-glx anymore, you can select the mesa
+      alternative with "update-alternatives --config glx".
 
  -- Sven Joachim <svenjoac@gmx.de>  Sat, 10 Sep 2011 14:23:00 +0200
 

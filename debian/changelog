@@ -1,3 +1,9 @@
+xserver-xorg-video-nouveau (1:0.0.16+git20110823+169512f-1) unstable; urgency=low
+
+  * New upstream snapshot.
+
+ -- Sven Joachim <svenjoac@gmx.de>  Sat, 10 Sep 2011 14:23:00 +0200
+
 xserver-xorg-video-nouveau (1:0.0.16+git20110411+8378443-1) unstable; urgency=low
 
   [ Sven Joachim ]

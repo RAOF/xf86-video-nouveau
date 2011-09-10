@@ -1,3 +1,71 @@
+commit 169512fbe91f0671a90dfee5e280357f0a4ef701
+Author: Maxim Levitsky <maximlevitsky@gmail.com>
+Date:   Tue Aug 23 13:10:59 2011 +0200
+
+    dri2: Disable the "exchange" swapbuffers path for the moment (bug 35930).
+    
+    Allow page flipping only for scanout buffer for now as simple swapping
+    between off-screen pixmaps confuses compiz because there is no
+    syncronization method to tell it about that swap
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit b806e3f97a73701f057c45b1f45233e69e19f113
+Author: Bryan Cain <bryancain3@gmail.com>
+Date:   Wed Jul 20 13:48:36 2011 -0500
+
+    g3dvl: update for compatibility with latest pipe-video branch in Mesa
+    
+    Signed-off-by: Bryan Cain <bryancain3@gmail.com>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit de9d1ba7efeba64f319efa00df183d3cb78f24af
+Author: Emil Velikov <emil.l.velikov@gmail.com>
+Date:   Tue Jul 19 00:35:38 2011 +0100
+
+    drmmode_display: Resolve missing brackets
+    
+    Correct some missing/misplaced brackets in drmmode_pre_init()
+    The issue was exposed when trying a 4 monitor desktop using two
+    cards/gpus
+    
+    Resolves https://bugs.freedesktop.org/show_bug.cgi?id=39099
+    
+    Reported-By: Damian Nowak <nowaker@geozone.pl>
+    Tested-By: Damian Nowak <nowaker@geozone.pl>
+    Signed-off-by: Emil Velikov <emil.l.velikov@gmail.com>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit ef4957492956df54fafa6c75d576a07ce678ea0a
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Jul 11 12:48:34 2011 +1000
+
+    kms: fix multiple rotations in noaccel mode
+
+commit ab89aa022f0c78154e525b5f5787feee8024171f
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Jun 17 10:10:09 2011 +1000
+
+    nvc0: accept 0xdx chipsets
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 7dd8987b8b69f56d04a199207122d2e51b9caa6e
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Jun 17 10:07:36 2011 +1000
+
+    nvc0: assume 0x9097's presence on all chipsets
+    
+    This appears to be the case thus far, and is what the 3D driver does.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 98ee2105dbd8685e59c1967a587fccb6135743ac
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon May 30 10:10:58 2011 +1000
+
+    kms: clear new fb to black on fb resize
+
 commit 8378443bd3b26b57ef2ae424a700e01ead813d33
 Author: Ben Skeggs <bskeggs@redhat.com>
 Date:   Thu Mar 24 02:13:12 2011 +1000

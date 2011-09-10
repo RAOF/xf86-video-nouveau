@@ -504,8 +504,7 @@ drmmode_crtc_shadow_destroy(xf86CrtcPtr crtc, PixmapPtr rotate_pixmap, void *dat
 	if (data) {
 		drmModeRmFB(drmmode->fd, drmmode_crtc->rotate_fb_id);
 		drmmode_crtc->rotate_fb_id = 0;
-		if (!pNv->NoAccel)
-			nouveau_bo_ref(NULL, &drmmode_crtc->rotate_bo);
+		nouveau_bo_ref(NULL, &drmmode_crtc->rotate_bo);
 		drmmode_crtc->rotate_pixmap = NULL;
 	}
 }
@@ -1124,6 +1123,17 @@ drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
 #if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 9
 	scrn->pixmapPrivate.ptr = ppix->devPrivate.ptr;
 #endif
+
+	if (!pNv->NoAccel) {
+		nouveau_bo_unmap(pNv->scanout);
+		pNv->EXADriverPtr->PrepareSolid(ppix, GXcopy, ~0, 0);
+		pNv->EXADriverPtr->Solid(ppix, 0, 0, width, height);
+		pNv->EXADriverPtr->DoneSolid(ppix);
+		nouveau_bo_map(pNv->scanout, NOUVEAU_BO_RDWR);
+	} else {
+		memset(pNv->scanout->map, 0x00, pNv->scanout->size);
+	}
+
 	nouveau_bo_unmap(pNv->scanout);
 
 	for (i = 0; i < xf86_config->num_crtc; i++) {
@@ -1175,8 +1185,8 @@ Bool drmmode_pre_init(ScrnInfoPtr pScrn, int fd, int cpp)
 	xf86CrtcSetSizeRange(pScrn, 320, 200, drmmode->mode_res->max_width,
 			     drmmode->mode_res->max_height);
 	for (i = 0; i < drmmode->mode_res->count_crtcs; i++) {
-		if (!xf86IsEntityShared(pScrn->entityList[0] ||
-		     pScrn->confScreen->device->screen == i))
+		if (!xf86IsEntityShared(pScrn->entityList[0]) ||
+		     (pScrn->confScreen->device->screen == i))
 			drmmode_crtc_init(pScrn, drmmode, i);
 	}
 

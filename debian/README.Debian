@@ -12,8 +12,9 @@ Staging drivers.
 
 Fermi cards (GeForce 4xx/5xx series, NVC0 in Nouveau terminology)
 currently need non-free and not readily available firmware to provide
-any acceleration. At http://nouveau.freedesktop.org/wiki/NVC0_Firmware
-you can find intructions how to extract it from the blob.
+any acceleration, though this will change starting with Linux 3.1.
+Please check the status at
+http://nouveau.freedesktop.org/wiki/InstallDRM#Firmware.
 
 
 Incompatibilities with other drivers
@@ -77,4 +78,4 @@ http://nouveau.freedesktop.org/wiki/FAQ
 http://nouveau.freedesktop.org/wiki/TroubleShooting
 http://nouveau.freedesktop.org/wiki/KernelModeSetting
 
- -- Sven Joachim <svenjoac@gmx.de>, Sat, 10 Sep 2011 17:01:17 +0200
+ -- Sven Joachim <svenjoac@gmx.de>, Sat, 10 Sep 2011 17:46:55 +0200

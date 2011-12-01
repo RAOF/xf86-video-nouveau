@@ -1,6 +1,8 @@
 xserver-xorg-video-nouveau (1:0.0.16+git20111201+b5534a1-1) UNRELEASED; urgency=low
 
   * New upstream snapshot.
+    - Default color depth is now 16bpp for low memory cards, so it should
+      be possible to use high resolutions with them (Closes: #585651).
   * Bump Standards-Version to 3.9.2, no changes needed.
   * Don't claim that the driver is experimental in the description.
   * Recommend libmesa-gl1-dri (>= 7.11.1) for the 3D drivers.

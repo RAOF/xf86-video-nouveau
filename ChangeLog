@@ -1,3 +1,50 @@
+commit b5534a15a5f5e1c3bd6c92e3ed8391ff628c09bb
+Author: Marcin Slusarz <marcin.slusarz@gmail.com>
+Date:   Wed Nov 30 18:56:54 2011 +0100
+
+    fix typo in conversion to rnn headers
+
+commit 5975ce34a12d1943b2852d0f5fbe09358754c2ad
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Wed Nov 30 17:40:02 2011 +1000
+
+    convert entire ddx to rnn headers
+
+commit 9fa0c6c74d0b9f7d66ebe3c99184eaa13abeb1a0
+Author: Marcin Slusarz <marcin.slusarz@gmail.com>
+Date:   Sun Nov 6 20:32:10 2011 +0100
+
+    Default to 16bpp for low memory cards.
+
+commit 5aa30ae6554c957609929ef29d1b27c89e9a7f06
+Author: Marcin Slusarz <marcin.slusarz@gmail.com>
+Date:   Sun Nov 6 20:32:09 2011 +0100
+
+    nv50/exa: wait for enough space for at least one composite operation
+
+commit 3d54426c4833a7e058e50624452f89139921e64b
+Author: Marcin Slusarz <marcin.slusarz@gmail.com>
+Date:   Sun Nov 6 20:32:08 2011 +0100
+
+    add missing return in nv50_accel_init failure path
+
+commit d575a28a5020ff083836d3d1cf50018a99f49c9f
+Author: Maarten Lankhorst <m.b.lankhorst@gmail.com>
+Date:   Sat Oct 8 10:33:20 2011 +0200
+
+    dri2: Add vdpau driver name entry
+    
+    libvdpau has a driver loading mechanism that looks for a dri2 driver
+    first before falling back to nvidia, so lets use that.
+
+commit 656cfe3bdb8b487827b710a0cea35ae1bcd5044e
+Author: Marcin Slusarz <marcin.slusarz@gmail.com>
+Date:   Sat Sep 10 23:14:53 2011 +0200
+
+    xv: support AI44/IA44
+    
+    It's needed for osd in mplayer's xvmc output.
+
 commit 169512fbe91f0671a90dfee5e280357f0a4ef701
 Author: Maxim Levitsky <maximlevitsky@gmail.com>
 Date:   Tue Aug 23 13:10:59 2011 +0200

@@ -1,4 +1,4 @@
-xserver-xorg-video-nouveau (1:0.0.16+git20110823+169512f-1) unstable; urgency=low
+xserver-xorg-video-nouveau (1:0.0.16+git20111201+b5534a1-1) UNRELEASED; urgency=low
 
   * New upstream snapshot.
   * Bump Standards-Version to 3.9.2, no changes needed.

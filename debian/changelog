@@ -10,6 +10,7 @@ xserver-xorg-video-nouveau (1:0.0.16+git20111201+b5534a1-1) UNRELEASED; urgency=
     - Linux 3.1 includes free firmware for some Fermi cards.
     - Drop section about lack of DRI and 3D support.
   * Use dpkg-buildflags to set compiler flags.
+  * Update debian/copyright.
 
  -- Sven Joachim <svenjoac@gmx.de>  Sat, 10 Sep 2011 14:23:00 +0200
 

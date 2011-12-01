@@ -34,14 +34,14 @@ Depends:
  ${shlibs:Depends},
  ${misc:Depends},
  ${xviddriver:Depends},
+Recommends: libgl1-mesa-dri (>= 7.11.1)
 Provides: ${xviddriver:Provides}
 Description: X.Org X server -- Nouveau display driver
  This driver for the X.Org X server (see xserver-xorg for a further description)
  provides support for NVIDIA Riva, TNT, GeForce, and Quadro cards.
  .
- Although the nouveau project aims to provide full 3D support it is not yet
- complete, and these packages do not include any 3D support.
- Users requiring 3D support should use the non-free "nvidia" driver.
+ This package provides 2D support including EXA acceleration, Xv and
+ RandR.  3D functionality is provided by the libgl1-mesa-dri package.
  .
  This package is built from the FreeDesktop.org xf86-video-nouveau driver.
 
@@ -56,8 +56,7 @@ Description: X.Org X server -- Nouveau display driver (debug symbols)
  This driver for the X.Org X server (see xserver-xorg for a further description)
  provides support for NVIDIA Riva, TNT, GeForce, and Quadro cards.
  .
- Although the nouveau project aims to provide full 3D support it is not yet
- complete, and these packages do not include any 3D support.
- Users requiring 3D support should use the non-free "nvidia" driver.
+ This package provides 2D support including EXA acceleration, Xv and
+ RandR.  3D functionality is provided by the libgl1-mesa-dri package.
  .
  This package provides debugging symbols for this Xorg X driver.

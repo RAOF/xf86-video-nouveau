@@ -3,10 +3,12 @@ xserver-xorg-video-nouveau (1:0.0.16+git20111201+b5534a1-1) UNRELEASED; urgency=
   * New upstream snapshot.
   * Bump Standards-Version to 3.9.2, no changes needed.
   * Don't claim that the driver is experimental in the description.
+  * Recommend libmesa-gl1-dri (>= 7.11.1) for the 3D drivers.
   * Update README.Debian:
     - No need to uninstall nvidia-glx anymore, you can select the mesa
       alternative with "update-alternatives --config glx".
     - Linux 3.1 includes free firmware for some Fermi cards.
+    - Drop section about lack of DRI and 3D support.
 
  -- Sven Joachim <svenjoac@gmx.de>  Sat, 10 Sep 2011 14:23:00 +0200
 

@@ -46,25 +46,7 @@ xserver-xorg-core and libgl1-mesa-glx packages.  In either case,
 restarting X is also necessary.
 
 A simple OpenGL test program is glxgears, contained in the mesa-utils
-package.  Note that OpenGL with nouveau will not be much fun, see the
-next section.
-
-
-(Lack of) DRI and 3D support
-============================
-
-DRI and 3D support is immature and not enabled, you will likely see
-messages like these in /var/log/Xorg.log:
-
-(EE) AIGLX error: dlopen of /usr/lib/dri/nouveau_dri.so failed
-(/usr/lib/dri/nouveau_dri.so: cannot open shared object file: No such
-file or directory)
-(EE) AIGLX: reverting to software rendering
-
-Software rendering means that OpenGL applications and games will run
-very slowly and often be unusable.  In particular, you probably need
-to deactivate Compiz.  Some programs may be configured to use XRender
-instead of OpenGL which should drastically improve their performance.
+package.
 
 
 Further information
@@ -78,4 +60,4 @@ http://nouveau.freedesktop.org/wiki/FAQ
 http://nouveau.freedesktop.org/wiki/TroubleShooting
 http://nouveau.freedesktop.org/wiki/KernelModeSetting
 
- -- Sven Joachim <svenjoac@gmx.de>, Sat, 10 Sep 2011 17:46:55 +0200
+ -- Sven Joachim <svenjoac@gmx.de>, Thu,  1 Dec 2011 16:17:41 +0100

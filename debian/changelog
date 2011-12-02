@@ -1,5 +1,6 @@
-xserver-xorg-video-nouveau (1:0.0.16+git20111201+b5534a1-1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:0.0.16+git20111201+b5534a1-1) unstable; urgency=low
 
+  [ Sven Joachim ]
   * New upstream snapshot.
     - Default color depth is now 16bpp for low memory cards, so it should
       be possible to use high resolutions with them (Closes: #585651).
@@ -14,7 +15,7 @@ xserver-xorg-video-nouveau (1:0.0.16+git20111201+b5534a1-1) UNRELEASED; urgency=
   * Use dpkg-buildflags to set compiler flags.
   * Update debian/copyright.
 
- -- Sven Joachim <svenjoac@gmx.de>  Sat, 10 Sep 2011 14:23:00 +0200
+ -- Cyril Brulebois <kibi@debian.org>  Fri, 02 Dec 2011 15:06:30 +0100
 
 xserver-xorg-video-nouveau (1:0.0.16+git20110411+8378443-1) unstable; urgency=low
 

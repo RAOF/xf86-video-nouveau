@@ -9,12 +9,12 @@ have to enable the module under Device Drivers -> Graphics support ->
 Direct Rendering Manager (Linux 3.4 and newer) or Device Drivers ->
 Staging drivers (Linux 3.3 and earlier).
 
-Some Fermi cards (GeForce 4xx/5xx series, NVC0 in Nouveau terminology)
-currently need non-free and not readily available firmware to provide
-any acceleration.  Starting with Linux 3.1, the Linux kernel includes
-free firmware for some of these cards, but not all of them are
-supported yet.  Please check the status at
-http://nouveau.freedesktop.org/wiki/InstallDRM#Firmware.
+Non-vintage Nvidia cards require that microcode (firmware) is uploaded
+by the driver to the GPU in order to provide any acceleration.  The
+Nouveau project aims to provide the microcode in the kernel driver for
+all cards, but new hardware usually needs non-free and not readily
+available firmware for a transitional period.  Please check the status
+at http://nouveau.freedesktop.org/wiki/InstallDRM#Firmware.
 
 
 Incompatibilities with other drivers

@@ -7,6 +7,7 @@ xserver-xorg-video-nouveau (1:0.0.16+git20120322+ab7291d-1) UNRELEASED; urgency=
   * New upstream snapshot.
   * Update README.Debian:
     - Nouveau moves out of staging in Linux 3.4.
+    - Generalize the firmware section.
 
  -- Julien Cristau <jcristau@debian.org>  Mon, 09 Apr 2012 20:23:18 +0200
 

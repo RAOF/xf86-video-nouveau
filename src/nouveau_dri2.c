@@ -42,11 +42,20 @@ nouveau_dri2_create_buffer(DrawablePtr pDraw, unsigned int attachment,
 		} else {
 			WindowPtr pwin = (WindowPtr)pDraw;
 			ppix = pScreen->GetWindowPixmap(pwin);
+
+#if DRI2INFOREC_VERSION >= 6
+			/* Set initial swap limit on drawable. */
+			DRI2SwapLimit(pDraw, pNv->swap_limit);
+#endif
 		}
 
 		ppix->refcnt++;
 	} else {
+		int bpp;
 		unsigned int usage_hint = NOUVEAU_CREATE_PIXMAP_TILED;
+
+		/* 'format' is just depth (or 0, or maybe it depends on the caller) */
+		bpp = round_up_pow2(format ? format : pDraw->depth);
 
 		if (attachment == DRI2BufferDepth ||
 		    attachment == DRI2BufferDepthStencil)
@@ -55,7 +64,7 @@ nouveau_dri2_create_buffer(DrawablePtr pDraw, unsigned int attachment,
 			usage_hint |= NOUVEAU_CREATE_PIXMAP_SCANOUT;
 
 		ppix = pScreen->CreatePixmap(pScreen, pDraw->width,
-					     pDraw->height, pDraw->depth,
+					     pDraw->height, bpp,
 					     usage_hint);
 	}
 
@@ -126,6 +135,7 @@ nouveau_dri2_copy_region(DrawablePtr pDraw, RegionPtr pRegion,
 struct nouveau_dri2_vblank_state {
 	enum {
 		SWAP,
+		BLIT,
 		WAIT
 	} action;
 
@@ -136,7 +146,37 @@ struct nouveau_dri2_vblank_state {
 	DRI2BufferPtr src;
 	DRI2SwapEventPtr func;
 	void *data;
+	unsigned int frame;
 };
+
+static Bool
+update_front(DrawablePtr draw, DRI2BufferPtr front)
+{
+	int r;
+	PixmapPtr pixmap;
+	struct nouveau_dri2_buffer *nvbuf = nouveau_dri2_buffer(front);
+
+	if (draw->type == DRAWABLE_PIXMAP)
+		pixmap = (PixmapPtr)draw;
+	else
+		pixmap = (*draw->pScreen->GetWindowPixmap)((WindowPtr)draw);
+
+	pixmap->refcnt++;
+
+	exaMoveInPixmap(pixmap);
+	r = nouveau_bo_handle_get(nouveau_pixmap_bo(pixmap), &front->name);
+	if (r) {
+		(*draw->pScreen->DestroyPixmap)(pixmap);
+		return FALSE;
+	}
+
+	(*draw->pScreen->DestroyPixmap)(nvbuf->ppix);
+	front->pitch = pixmap->devKind;
+	front->cpp = pixmap->drawable.bitsPerPixel / 8;
+	nvbuf->ppix = pixmap;
+
+	return TRUE;
+}
 
 static Bool
 can_exchange(DrawablePtr draw, PixmapPtr dst_pix, PixmapPtr src_pix)
@@ -156,7 +196,7 @@ can_exchange(DrawablePtr draw, PixmapPtr dst_pix, PixmapPtr src_pix)
 	return ((DRI2CanFlip(draw) && pNv->has_pageflip)) &&
 		dst_pix->drawable.width == src_pix->drawable.width &&
 		dst_pix->drawable.height == src_pix->drawable.height &&
-		dst_pix->drawable.depth == src_pix->drawable.depth &&
+		dst_pix->drawable.bitsPerPixel == src_pix->drawable.bitsPerPixel &&
 		dst_pix->devKind == src_pix->devKind;
 }
 
@@ -165,10 +205,8 @@ can_sync_to_vblank(DrawablePtr draw)
 {
 	ScrnInfoPtr scrn = xf86Screens[draw->pScreen->myNum];
 	NVPtr pNv = NVPTR(scrn);
-	PixmapPtr pix = NVGetDrawablePixmap(draw);
 
 	return pNv->glx_vblank &&
-		nouveau_exa_pixmap_is_onscreen(pix) &&
 		nv_window_belongs_to_crtc(scrn, draw->x, draw->y,
 					  draw->width, draw->height);
 }
@@ -203,6 +241,32 @@ nouveau_wait_vblank(DrawablePtr draw, int type, CARD64 msc,
 	return 0;
 }
 
+#if DRI2INFOREC_VERSION >= 6
+static Bool
+nouveau_dri2_swap_limit_validate(DrawablePtr draw, int swap_limit)
+{
+	ScrnInfoPtr scrn = xf86Screens[draw->pScreen->myNum];
+	NVPtr pNv = NVPTR(scrn);
+
+	if ((swap_limit < 1 ) || (swap_limit > pNv->max_swap_limit))
+		return FALSE;
+
+	return TRUE;
+}
+#endif
+
+/* Shall we intentionally violate the OML_sync_control spec to
+ * get some sort of triple-buffering behaviour on a pre 1.12.0
+ * x-server?
+ */
+static Bool violate_oml(DrawablePtr draw)
+{
+	ScrnInfoPtr scrn = xf86Screens[draw->pScreen->myNum];
+	NVPtr pNv = NVPTR(scrn);
+
+	return (DRI2INFOREC_VERSION < 6) && (pNv->swap_limit > 1);
+}
+
 static void
 nouveau_dri2_finish_swap(DrawablePtr draw, unsigned int frame,
 			 unsigned int tv_sec, unsigned int tv_usec,
@@ -210,16 +274,38 @@ nouveau_dri2_finish_swap(DrawablePtr draw, unsigned int frame,
 {
 	ScrnInfoPtr scrn = xf86Screens[draw->pScreen->myNum];
 	NVPtr pNv = NVPTR(scrn);
-	PixmapPtr dst_pix = nouveau_dri2_buffer(s->dst)->ppix;
+	PixmapPtr dst_pix;
 	PixmapPtr src_pix = nouveau_dri2_buffer(s->src)->ppix;
-	struct nouveau_bo *dst_bo = nouveau_pixmap_bo(dst_pix);
+	struct nouveau_bo *dst_bo;
 	struct nouveau_bo *src_bo = nouveau_pixmap_bo(src_pix);
 	struct nouveau_channel *chan = pNv->chan;
 	RegionRec reg;
 	int type, ret;
+	Bool front_updated;
 
 	REGION_INIT(0, &reg, (&(BoxRec){ 0, 0, draw->width, draw->height }), 0);
 	REGION_TRANSLATE(0, &reg, draw->x, draw->y);
+
+	/* Main crtc for this drawable shall finally deliver pageflip event. */
+	unsigned int ref_crtc_hw_id = nv_window_belongs_to_crtc(scrn, draw->x,
+								draw->y,
+								draw->width,
+								draw->height);
+
+	/* Whenever first crtc is involved, choose it as reference, as
+	 * its vblank event triggered this swap.
+	 */
+	if (ref_crtc_hw_id & 1)
+		ref_crtc_hw_id = 1;
+
+	/* Update frontbuffer pixmap and name: Could have changed due to
+	 * window (un)redirection as part of compositing.
+	 */
+	front_updated = update_front(draw, s->dst);
+
+	/* Assign frontbuffer pixmap, after update in update_front() */
+	dst_pix = nouveau_dri2_buffer(s->dst)->ppix;
+	dst_bo = nouveau_pixmap_bo(dst_pix);
 
 	/* Throttle on the previous frame before swapping */
 	nouveau_bo_map(dst_bo, NOUVEAU_BO_RD);
@@ -239,13 +325,15 @@ nouveau_dri2_finish_swap(DrawablePtr draw, unsigned int frame,
 		FIRE_RING(chan);
 	}
 
-	if (can_exchange(draw, dst_pix, src_pix)) {
+	if (front_updated && can_exchange(draw, dst_pix, src_pix)) {
 		type = DRI2_EXCHANGE_COMPLETE;
 		DamageRegionAppend(draw, &reg);
 
 		if (DRI2CanFlip(draw)) {
 			type = DRI2_FLIP_COMPLETE;
-			ret = drmmode_page_flip(draw, src_pix, s);
+			ret = drmmode_page_flip(draw, src_pix,
+						violate_oml(draw) ? NULL : s,
+						ref_crtc_hw_id);
 			if (!ret)
 				goto out;
 		}
@@ -254,6 +342,10 @@ nouveau_dri2_finish_swap(DrawablePtr draw, unsigned int frame,
 		SWAP(nouveau_pixmap(dst_pix)->bo, nouveau_pixmap(src_pix)->bo);
 
 		DamageRegionProcessPending(draw);
+
+		/* If it is a page flip, finish it in the flip event handler. */
+		if ((type == DRI2_FLIP_COMPLETE) && !violate_oml(draw))
+			return;
 	} else {
 		type = DRI2_BLIT_COMPLETE;
 
@@ -265,6 +357,30 @@ nouveau_dri2_finish_swap(DrawablePtr draw, unsigned int frame,
 
 		REGION_TRANSLATE(0, &reg, -draw->x, -draw->y);
 		nouveau_dri2_copy_region(draw, &reg, s->dst, s->src);
+
+		if (can_sync_to_vblank(draw) && !violate_oml(draw)) {
+			/* Request a vblank event one vblank from now, the most
+			 * likely (optimistic?) time a direct framebuffer blit
+			 * will complete or a desktop compositor will update its
+			 * screen. This defers DRI2SwapComplete() to the earliest
+			 * likely time of real swap completion.
+			 */
+			s->action = BLIT;
+			ret = nouveau_wait_vblank(draw, DRM_VBLANK_EVENT |
+						  DRM_VBLANK_RELATIVE, 1,
+						  NULL, NULL, s);
+			/* Done, if success. Otherwise use fallback below. */
+			if (!ret)
+				return;
+		}
+	}
+
+	/* Special triple-buffering hack for old pre 1.12.0 x-servers used? */
+	if (violate_oml(draw)) {
+		/* Signal to client that swap completion timestamps and counts
+		 * are invalid - they violate the specification.
+		 */
+		frame = tv_sec = tv_usec = 0;
 	}
 
 	/*
@@ -272,8 +388,15 @@ nouveau_dri2_finish_swap(DrawablePtr draw, unsigned int frame,
 	 * not, to prevent it from blocking the client on the next
 	 * GetBuffers request (and let the client do triple-buffering).
 	 *
-	 * XXX - The DRI2SwapLimit() API will allow us to move this to
-	 *	 the flip handler with no FPS hit.
+	 * XXX - The DRI2SwapLimit() API allowed us to move this to
+	 *	 the flip handler with no FPS hit for page flipped swaps.
+	 *       It is still needed as a fallback for some copy swaps as
+	 *       we lack a method to detect true swap completion for
+	 *       DRI2_BLIT_COMPLETE.
+	 *
+	 *       It is also used if triple-buffering is requested on
+	 *       old x-servers which don't support the DRI2SwapLimit()
+	 *       function.
 	 */
 	DRI2SwapComplete(s->client, draw, frame, tv_sec, tv_usec,
 			 type, s->func, s->data);
@@ -288,7 +411,7 @@ nouveau_dri2_schedule_swap(ClientPtr client, DrawablePtr draw,
 			   DRI2SwapEventPtr func, void *data)
 {
 	struct nouveau_dri2_vblank_state *s;
-	CARD64 current_msc;
+	CARD64 current_msc, expect_msc;
 	int ret;
 
 	/* Initialize a swap structure */
@@ -297,7 +420,7 @@ nouveau_dri2_schedule_swap(ClientPtr client, DrawablePtr draw,
 		return FALSE;
 
 	*s = (struct nouveau_dri2_vblank_state)
-		{ SWAP, client, draw->id, dst, src, func, data };
+		{ SWAP, client, draw->id, dst, src, func, data, 0 };
 
 	if (can_sync_to_vblank(draw)) {
 		/* Get current sequence */
@@ -306,19 +429,51 @@ nouveau_dri2_schedule_swap(ClientPtr client, DrawablePtr draw,
 		if (ret)
 			goto fail;
 
+		/* Truncate to match kernel interfaces; means occasional overflow
+		 * misses, but that's generally not a big deal.
+		 */
+		*target_msc &= 0xffffffff;
+		divisor &= 0xffffffff;
+		remainder &= 0xffffffff;
+
 		/* Calculate a swap target if we don't have one */
 		if (current_msc >= *target_msc && divisor)
 			*target_msc = current_msc + divisor
 				- (current_msc - remainder) % divisor;
 
+		/* Avoid underflow of unsigned value below */
+		if (*target_msc == 0)
+			*target_msc = 1;
+
+#if DRI2INFOREC_VERSION >= 6
+		/* Is this a swap in the future, ie. the vblank event will
+		 * not be immediately dispatched, but only at a future vblank?
+		 * If so, we need to temporarily lower the swaplimit to 1, so
+		 * that DRI2GetBuffersWithFormat() requests from the client get
+		 * deferred in the x-server until the vblank event has been
+		 * dispatched to us and nouveau_dri2_finish_swap() is done. If
+		 * we wouldn't do this, DRI2GetBuffersWithFormat() would operate
+		 * on wrong (pre-swap) buffers, and cause a segfault later on in
+		 * nouveau_dri2_finish_swap(). Our vblank event handler restores
+		 * the old swaplimit immediately after nouveau_dri2_finish_swap()
+		 * is done, so we still get 1 video refresh cycle worth of
+		 * triple-buffering. For a swap at next vblank, dispatch of the
+		 * vblank event happens immediately, so there isn't any need
+		 * for this lowered swaplimit.
+		 */
+		if (current_msc < *target_msc - 1)
+			DRI2SwapLimit(draw, 1);
+#endif
+
 		/* Request a vblank event one frame before the target */
 		ret = nouveau_wait_vblank(draw, DRM_VBLANK_ABSOLUTE |
 					  DRM_VBLANK_EVENT,
 					  max(current_msc, *target_msc - 1),
-					  NULL, NULL, s);
+					  &expect_msc, NULL, s);
 		if (ret)
 			goto fail;
-
+		s->frame = 1 + ((unsigned int) expect_msc & 0xffffffff);
+		*target_msc = 1 + expect_msc;
 	} else {
 		/* We can't/don't want to sync to vblank, just swap. */
 		nouveau_dri2_finish_swap(draw, 0, 0, 0, s);
@@ -339,6 +494,13 @@ nouveau_dri2_schedule_wait(ClientPtr client, DrawablePtr draw,
 	CARD64 current_msc;
 	int ret;
 
+	/* Truncate to match kernel interfaces; means occasional overflow
+	 * misses, but that's generally not a big deal.
+	 */
+	target_msc &= 0xffffffff;
+	divisor &= 0xffffffff;
+	remainder &= 0xffffffff;
+
 	if (!can_sync_to_vblank(draw)) {
 		DRI2WaitMSCComplete(client, draw, target_msc, 0, 0);
 		return TRUE;
@@ -358,7 +520,7 @@ nouveau_dri2_schedule_wait(ClientPtr client, DrawablePtr draw,
 		goto fail;
 
 	/* Calculate a wait target if we don't have one */
-	if (current_msc > target_msc && divisor)
+	if (current_msc >= target_msc && divisor)
 		target_msc = current_msc + divisor
 			- (current_msc - remainder) % divisor;
 
@@ -407,19 +569,95 @@ nouveau_dri2_vblank_handler(int fd, unsigned int frame,
 
 	ret = dixLookupDrawable(&draw, s->draw, serverClient,
 				M_ANY, DixWriteAccess);
-	if (ret)
+	if (ret) {
+		free(s);
 		return;
+	}
 
 	switch (s->action) {
 	case SWAP:
 		nouveau_dri2_finish_swap(draw, frame, tv_sec, tv_usec, s);
+#if DRI2INFOREC_VERSION >= 6
+		/* Restore real swap limit on drawable, now that it is safe. */
+		ScrnInfoPtr scrn = xf86Screens[draw->pScreen->myNum];
+		DRI2SwapLimit(draw, NVPTR(scrn)->swap_limit);
+#endif
+
 		break;
 
 	case WAIT:
 		DRI2WaitMSCComplete(s->client, draw, frame, tv_sec, tv_usec);
 		free(s);
 		break;
+
+	case BLIT:
+		DRI2SwapComplete(s->client, draw, frame, tv_sec, tv_usec,
+				 DRI2_BLIT_COMPLETE, s->func, s->data);
+		free(s);
+		break;
 	}
+}
+
+void
+nouveau_dri2_flip_event_handler(unsigned int frame, unsigned int tv_sec,
+				unsigned int tv_usec, void *event_data)
+{
+	struct nouveau_dri2_vblank_state *flip = event_data;
+	DrawablePtr draw;
+	ScreenPtr screen;
+	ScrnInfoPtr scrn;
+	int status;
+	PixmapPtr pixmap;
+
+	status = dixLookupDrawable(&draw, flip->draw, serverClient,
+				   M_ANY, DixWriteAccess);
+	if (status != Success) {
+		free(flip);
+		return;
+	}
+
+	screen = draw->pScreen;
+	scrn = xf86Screens[screen->myNum];
+
+	pixmap = screen->GetScreenPixmap(screen);
+	xf86DrvMsgVerb(scrn->scrnIndex, X_INFO, 4,
+		       "%s: flipevent : width %d x height %d : msc %d : ust = %d.%06d\n",
+		       __func__, pixmap->drawable.width, pixmap->drawable.height,
+		       frame, tv_sec, tv_usec);
+
+	/* We assume our flips arrive in order, so we don't check the frame */
+	switch (flip->action) {
+	case SWAP:
+		/* Check for too small vblank count of pageflip completion,
+		 * taking wraparound into account. This usually means some
+		 * defective kms pageflip completion, causing wrong (msc, ust)
+		 * return values and possible visual corruption.
+		 * Skip test for frame == 0, as this is a valid constant value
+		 * reported by all Linux kernels at least up to Linux 3.0.
+		 */
+		if ((frame != 0) &&
+		    (frame < flip->frame) && (flip->frame - frame < 5)) {
+			xf86DrvMsg(scrn->scrnIndex, X_WARNING,
+				   "%s: Pageflip has impossible msc %d < target_msc %d\n",
+				   __func__, frame, flip->frame);
+			/* All-Zero values signal failure of (msc, ust)
+			 * timestamping to client.
+			 */
+			frame = tv_sec = tv_usec = 0;
+		}
+
+		DRI2SwapComplete(flip->client, draw, frame, tv_sec, tv_usec,
+				 DRI2_FLIP_COMPLETE, flip->func,
+				 flip->data);
+		break;
+	default:
+		xf86DrvMsg(scrn->scrnIndex, X_WARNING,
+			   "%s: unknown vblank event received\n", __func__);
+		/* Unknown type */
+		break;
+	}
+
+	free(flip);
 }
 
 Bool
@@ -450,6 +688,10 @@ nouveau_dri2_init(ScreenPtr pScreen)
 	dri2.ScheduleSwap = nouveau_dri2_schedule_swap;
 	dri2.ScheduleWaitMSC = nouveau_dri2_schedule_wait;
 	dri2.GetMSC = nouveau_dri2_get_msc;
+
+#if DRI2INFOREC_VERSION >= 6
+	dri2.SwapLimitValidate = nouveau_dri2_swap_limit_validate;
+#endif
 
 	return DRI2ScreenInit(pScreen, &dri2);
 }

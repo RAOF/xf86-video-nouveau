@@ -25,6 +25,7 @@
 #define NV_ARCH_40  0x40
 #define NV_ARCH_50  0x50
 #define NV_ARCH_C0  0xc0
+#define NV_ARCH_E0  0xe0
 
 /* NV50 */
 typedef struct _NVRec *NVPtr;
@@ -53,6 +54,9 @@ typedef struct _NVRec {
     Bool		tiled_scanout;
     Bool		glx_vblank;
     Bool		has_pageflip;
+    int 		swap_limit;
+    int 		max_swap_limit;
+
     ScreenBlockHandlerProcPtr BlockHandler;
     CreateScreenResourcesProcPtr CreateScreenResources;
     CloseScreenProcPtr  CloseScreen;

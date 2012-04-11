@@ -35,7 +35,6 @@
 #include "nv_include.h"
 #include "nv_dma.h"
 
-#include "nv04_pushbuf.h"
 
 #include "vl_hwmc.h"
 
@@ -91,6 +90,14 @@ static XF86VideoEncodingRec DummyEncodingTex =
 	0,
 	"XV_IMAGE",
 	TEX_IMAGE_MAX_W, TEX_IMAGE_MAX_H,
+	{1, 1}
+};
+
+static XF86VideoEncodingRec DummyEncodingNV50 =
+{
+	0,
+	"XV_IMAGE",
+	8192, 8192,
 	{1, 1}
 };
 
@@ -938,8 +945,6 @@ NVPutImage(ScrnInfoPtr pScrn, short src_x, short src_y, short drw_x,
 	 * and lines we are interested in
 	 */
 	int top = 0, left = 0, right = 0, bottom = 0, npixels = 0, nlines = 0;
-	struct nouveau_channel *chan = pNv->chan;
-	struct nouveau_grobj *m2mf = pNv->NvMemFormat;
 	Bool skip = FALSE;
 	BoxRec dstBox;
 	CARD32 tmp = 0;
@@ -1113,70 +1118,21 @@ NVPutImage(ScrnInfoPtr pScrn, short src_x, short src_y, short drw_x,
 
 		nouveau_bo_unmap(destination_buffer);
 
-		if (pNv->Architecture >= NV_ARCH_C0) {
-			nvc0_xv_m2mf(m2mf, pPriv->video_mem, uv_offset, dstPitch,
-				     nlines, destination_buffer, line_len);
-			goto put_image;
+		if (uv_offset) {
+			NVAccelM2MF(pNv, line_len, nlines / 2, 1,
+				    line_len * nlines, uv_offset,
+				    destination_buffer, NOUVEAU_BO_GART,
+				    line_len, nlines >> 1, 0, 0,
+				    pPriv->video_mem, NOUVEAU_BO_VRAM,
+				    dstPitch, nlines >> 1, 0, 0);
 		}
 
-		if (MARK_RING(chan, 64, 4))
-			return FALSE;
+		NVAccelM2MF(pNv, line_len, nlines, 1, 0, 0,
+			    destination_buffer, NOUVEAU_BO_GART,
+			    line_len, nlines, 0, 0,
+			    pPriv->video_mem, NOUVEAU_BO_VRAM,
+			    dstPitch, nlines, 0, 0);
 
-		BEGIN_RING(chan, m2mf, NV03_M2MF_DMA_BUFFER_IN, 2);
-		OUT_RING  (chan, pNv->chan->gart->handle);
-		OUT_RING  (chan, pNv->chan->vram->handle);
-
-		if (pNv->Architecture >= NV_ARCH_50) {
-			BEGIN_RING(chan, m2mf, NV50_M2MF_LINEAR_IN, 1);
-			OUT_RING  (chan, 1);
-
-			BEGIN_RING(chan, m2mf, NV50_M2MF_LINEAR_OUT, 7);
-			OUT_RING  (chan, 0);
-			OUT_RING  (chan, destination_buffer->tile_mode << 4);
-			OUT_RING  (chan, dstPitch);
-			OUT_RING  (chan, nlines);
-			OUT_RING  (chan, 1);
-			OUT_RING  (chan, 0);
-			OUT_RING  (chan, 0);
-		}
-
-		/* DMA to VRAM */
-		if ( (action_flags & IS_YV12) &&
-		    !(action_flags & CONVERT_TO_YUY2)) {
-			/* we start the color plane transfer separately */
-
-			BEGIN_RING(chan, m2mf, NV03_M2MF_OFFSET_IN, 8);
-			if (OUT_RELOCl(chan, destination_buffer,
-				       line_len * nlines,
-				       NOUVEAU_BO_GART | NOUVEAU_BO_RD) ||
-			    OUT_RELOCl(chan, pPriv->video_mem,
-				       offset + uv_offset,
-				       NOUVEAU_BO_VRAM | NOUVEAU_BO_WR)) {
-				MARK_UNDO(chan);
-				return BadAlloc;
-			}
-			OUT_RING  (chan, line_len);
-			OUT_RING  (chan, dstPitch);
-			OUT_RING  (chan, line_len);
-			OUT_RING  (chan, (nlines >> 1));
-			OUT_RING  (chan, (1<<8)|1);
-			OUT_RING  (chan, 0);
-		}
-
-		BEGIN_RING(chan, m2mf, NV03_M2MF_OFFSET_IN, 8);
-		if (OUT_RELOCl(chan, destination_buffer, 0,
-			       NOUVEAU_BO_GART | NOUVEAU_BO_RD) ||
-		    OUT_RELOCl(chan, pPriv->video_mem, offset,
-			       NOUVEAU_BO_VRAM | NOUVEAU_BO_WR)) {
-			MARK_UNDO(chan);
-			return BadAlloc;
-		}
-		OUT_RING  (chan, line_len);
-		OUT_RING  (chan, dstPitch);
-		OUT_RING  (chan, line_len);
-		OUT_RING  (chan, nlines);
-		OUT_RING  (chan, (1<<8)|1);
-		OUT_RING  (chan, 0);
 	} else {
 CPU_copy:
 		nouveau_bo_map(pPriv->video_mem, NOUVEAU_BO_WR);
@@ -1255,7 +1211,6 @@ CPU_copy:
 	if (pPriv->currentHostBuffer != NO_PRIV_HOST_BUFFER_AVAILABLE)
 		pPriv->currentHostBuffer ^= 1;
 
-put_image:
 	/* If we're not using the hw overlay, we're rendering into a pixmap
 	 * and need to take a couple of additional steps...
 	 */
@@ -2028,7 +1983,7 @@ NV50SetupTexturedVideo (ScreenPtr pScreen)
 	adapt->flags		= 0;
 	adapt->name		= "Nouveau GeForce 8/9 Textured Video";
 	adapt->nEncodings	= 1;
-	adapt->pEncodings	= &DummyEncodingTex;
+	adapt->pEncodings	= &DummyEncodingNV50;
 	adapt->nFormats		= NUM_FORMATS_ALL;
 	adapt->pFormats		= NVFormats;
 	adapt->nPorts		= NUM_TEXTURE_PORTS;
@@ -2067,6 +2022,28 @@ NV50SetupTexturedVideo (ScreenPtr pScreen)
 	return adapt;
 }
 
+void
+NVSetupTexturedVideo (ScreenPtr pScreen, XF86VideoAdaptorPtr *textureAdaptor)
+{
+	ScrnInfoPtr          pScrn = xf86Screens[pScreen->myNum];
+	NVPtr                pNv = NVPTR(pScrn);
+
+	if (!pNv->Nv3D)
+		return;
+
+	if (pNv->Architecture == NV_ARCH_30) {
+		textureAdaptor[0] = NV30SetupTexturedVideo(pScreen, FALSE);
+		textureAdaptor[1] = NV30SetupTexturedVideo(pScreen, TRUE);
+	} else
+	if (pNv->Architecture == NV_ARCH_40) {
+		textureAdaptor[0] = NV40SetupTexturedVideo(pScreen, FALSE);
+		textureAdaptor[1] = NV40SetupTexturedVideo(pScreen, TRUE);
+	} else
+	if (pNv->Architecture >= NV_ARCH_50) {
+		textureAdaptor[0] = NV50SetupTexturedVideo(pScreen);
+	}
+}
+
 /**
  * NVInitVideo
  * tries to initialize the various supported adapters
@@ -2101,17 +2078,7 @@ NVInitVideo(ScreenPtr pScreen)
 			blitAdaptor    = NVSetupBlitVideo(pScreen);
 		}
 
-		if (pNv->Architecture == NV_ARCH_30) {
-			textureAdaptor[0] = NV30SetupTexturedVideo(pScreen, FALSE);
-			textureAdaptor[1] = NV30SetupTexturedVideo(pScreen, TRUE);
-		} else
-		if (pNv->Architecture == NV_ARCH_40) {
-			textureAdaptor[0] = NV40SetupTexturedVideo(pScreen, FALSE);
-			textureAdaptor[1] = NV40SetupTexturedVideo(pScreen, TRUE);
-		} else
-		if (pNv->Architecture >= NV_ARCH_50) {
-			textureAdaptor[0] = NV50SetupTexturedVideo(pScreen);
-		}
+		NVSetupTexturedVideo(pScreen, textureAdaptor);
 	}
 
 	num_adaptors = xf86XVListGenericAdaptors(pScrn, &adaptors);

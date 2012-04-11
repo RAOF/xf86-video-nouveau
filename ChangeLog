@@ -1,3 +1,312 @@
+commit ab7291d368ddc66ad21c5ad5caa0faeee42ccaf1
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Wed Mar 21 14:56:55 2012 +1000
+
+    xv: don't try to init textured video without 3d engine object
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit fe7e0425a4a43b2a7d4743a0a90a86724c3b6775
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Mar 12 11:59:29 2012 +1000
+
+    recognise kepler
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit f5d1cd2cb6808838ae1a188cef888eaa9582c76d
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue Mar 6 08:16:51 2012 +1000
+
+    remove use of xf86PciInfo.h, deprecated now apparently
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 248de8cdbd6d0bc062633b49896fa4791148cd3b
+Author: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+Date:   Thu Feb 16 00:45:24 2012 +0100
+
+    dri2: Fix corner case crash for swaplimit > 1
+    
+    If a swaplimit > 1 is set on a server which
+    supports the swaplimit api (XOrg 1.12.0+),
+    the following can happen:
+    
+    1. Client calls glXSwapBuffersMscOML() with a
+       swap target > 1 vblank in the future, or a
+       client calls glXSwapbuffers() while the swap
+       interval is set to > 1 (unusual but possible).
+    
+    2. nouveau_dri2_finish_swap() is therefore called
+       only at the target vblank, instead of immediately.
+    
+    3. Because of the deferred execution of
+       nouveu_dri2_finish_swap(), the OpenGL client
+       can call x-servers DRI2GetBuffersWithFormat()
+       before nouveau_dri2_finish_swap() executes and
+       it deletes pixmaps that would be needed by
+       nouveau_dri2_finish_swap() --> Segfault --> Crash.
+    
+    Prevent this: When a swap is scheduled into the
+    future, we temporarily reduce the swaplimit to 1
+    until nouveau_dri2_finish_swap() is done, then
+    restore it to its original value. This throttles
+    the client inside the server in DRI2ThrottleClient()
+    before it can call the evil DRI2GetbuffersWithFormat().
+    
+    The client will still be released one video refresh
+    interval before swap completion, so there is still
+    some potential win.
+    
+    This doesn't affect the common case of swapping at
+    the next vblank, where this throttling is not needed
+    or done.
+    
+    Signed-off-by: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 247465ec5e21ce7151ef1e6a3e7644bc74d48a5b
+Author: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+Date:   Thu Feb 16 00:45:23 2012 +0100
+
+    dri2: Reimplement hack for triple-buffering on old X-Servers.
+    
+    X-Servers before 1.12.0 don't have the DRI2SwapLimit()
+    API. On these, default to a swaplimit of 1 - double-buffering.
+    
+    This patch implements support for swap limit of 2,
+    triple-buffering, on old x-servers via Francisco Jerez
+    previous hack:
+    
+    Return DRI2SwapComplete() before the swap has completed,
+    so clients don't get blocked on the pending swap. This
+    allows for a "triple-buffering look-alike" behaviour, but
+    breaks the swap scheduling and timestamping defined
+    in the OML_sync_control spec, so applications which
+    rely on conformant behaviour will break with a swap
+    limit of 2 on pre 1.12.0 x-servers.
+    
+    Signed-off-by: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit a1902ffaab1f6807fdaac0fce49f784e7208d1a5
+Author: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+Date:   Thu Feb 16 00:45:22 2012 +0100
+
+    dri2: Allow vblank controlled swaps for redirected windows. Part II
+    
+    This part implements proper throttling for clients. For
+    vblank synchronized blits, it defers DRI2SwapComplete()
+    until 1 vblank after the framebuffer blit is submitted to
+    the gpu.
+    
+    Rationale:
+    
+    For unredirected windows, this is the earliest time the
+    "blit swap" can complete, as blits are submitted one vblank
+    before the target vblank and synchronized with vblank in the
+    gpu. This makes swap completion timestamps at least reasonable.
+    
+    For redirected windows, the compositor will probably pick
+    up the "blit swapped" frontbuffer pixmap of the window quickly,
+    but defer its own recomposition to the next vblank, at least
+    if sync to vblank for the compositor is on.
+    
+    Signed-off-by: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit c8572d329014afc0c79b5765468dcdfb65be0868
+Author: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+Date:   Thu Feb 16 00:45:21 2012 +0100
+
+    dri2: Allow vblank controlled swaps for redirected windows. Part I
+    
+    Make sure that swaps for redirected windows under a
+    compositor are still scheduled via vblank events, to
+    avoid effects like 2900 fps swaps under a compositor.
+    
+    See discussion with Francisco Jerez at:
+    
+    http://lists.freedesktop.org/archives/nouveau/2011-September/009278.html
+    http://lists.freedesktop.org/archives/nouveau/2011-September/009292.html
+    
+    This is part I of the agreed upon band-aid, in a separate patch.
+    
+    It allows to use vblank related functions on redirected
+    windows and thereby fixes functions from sgi_sync_control
+    and oml_sync_control extension, e.g., glXWaitForMscOML(),
+    glXGetSyncValuesOML(), glXWaitVideoSyncSGI, ...
+    
+    Signed-off-by: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 919643888045b102f3e10dfdeb6210ab14b6ecab
+Author: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+Date:   Thu Feb 16 00:45:20 2012 +0100
+
+    dri2: Fixes to swap scheduling.
+    
+    Fix some small off-by-one errors and a mismatch
+    between 32 bit kernel interfaces for vblank count
+    and 64 bit dri2 interfaces for target_msc et al.
+    
+    Return corrected target_msc to swap scheduling in
+    x-server.
+    
+    A revised version of the patch discussed here:
+    http://lists.freedesktop.org/archives/nouveau/2011-September/009143.html
+    
+    Signed-off-by: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 5ede4538366a352aa9726560f8d42e85df4aec82
+Author: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+Date:   Thu Feb 16 00:45:19 2012 +0100
+
+    dri2: Update front buffer pixmap and name before exchanging buffers
+    
+    Buffer exchange assumes that the front buffer pixmap and name
+    information is accurate. That may not be the case eg. if the window
+    has been (un)redirected since the buffer was created.
+    
+    This is a translation to nouveau of a fix that was originally developed
+    by Ville Syrjala <syrjala@sci.fi> for the ati/radeon ddx to fix the
+    same bug there.
+    
+    See thread at:
+    
+    http://lists.x.org/archives/xorg-devel/2011-May/021908.html
+    
+    Fixes FDO bug #35452.
+    
+    Signed-off-by: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 6fdf60b7288d49f889c80705aabc1db3bc327ba3
+Author: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+Date:   Thu Feb 16 00:45:18 2012 +0100
+
+    dri2: Add support for DRI2SwapLimit() API.
+    
+    Uses the new DRI2SwapLimit() API of X-Server 1.12+
+    to allow to change the maximum number of pending
+    swaps on a drawable before the OpenGL client is
+    throttled by the server.
+    
+    The new optional xorg.conf parameter "SwapLimit"
+    allows to select a new swap limit >= 1. The default
+    swap limit is 2 for triple-buffering on XOrg 1.12+,
+    1 for double-buffering on older servers, as we can't
+    change the swap limit there.
+    
+    Signed-off-by: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 820916e722db2997a53128f2f370d14a02d4401c
+Author: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+Date:   Thu Feb 16 00:45:17 2012 +0100
+
+    dri2: Implement handling of pageflip completion events.
+    
+    Requests pageflip completion events from the kernel.
+    Implements pageflip completion handler to finalize
+    and timestamp swaps.
+    
+    Completion handler includes a consistency check, and
+    disambiguation if multiple crtc's are involved in a
+    pageflip (e.g., clone mode, extendend desktop). Only
+    the timestamp of the crtc whose vblank event initially
+    triggered the swap is used, but handler waits for flip
+    completion on all involved crtc's before completing the
+    swap and releasing the old framebuffer.
+    
+    This code is almost identical to the code used in the
+    ati/radeon ddx and intel ddx.
+    
+    Signed-off-by: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 4da68cedbefef4f72c00bb088e179071490882c8
+Author: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+Date:   Thu Mar 1 19:11:14 2012 +0100
+
+    dri2: Fix can_exchange() to allow page-flipping on more mesa versions.
+    
+    can_exchange() returns false and thereby prevents page
+    flipping on some drawables where page flipping would
+    work fine. This due to non-matching drawable depths values
+    between front buffer pixmap and back buffer pixmap, because
+    front buffer pixmaps inherit the depth of the screen, typically
+    24 bits, whereas the depth value of back buffer pixmaps for a
+    given RGB8 or RGBA8 visual depends on the mesa version in use,
+    either 24 bits or 32 bits.
+    
+    Use bitsPerPixel instead of depth to decide if drawable
+    is flippable. This will still catch really incompatible
+    formats like 32 bpp vs. 16 bpp buffers.
+    
+    Tested for screen DefaultDepth 24 and also 30 bits
+    (for RGB10 framebuffers) on NV-50.
+    
+    The problem was fixed in the same way in the ati & intel ddx.
+    
+    Signed-off-by: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit b0d7f4ddd94154491d04dcb9698d63d61e9240dc
+Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+Date:   Mon Jan 9 15:17:27 2012 +0100
+
+    dri2: CreateBuffer format may be 0, use depth in that case
+
+commit 3d9f6b32e0ad72dc8c7db07d039d87e83d8fdb1d
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Dec 9 17:45:31 2011 +1000
+
+    nv50/xv: bump max dims to 8k
+    
+    Untested, but I don't see why this wouldn't work...
+
+commit 57c62228e2e67370feeeb421c369fbf940d30ca4
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Dec 9 17:44:07 2011 +1000
+
+    xv: stop using custom m2mf code
+
+commit ad402333157c437ccd2c639f5b3f3bcb81e78d6c
+Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+Date:   Sat Dec 10 13:32:24 2011 +0100
+
+    dri2: fix allocation of Z16 depth attachments
+
+commit 3d2a752ca8aafee5e1e94dabfd7deec439890e95
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Dec 1 11:31:49 2011 +1000
+
+    move away from libdrm's BEGIN_RING (and variants) macros
+    
+    subchan auto-assignment is now gone.
+
+commit b6cfdc01aeb5c2ab401ee81fff66bd0560abdfcc
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Dec 1 11:25:10 2011 +1000
+
+    Append _CLASS to object class id definitions
+    
+    I want to be able to use ring macros of the same name
+
+commit 1dadb5826363d0d8ed1a72209be18277550f8345
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Dec 1 09:06:24 2011 +1000
+
+    exa: create general m2mf rect copy for each chipset, use for UTS/DFS
+    
+    No point having duplicated UTS/DFS logic in each implementation.  This also
+    splits nv50 out into its own code, in preparation for it being made to not
+    use relocs at all.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
 commit b5534a15a5f5e1c3bd6c92e3ed8391ff628c09bb
 Author: Marcin Slusarz <marcin.slusarz@gmail.com>
 Date:   Wed Nov 30 18:56:54 2011 +0100

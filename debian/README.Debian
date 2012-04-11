@@ -2,13 +2,12 @@ Requirements for using Nouveau
 ==============================
 
 You need a Linux kernel that contains a nouveau.ko module which works
-with the libdrm-nouveau package in Debian.  Unfortunately,
-libdrm-nouveau and the kernel module are coupled very tightly, and you
-may not be able to upgrade one without the other.  As of this writing,
-supported kernels are 2.6.34-rc1 and newer, earlier versions lack the
-nouveau module altogether or contain an incompatible version.  If you
-build your own kernel, you have to enable the module under Drivers ->
-Staging drivers.
+with the libdrm-nouveau package in Debian.  Supported kernels are
+2.6.34 and newer, earlier versions lack the nouveau module altogether
+or contain an incompatible version.  If you build your own kernel, you
+have to enable the module under Device Drivers -> Graphics support ->
+Direct Rendering Manager (Linux 3.4 and newer) or Device Drivers ->
+Staging drivers (Linux 3.3 and earlier).
 
 Some Fermi cards (GeForce 4xx/5xx series, NVC0 in Nouveau terminology)
 currently need non-free and not readily available firmware to provide
@@ -61,4 +60,4 @@ http://nouveau.freedesktop.org/wiki/FAQ
 http://nouveau.freedesktop.org/wiki/TroubleShooting
 http://nouveau.freedesktop.org/wiki/KernelModeSetting
 
- -- Sven Joachim <svenjoac@gmx.de>, Thu,  1 Dec 2011 16:17:41 +0100
+ -- Sven Joachim <svenjoac@gmx.de>, Wed, 11 Apr 2012 17:08:14 +0200

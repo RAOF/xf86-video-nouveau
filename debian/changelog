@@ -1,4 +1,4 @@
-xserver-xorg-video-nouveau (1:0.0.16+git20120322+ab7291d-1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:0.0.16+git20120322+ab7291d-1) unstable; urgency=low
 
   [ Julien Cristau ]
   * Add Dm-Upload-Allowed control field to allow Sven to upload this package.
@@ -10,7 +10,7 @@ xserver-xorg-video-nouveau (1:0.0.16+git20120322+ab7291d-1) UNRELEASED; urgency=
     - Generalize the firmware section.
   * Bump Standards-Version to 3.9.3, no changes needed.
 
- -- Julien Cristau <jcristau@debian.org>  Mon, 09 Apr 2012 20:23:18 +0200
+ -- Cyril Brulebois <kibi@debian.org>  Tue, 01 May 2012 15:17:37 +0200
 
 xserver-xorg-video-nouveau (1:0.0.16+git20111201+b5534a1-1) unstable; urgency=low
 

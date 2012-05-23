@@ -33,7 +33,7 @@ nouveau_drv_la_SOURCES = \
 			 nouveau_class.h nouveau_local.h \
 			 nouveau_exa.c nouveau_xv.c nouveau_dri2.c \
 			 nouveau_wfb.c \
-			 nv_accel_common.c \
+			 nv_accel_common.c nv04_accel.h \
 			 nv_const.h \
 			 nv_dma.c \
 			 nv_dma.h \
@@ -48,8 +48,6 @@ nouveau_drv_la_SOURCES = \
 			 nv04_xv_blit.c \
 			 nv10_exa.c \
 			 nv10_xv_ovl.c \
-			 nv30_shaders.c \
-			 nv30_shaders.h \
 			 nv30_exa.c \
 			 nv30_xv_tex.c \
 			 nv40_exa.c \

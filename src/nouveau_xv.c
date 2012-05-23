@@ -243,9 +243,8 @@ static int
 nouveau_xv_bo_realloc(ScrnInfoPtr pScrn, unsigned flags, unsigned size,
 		      struct nouveau_bo **pbo)
 {
+	union nouveau_bo_config config = {};
 	NVPtr pNv = NVPTR(pScrn);
-	uint32_t tile_flags;
-	int ret;
 
 	if (*pbo) {
 		if ((*pbo)->size >= size)
@@ -253,21 +252,16 @@ nouveau_xv_bo_realloc(ScrnInfoPtr pScrn, unsigned flags, unsigned size,
 		nouveau_bo_ref(NULL, pbo);
 	}
 
-	tile_flags = 0;
 	if (flags & NOUVEAU_BO_VRAM) {
 		if (pNv->Architecture == NV_ARCH_50)
-			tile_flags = 0x7000;
+			config.nv50.memtype = 0x70;
 		else
-		if (pNv->Architecture == NV_ARCH_C0)
-			tile_flags = 0xfe00;
+		if (pNv->Architecture >= NV_ARCH_C0)
+			config.nvc0.memtype = 0xfe;
 	}
+	flags |= NOUVEAU_BO_MAP;
 
-	ret = nouveau_bo_new_tile(pNv->dev, flags | NOUVEAU_BO_MAP, 0,
-				  size, 0, tile_flags, pbo);
-	if (ret)
-		return ret;
-
-	return 0;
+	return nouveau_bo_new(pNv->dev, flags, 0, size, &config, pbo);
 }
 
 /**
@@ -1080,7 +1074,7 @@ NVPutImage(ScrnInfoPtr pScrn, short src_x, short src_y, short drw_x,
 		int i = 0;
 
 		/* Upload to GART */
-		nouveau_bo_map(destination_buffer, NOUVEAU_BO_WR);
+		nouveau_bo_map(destination_buffer, NOUVEAU_BO_WR, pNv->client);
 		dst = destination_buffer->map;
 
 		if (action_flags & IS_YV12) {
@@ -1116,8 +1110,6 @@ NVPutImage(ScrnInfoPtr pScrn, short src_x, short src_y, short drw_x,
 			}
 		}
 
-		nouveau_bo_unmap(destination_buffer);
-
 		if (uv_offset) {
 			NVAccelM2MF(pNv, line_len, nlines / 2, 1,
 				    line_len * nlines, uv_offset,
@@ -1135,7 +1127,7 @@ NVPutImage(ScrnInfoPtr pScrn, short src_x, short src_y, short drw_x,
 
 	} else {
 CPU_copy:
-		nouveau_bo_map(pPriv->video_mem, NOUVEAU_BO_WR);
+		nouveau_bo_map(pPriv->video_mem, NOUVEAU_BO_WR, pNv->client);
 		map = pPriv->video_mem->map + offset;
 
 		if (action_flags & IS_YV12) {
@@ -1201,8 +1193,6 @@ CPU_copy:
 				buf += srcPitch - (npixels << 1);
 			}
 		}
-
-		nouveau_bo_unmap(pPriv->video_mem);
 	}
 
 	if (skip)
@@ -2151,7 +2141,6 @@ NVTakedownVideo(ScrnInfoPtr pScrn)
 {
 	NVPtr pNv = NVPTR(pScrn);
 
-	nouveau_bo_ref(NULL, &pNv->xv_filtertable_mem);
 	if (pNv->blitAdaptor)
 		NVFreePortMemory(pScrn, GET_BLIT_PRIVATE(pNv));
 	if (pNv->textureAdaptor[0]) {
@@ -2164,3 +2153,45 @@ NVTakedownVideo(ScrnInfoPtr pScrn)
 	}
 }
 
+/* The filtering function used for video scaling. We use a cubic filter as
+ * defined in  "Reconstruction Filters in Computer Graphics" Mitchell &
+ * Netravali in SIGGRAPH '88
+ */
+static float filter_func(float x)
+{
+	const double B=0.75;
+	const double C=(1.0-B)/2.0;
+	double x1=fabs(x);
+	double x2=fabs(x)*x1;
+	double x3=fabs(x)*x2;
+
+	if (fabs(x)<1.0)
+		return ( (12.0-9.0*B-6.0*C)*x3+(-18.0+12.0*B+6.0*C)*x2+(6.0-2.0*B) )/6.0; 
+	else
+		return ( (-B-6.0*C)*x3+(6.0*B+30.0*C)*x2+(-12.0*B-48.0*C)*x1+(8.0*B+24.0*C) )/6.0;
+}
+
+static int8_t f32tosb8(float v)
+{
+	return (int8_t)(v*127.0);
+}
+
+void
+NVXVComputeBicubicFilter(struct nouveau_bo *bo, unsigned offset, unsigned size)
+{
+	int8_t *t = (int8_t *)(bo->map + offset);
+	int i;
+
+	for(i = 0; i < size; i++) {
+		float  x = (i + 0.5) / size;
+		float w0 = filter_func(x+1.0);
+		float w1 = filter_func(x);
+		float w2 = filter_func(x-1.0);
+		float w3 = filter_func(x-2.0);
+
+		t[4*i+2]=f32tosb8(1.0+x-w1/(w0+w1));
+		t[4*i+1]=f32tosb8(1.0-x+w3/(w2+w3));
+		t[4*i+0]=f32tosb8(w0+w1);
+		t[4*i+3]=f32tosb8(0.0);
+	}
+}

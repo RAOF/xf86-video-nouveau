@@ -1,3 +1,10 @@
+xserver-xorg-video-nouveau (1:0.0.16+git20120523+5815644-1) UNRELEASED; urgency=low
+
+  [ Maarten Lankhorst ]
+  * New upstream snapshot. First one to have the new ABI.
+
+ -- Maarten Lankhorst <maarten.lankhorst@canonical.com>  Wed, 23 May 2012 09:45:06 +0200
+
 xserver-xorg-video-nouveau (1:0.0.16+git20120322+ab7291d-1) unstable; urgency=low
 
   [ Julien Cristau ]

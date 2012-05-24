@@ -4,11 +4,24 @@ Date:   Wed May 23 09:29:29 2012 +0200
 
     awful hack to remove dependency on libdrm_nouveau
 
+[ Amendment by Sven Joachim <svenjoac@gmx.de>: Set AC_SYS_LARGEFILE
+  in configure.ac, required by the included libdrm_nouveau. ]
+
 diff --git a/configure.ac b/configure.ac
-index afb6cde..7326144 100644
+index afb6cde..233b4ba 100644
 --- a/configure.ac
 +++ b/configure.ac
-@@ -67,7 +67,8 @@ XORG_DRIVER_CHECK_EXT(XV, videoproto)
+@@ -52,6 +52,9 @@ AC_DISABLE_STATIC
+ LT_INIT
+ AC_PROG_CC
+ 
++# not needed for the DDX, but by the included libdrm_nouveau
++AC_SYS_LARGEFILE
++
+ AH_TOP([#include "xorg-server.h"])
+ 
+ AC_ARG_WITH(xorg-module-dir,
+@@ -67,7 +70,8 @@ XORG_DRIVER_CHECK_EXT(XV, videoproto)
  XORG_DRIVER_CHECK_EXT(DPMSExtension, xextproto)
  
  # Checks for pkg-config packages

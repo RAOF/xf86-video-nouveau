@@ -1,11 +1,11 @@
-xserver-xorg-video-nouveau (1:0.0.16+git20120523+5815644-1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:0.0.16+git20120529+ace77b6-1) UNRELEASED; urgency=low
 
   [ Maarten Lankhorst ]
   * New upstream snapshot. First one to have the new ABI.
   * Add 02-drm-nouveau-newabi.patch to build with old libdrm
   - Until mesa 8.1 is released, we cannot build with new libdrm yet
 
- -- Maarten Lankhorst <maarten.lankhorst@canonical.com>  Wed, 23 May 2012 09:45:06 +0200
+ -- Maarten Lankhorst <maarten.lankhorst@canonical.com>  Wed, 29 May 2012 14:05:06 +0200
 
 xserver-xorg-video-nouveau (1:0.0.16+git20120322+ab7291d-1) unstable; urgency=low
 

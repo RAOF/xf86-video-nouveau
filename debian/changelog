@@ -1,4 +1,4 @@
-xserver-xorg-video-nouveau (1:0.0.16+git20120529+ace77b6-1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:0.0.16+git20120529+ace77b6-1) experimental; urgency=low
 
   [ Maarten Lankhorst ]
   * New upstream snapshot. First one to have the new ABI.
@@ -9,7 +9,7 @@ xserver-xorg-video-nouveau (1:0.0.16+git20120529+ace77b6-1) UNRELEASED; urgency=
   * Mention in NEWS.Debian that Linux 3.4 is currently necessary to
     provide acceleration for Fermi cards.
 
- -- Maarten Lankhorst <maarten.lankhorst@canonical.com>  Wed, 29 May 2012 14:05:06 +0200
+ -- Sven Joachim <svenjoac@gmx.de>  Sat, 02 Jun 2012 19:30:08 +0200
 
 xserver-xorg-video-nouveau (1:0.0.16+git20120322+ab7291d-1) unstable; urgency=low
 

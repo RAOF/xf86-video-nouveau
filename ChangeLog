@@ -1,3 +1,60 @@
+commit ace77b6b1304826f4004bde23809b55d476b0615
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue May 29 21:21:57 2012 +1000
+
+    disable fermi accel on 0.0.16 interface
+    
+    Kepler accel support broke some assumption made by the older kernel
+    interface, and Fermi shares the same code.  It can't work (without
+    some annoying hacks anyway) with the 0.0.16 kernel anymore.
+
+commit 7041e30ab8beb627bbf569367961a658e79c2bdc
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Wed May 23 14:18:24 2012 +0100
+
+    vl_hwmc: add missing compat include.
+    
+    Reported-by: tallica on irc.
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 2abf8467cfb7a7648ce73ba5bcbbc62219d65d6d
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Wed May 23 11:29:05 2012 +0100
+
+    nouveau: add compat-api.h to makefile.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 1d861ad716861c57b2b81531d21840d7c8de024b
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Wed May 23 11:15:06 2012 +0100
+
+    nouveau: convert two more xf86Screens access to macros
+    
+    for some reason the script missed these two, just fix them manually.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 5625fb84efc699e65da0062ae101915a49f2969b
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Wed May 23 11:13:30 2012 +0100
+
+    nouveau: convert scrn/screen to using new interfaces
+    
+    This commit was generated with the util/modular/x-driver-screen-scrn-conv.sh
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 9f037f7be516ebf8fa4a67a5c9ff258594ab353e
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Wed May 23 11:12:59 2012 +0100
+
+    nouveau: add initial compat-api header
+    
+    This just provides the scrn conversion and picture stuff so far.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
 commit 581564466c47ab0435ecca3cf4d82c03e1b30259
 Author: Francisco Jerez <currojerez@riseup.net>
 Date:   Tue May 8 14:02:44 2012 +0200

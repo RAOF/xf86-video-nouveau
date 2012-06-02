@@ -1,3 +1,11 @@
+xserver-xorg-video-nouveau (1:0.0.16+git20120529+ace77b6-1) experimental; urgency=low
+
+  Fermi cards (GeForce 4xx/5xx series) now require Linux kernel 3.4 or
+  newer for acceleration, on older kernels they will only run
+  unaccelerated.  Older NVidia cards are not affected.
+
+ -- Sven Joachim <svenjoac@gmx.de>  Sat, 02 Jun 2012 19:12:43 +0200
+
 xserver-xorg-video-nouveau (1:0.0.16+git20100518+4b8f1a0-1) experimental; urgency=low
 
   This version of xserver-xorg-video-nouveau is linked against a newer

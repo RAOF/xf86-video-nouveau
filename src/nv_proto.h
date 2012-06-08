@@ -3,7 +3,7 @@
 
 /* in drmmode_display.c */
 Bool drmmode_pre_init(ScrnInfoPtr pScrn, int fd, int cpp);
-void drmmode_adjust_frame(ScrnInfoPtr pScrn, int x, int y, int flags);
+void drmmode_adjust_frame(ScrnInfoPtr pScrn, int x, int y);
 void drmmode_remove_fb(ScrnInfoPtr pScrn);
 Bool drmmode_cursor_init(ScreenPtr pScreen);
 void drmmode_fbcon_copy(ScreenPtr pScreen);
@@ -144,11 +144,13 @@ int NV40SetTexturePortAttribute(ScrnInfoPtr, Atom, INT32, pointer);
 /* in nv50_accel.c */
 void NV50SyncToVBlank(PixmapPtr ppix, BoxPtr box);
 Bool NVAccelInitM2MF_NV50(ScrnInfoPtr pScrn);
+Bool NVAccelInitCopy_NV50(ScrnInfoPtr pScrn);
 Bool NVAccelInit2D_NV50(ScrnInfoPtr pScrn);
 Bool NVAccelInitNV50TCL(ScrnInfoPtr pScrn);
 
 /* in nvc0_accel.c */
 Bool NVAccelInitM2MF_NVC0(ScrnInfoPtr pScrn);
+Bool NVAccelInitCopy_NVC0(ScrnInfoPtr pScrn);
 Bool NVAccelInitP2MF_NVE0(ScrnInfoPtr pScrn);
 Bool NVAccelInit2D_NVC0(ScrnInfoPtr pScrn);
 Bool NVAccelInit3D_NVC0(ScrnInfoPtr pScrn);
@@ -168,6 +170,9 @@ void NV50EXADoneComposite(PixmapPtr);
 Bool NV50EXAUploadSIFC(const char *src, int src_pitch,
 		       PixmapPtr pdPix, int x, int y, int w, int h, int cpp);
 Bool NV50EXARectM2MF(NVPtr pNv, int, int, int,
+		     struct nouveau_bo *, uint32_t, int, int, int, int, int,
+		     struct nouveau_bo *, uint32_t, int, int, int, int, int);
+Bool NVA3EXARectCopy(NVPtr pNv, int, int, int,
 		     struct nouveau_bo *, uint32_t, int, int, int, int, int,
 		     struct nouveau_bo *, uint32_t, int, int, int, int, int);
 
@@ -191,6 +196,9 @@ void NVC0EXADoneComposite(PixmapPtr);
 Bool NVC0EXAUploadSIFC(const char *src, int src_pitch,
 		       PixmapPtr pdPix, int x, int y, int w, int h, int cpp);
 Bool NVC0EXARectM2MF(NVPtr pNv, int, int, int,
+		     struct nouveau_bo *, uint32_t, int, int, int, int, int,
+		     struct nouveau_bo *, uint32_t, int, int, int, int, int);
+Bool NVC0EXARectCopy(NVPtr pNv, int, int, int,
 		     struct nouveau_bo *, uint32_t, int, int, int, int, int,
 		     struct nouveau_bo *, uint32_t, int, int, int, int, int);
 Bool NVE0EXARectCopy(NVPtr pNv, int, int, int,

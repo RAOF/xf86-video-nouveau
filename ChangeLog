@@ -1,3 +1,59 @@
+commit 4dbc132f22721e3da30eb2e7fc97dea5b8458df6
+Author: Viktor Novotný <noviktor@seznam.cz>
+Date:   Sat May 26 22:15:20 2012 +0200
+
+    nv04/exa: Reset destination surface offset in the same call of NV04EXACopy
+    
+    Fixes FDO bug #48954.
+    
+    Signed-off-by: Viktor Novotný <noviktor@seznam.cz>
+    Reviewed-by: Marcin Slusarz <marcin.slusarz@gmail.com>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit aab58ee9a8025422416458d637c203af5ba008fd
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Tue Jun 5 12:34:06 2012 +0100
+
+    nouveau: i is used inside the function
+    
+    fixes build, reported by tallica on irc.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 619e99731f772ff8d9d93cd1d6d83de5d450574b
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Tue Jun 5 11:02:54 2012 +0100
+
+    nouveau: port to compat server API.
+    
+    This ports to the new server API.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit d2e16c62b5054f34a439e504bfa261fb71f5d7de
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Tue Jun 5 10:57:30 2012 +0100
+
+    nouveau: drop flags arg to adjust frame
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit fadf83d7b373282ccbf0fa0c01928a35ff717a5e
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu May 31 15:46:57 2012 +1000
+
+    nvc0/exa: add support for async UTS/DFS copies
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 1600f7f202721c4b29c29e94f7fb69dc313b99dc
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu May 31 15:40:45 2012 +1000
+
+    nva3/exa: add support for async UTS/DFS copies
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
 commit ace77b6b1304826f4004bde23809b55d476b0615
 Author: Ben Skeggs <bskeggs@redhat.com>
 Date:   Tue May 29 21:21:57 2012 +1000

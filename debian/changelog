@@ -1,4 +1,4 @@
-xserver-xorg-video-nouveau (1:0.0.16+git20120611+36d3f8c-1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:0.0.16+git20120614+36d3f8c-1) UNRELEASED; urgency=low
 
   [ Maarten Lankhorst ]
   * New upstream snapshot. Picks up a EXA fix for pre-nv50 cards.

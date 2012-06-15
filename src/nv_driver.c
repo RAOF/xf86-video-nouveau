@@ -72,6 +72,26 @@ static Bool NVPciProbe (	DriverPtr 		drv,
 				struct pci_device	*dev,
 				intptr_t		match_data	);
 
+
+static Bool nouveau_driver_func(ScrnInfoPtr pScrn,
+				xorgDriverFuncOp op,
+				pointer ptr)
+{
+	xorgHWFlags *flag;
+
+	switch (op) {
+	case GET_REQUIRED_HW_INTERFACES:
+		flag = (CARD32*)ptr;
+		(*flag) = 0;
+		if (xorgWayland)
+			(*flag) = HW_SKIP_CONSOLE;
+		return TRUE;
+	default:
+		/* Unknown or deprecated function */
+		return FALSE;
+	}
+}
+
 /*
  * This contains the functions needed by the server after loading the
  * driver module.  It must be supplied, and gets added the driver list by
@@ -88,7 +108,7 @@ _X_EXPORT DriverRec NV = {
 	NVAvailableOptions,
 	NULL,
 	0,
-	NULL,
+	nouveau_driver_func,
 	nouveau_device_match,
 	NVPciProbe
 };
@@ -214,18 +234,46 @@ NVPciProbe(DriverPtr drv, int entity_num, struct pci_device *pci_dev,
 	drmVersion *version;
 	int chipset, ret;
 	char *busid;
+	struct xwl_screen *xwl_screen = NULL;
 
-	if (!xf86LoaderCheckSymbol("DRICreatePCIBusID")) {
-		xf86DrvMsg(-1, X_ERROR, "[drm] No DRICreatePCIBusID symbol\n");
-		return FALSE;
-	}
-	busid = DRICreatePCIBusID(pci_dev);
+	if (xorgWayland) {
+		xwl_screen = xwl_screen_create ();
+		if (!xwl_screen) {
+			xf86DrvMsg(-1, X_ERROR, "Failed to initialise xwayland.\n");
+			return FALSE;
+		}
+		if (xwl_drm_pre_init(xwl_screen) != Success) {
+			xwl_screen_destroy(xwl_screen);
+			xf86DrvMsg(-1, X_ERROR, "Failed to initialise xwayland drm.\n");
+			return FALSE;
+		}
+		ret = nouveau_device_wrap(xwl_screen_get_drm_fd(xwl_screen), 0, &dev);
+		if (ret) {
+			xwl_screen_destroy(xwl_screen);
+			xf86DrvMsg(-1, X_ERROR, "[drm] Failed to create drm device.\n");
+			return FALSE;
+		}
+	} else {
+	        if (!xf86LoaderCheckSymbol("DRICreatePCIBusID")) {
+		        xf86DrvMsg(-1, X_ERROR, "[drm] No DRICreatePCIBusID symbol\n");
+		        return FALSE;
+        	}
+        	busid = DRICreatePCIBusID(pci_dev);
 
-	ret = nouveau_device_open(busid, &dev);
-	if (ret) {
-		xf86DrvMsg(-1, X_ERROR, "[drm] failed to open device\n");
-		free(busid);
-		return FALSE;
+        	ret = nouveau_device_open(busid, &dev);
+	        if (ret) {
+        		xf86DrvMsg(-1, X_ERROR, "[drm] failed to open device\n");
+        		free(busid);
+		        return FALSE;
+        	}
+
+        	ret = drmCheckModesettingSupported(busid);
+	        free(busid);
+
+        	if (ret) {
+        		xf86DrvMsg(-1, X_ERROR, "[drm] KMS not enabled\n");
+        		return FALSE;
+        	}
 	}
 
 	/* Check the version reported by the kernel module.  In theory we
@@ -241,13 +289,6 @@ NVPciProbe(DriverPtr drv, int entity_num, struct pci_device *pci_dev,
 
 	chipset = dev->chipset;
 	nouveau_device_del(&dev);
-
-	ret = drmCheckModesettingSupported(busid);
-	free(busid);
-	if (ret) {
-		xf86DrvMsg(-1, X_ERROR, "[drm] KMS not enabled\n");
-		return FALSE;
-	}
 
 	switch (chipset & 0xf0) {
 	case 0x00:
@@ -265,14 +306,17 @@ NVPciProbe(DriverPtr drv, int entity_num, struct pci_device *pci_dev,
 	case 0xe0:
 		break;
 	default:
+		xwl_screen_destroy(xwl_screen);
 		xf86DrvMsg(-1, X_ERROR, "Unknown chipset: NV%02x\n", chipset);
 		return FALSE;
 	}
 
 	pScrn = xf86ConfigPciEntity(pScrn, 0, entity_num, NVChipsets,
 				    NULL, NULL, NULL, NULL, NULL);
-	if (!pScrn)
+	if (!pScrn) {
+		xwl_screen_destroy(xwl_screen);
 		return FALSE;
+	}
 
 	pScrn->driverVersion    = NV_VERSION;
 	pScrn->driverName       = NV_DRIVER_NAME;
@@ -286,6 +330,8 @@ NVPciProbe(DriverPtr drv, int entity_num, struct pci_device *pci_dev,
 	pScrn->EnterVT          = NVEnterVT;
 	pScrn->LeaveVT          = NVLeaveVT;
 	pScrn->FreeScreen       = NVFreeScreen;
+
+	pScrn->driverPrivate    = xwl_screen;
 
 	xf86SetEntitySharable(entity_num);
 
@@ -333,7 +379,11 @@ NVEnterVT(VT_FUNC_ARGS_DECL)
 
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "NVEnterVT is called.\n");
 
-	ret = drmSetMaster(pNv->dev->fd);
+	if (pNv->xwl_screen) {
+		ret = 0;
+	} else {
+		ret = drmSetMaster(pNv->dev->fd);
+	}
 	if (ret)
 		ErrorF("Unable to get master: %s\n", strerror(errno));
 
@@ -361,7 +411,11 @@ NVLeaveVT(VT_FUNC_ARGS_DECL)
 
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "NVLeaveVT is called.\n");
 
-	ret = drmDropMaster(pNv->dev->fd);
+	if (pNv->xwl_screen) {
+		ret = 0;
+	} else {
+		ret = drmDropMaster(pNv->dev->fd);
+	}
 	if (ret)
 		ErrorF("Error dropping master: %d\n", ret);
 }
@@ -374,6 +428,9 @@ NVFlushCallback(CallbackListPtr *list, pointer user_data, pointer call_data)
 
 	if (pScrn->vtSema && !pNv->NoAccel)
 		nouveau_pushbuf_kick(pNv->pushbuf, pNv->pushbuf->channel);
+	if (pNv->xwl_screen)
+		xwl_screen_post_damage(pNv->xwl_screen);
+
 }
 
 static void 
@@ -392,6 +449,9 @@ NVBlockHandler (BLOCKHANDLER_ARGS_DECL)
 
 	if (pNv->VideoTimerCallback) 
 		(*pNv->VideoTimerCallback)(pScrn, currentTime.milliseconds);
+
+	if (pNv->xwl_screen)
+		xwl_screen_post_damage(pNv->xwl_screen);
 }
 
 static Bool
@@ -406,6 +466,9 @@ NVCreateScreenResources(ScreenPtr pScreen)
 		return FALSE;
 	pScreen->CreateScreenResources = NVCreateScreenResources;
 
+	if (pNv->xwl_screen)
+		xwl_screen_init(pNv->xwl_screen, pScreen);
+
 	drmmode_fbcon_copy(pScreen);
 	if (!NVEnterVT(VT_FUNC_ARGS(0)))
 		return FALSE;
@@ -417,6 +480,25 @@ NVCreateScreenResources(ScreenPtr pScreen)
 
 	return TRUE;
 }
+
+static int nouveau_create_window_buffer(struct xwl_window *xwl_window,
+					PixmapPtr pixmap)
+{
+	uint32_t name;
+	struct nouveau_bo *bo;
+
+	bo = nouveau_pixmap_bo(pixmap);
+	if (bo == NULL || nouveau_bo_name_get(bo, &name) != 0)
+		return BadDrawable;
+
+	return xwl_create_window_buffer_drm(xwl_window, pixmap, name);
+}
+
+static struct xwl_driver xwl_driver = {
+	.version = 1,
+	.use_drm = 1,
+	.create_window_buffer = nouveau_create_window_buffer
+};
 
 /*
  * This is called at the end of each server generation.  It restores the
@@ -431,6 +513,9 @@ NVCloseScreen(CLOSE_SCREEN_ARGS_DECL)
 {
 	ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
 	NVPtr pNv = NVPTR(pScrn);
+
+	if (pNv->xwl_screen)
+		xwl_screen_close(pNv->xwl_screen);
 
 	drmmode_screen_fini(pScreen);
 
@@ -499,6 +584,9 @@ NVFreeScreen(FREE_SCREEN_ARGS_DECL)
 	if (!pNv)
 		return;
 
+	if (pNv->xwl_screen)
+		xwl_screen_destroy(pNv->xwl_screen);
+
 	NVCloseDRM(pScrn);
 
 	free(pScrn->driverPrivate);
@@ -560,22 +648,29 @@ NVPreInitDRM(ScrnInfoPtr pScrn)
 	NVPtr pNv = NVPTR(pScrn);
 	char *bus_id;
 	int ret;
+	int drm_fd;
 
 	if (!NVDRIGetVersion(pScrn))
 		return FALSE;
 
-	/* Load the kernel module, and open the DRM */
-	bus_id = DRICreatePCIBusID(pNv->PciInfo);
-	ret = DRIOpenDRMMaster(pScrn, SAREA_MAX, bus_id, "nouveau");
-	free(bus_id);
-	if (!ret) {
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			   "[drm] error opening the drm\n");
-		return FALSE;
+	if (pNv->xwl_screen)
+		drm_fd = xwl_screen_get_drm_fd(pNv->xwl_screen);
+	else {
+		/* Load the kernel module, and open the DRM */
+		bus_id = DRICreatePCIBusID(pNv->PciInfo);
+		ret = DRIOpenDRMMaster(pScrn, SAREA_MAX, bus_id, "nouveau");
+		free(bus_id);
+		if (!ret) {
+			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+				   "[drm] error opening the drm\n");
+			return FALSE;
+		}
+
+		drm_fd = DRIMasterFD(pScrn);
 	}
 
 	/* Initialise libdrm_nouveau */
-	ret = nouveau_device_wrap(DRIMasterFD(pScrn), 1, &pNv->dev);
+	ret = nouveau_device_wrap(drm_fd, 1, &pNv->dev);
 	if (ret) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "[drm] error creating device\n");
@@ -586,7 +681,7 @@ NVPreInitDRM(ScrnInfoPtr pScrn)
 	if (ret)
 		return FALSE;
 
-	pNv->drm_device_name = drmGetDeviceNameFromFd(DRIMasterFD(pScrn));
+	pNv->drm_device_name = drmGetDeviceNameFromFd(drm_fd);
 
 	return TRUE;
 }
@@ -602,6 +697,7 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 	uint64_t v;
 	int ret;
 	int defaultDepth = 0;
+	struct xwl_screen *xwl_screen = pScrn->driverPrivate;
 
 	if (flags & PROBE_DETECT) {
 		EntityInfoPtr pEnt = xf86GetEntityInfo(pScrn->entityList[0]);
@@ -635,6 +731,8 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 	if (!(pScrn->driverPrivate = xnfcalloc(1, sizeof(NVRec))))
 		return FALSE;
 	pNv = NVPTR(pScrn);
+
+	pNv->xwl_screen = xwl_screen;
 
 	/* Get the entity, and make sure it is PCI. */
 	pNv->pEnt = xf86GetEntityInfo(pScrn->entityList[0]);
@@ -772,6 +870,12 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 	memcpy(pNv->Options, NVOptions, sizeof(NVOptions));
 	xf86ProcessOptions(pScrn->scrnIndex, pScrn->options, pNv->Options);
 
+	if (xwl_screen) {
+		if (!xwl_screen_pre_init(pScrn, xwl_screen, 0, &xwl_driver)) {
+			NVPreInitFail("Failed to initialise xwayland\n");
+		}
+	}
+
 	from = X_DEFAULT;
 
 	pNv->HWCursor = TRUE;
@@ -813,7 +917,7 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 	pNv->ce_enabled =
 		xf86ReturnOptValBool(pNv->Options, OPTION_ASYNC_COPY, FALSE);
 
-	if (!pNv->NoAccel && pNv->dev->chipset >= 0x11) {
+	if (!pNv->NoAccel && pNv->dev->chipset >= 0x11 && !xwl_screen) {
 		from = X_DEFAULT;
 		if (xf86GetOptValBool(pNv->Options, OPTION_GLX_VBLANK,
 				      &pNv->glx_vblank))
@@ -882,7 +986,11 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 	xf86DrvMsg(pScrn->scrnIndex, from, "Swap limit set to %d [Max allowed %d]%s\n",
 		   pNv->swap_limit, pNv->max_swap_limit, reason);
 
-	ret = drmmode_pre_init(pScrn, pNv->dev->fd, pScrn->bitsPerPixel >> 3);
+	if (xwl_screen)
+		ret = TRUE;
+	else
+		ret = drmmode_pre_init(pScrn, pNv->dev->fd, pScrn->bitsPerPixel >> 3);
+
 	if (ret == FALSE)
 		NVPreInitFail("Kernel modesetting failed to initialize\n");
 
@@ -1241,7 +1349,8 @@ NVScreenInit(SCREEN_INIT_ARGS_DECL)
 	if (serverGeneration == 1)
 		xf86ShowUnusedOptions(pScrn->scrnIndex, pScrn->options);
 
-	drmmode_screen_init(pScreen);
+	if (!pNv->xwl_screen)
+		drmmode_screen_init(pScreen);
 	return TRUE;
 }
 

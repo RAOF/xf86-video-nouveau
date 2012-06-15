@@ -15,6 +15,9 @@
 #else
 #error "This driver requires a DRI-enabled X server"
 #endif
+#ifdef XORG_WAYLAND
+#include <xwayland.h>
+#endif
 
 #define NV_ARCH_03  0x03
 #define NV_ARCH_04  0x04
@@ -71,6 +74,8 @@ typedef struct _NVRec {
     drmVersionPtr       pKernelDRMVersion;
 
 	void *drmmode; /* for KMS */
+
+	struct xwl_screen *xwl_screen;
 
 	/* DRM interface */
 	struct nouveau_device *dev;

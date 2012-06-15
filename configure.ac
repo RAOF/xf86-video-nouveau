@@ -110,6 +110,13 @@ AC_SUBST([moduledir])
 DRIVER_NAME=nouveau
 AC_SUBST([DRIVER_NAME])
 
+AC_CHECK_DECL(XORG_WAYLAND,
+	      [have_xwayland=yes],
+	      [have_xwayland=no],
+	      [#include <xorg-server.h>])
+AM_CONDITIONAL([XORG_WAYLAND], test "x$have_xwayland" = "xyes")
+
+
 XORG_MANPAGE_SECTIONS
 XORG_RELEASE_VERSION
 

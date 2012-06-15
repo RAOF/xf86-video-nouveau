@@ -653,6 +653,21 @@ nouveau_dri2_flip_event_handler(unsigned int frame, unsigned int tv_sec,
 	free(flip);
 }
 
+#ifdef XORG_WAYLAND
+static int nouveau_auth_magic(ScreenPtr pScreen, uint32_t magic)
+{
+	ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
+	NVPtr pNv = NVPTR(pScrn);
+
+	/* Not wayland, go stragight to drm */
+	if (!xorgWayland)
+		return drmAuthMagic(pNv->dev->fd, magic);
+
+	/* Forward the request to our host */
+	return xwl_drm_authenticate(pNv->xwl_screen, magic);
+}
+#endif
+
 Bool
 nouveau_dri2_init(ScreenPtr pScreen)
 {
@@ -681,6 +696,10 @@ nouveau_dri2_init(ScreenPtr pScreen)
 	dri2.ScheduleSwap = nouveau_dri2_schedule_swap;
 	dri2.ScheduleWaitMSC = nouveau_dri2_schedule_wait;
 	dri2.GetMSC = nouveau_dri2_get_msc;
+
+#if defined(XORG_WAYLAND)
+	dri2.AuthMagic2 = nouveau_auth_magic;
+#endif
 
 #if DRI2INFOREC_VERSION >= 6
 	dri2.SwapLimitValidate = nouveau_dri2_swap_limit_validate;

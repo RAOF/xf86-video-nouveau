@@ -54,6 +54,10 @@ nouveau_drv_la_SOURCES = \
 			 drmmode_display.c \
 			 vl_hwmc.c
 
+if !XORG_WAYLAND
+nouveau_drv_la_SOURCES += xwayland_compat.c
+endif
+
 EXTRA_DIST = hwdefs/nv_3ddefs.xml.h \
 	     hwdefs/nv_m2mf.xml.h \
 	     hwdefs/nv_object.xml.h \

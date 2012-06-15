@@ -65,6 +65,13 @@
 
 #include "compat-api.h"
 
+#ifdef XORG_WAYLAND
+#include <xwayland.h>
+#include <xf86Priv.h>
+#else
+#include "xwayland_compat.h"
+#endif
+
 #include "nouveau_local.h"
 
 #include "nv_type.h"

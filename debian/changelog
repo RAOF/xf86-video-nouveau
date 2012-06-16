@@ -1,10 +1,10 @@
-xserver-xorg-video-nouveau (1:0.0.16+git20120614+36d3f8c-1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:0.0.16+git20120614+36d3f8c-1) unstable; urgency=low
 
   [ Maarten Lankhorst ]
   * New upstream snapshot. Picks up a EXA fix for pre-nv50 cards.
   * Cherry pick the silence flip event patch too to reduce spam.
 
- -- Maarten Lankhorst <maarten.lankhorst@canonical.com>  Fri, 14 Jun 2012 09:49:45 +0200
+ -- Sven Joachim <svenjoac@gmx.de>  Sat, 16 Jun 2012 17:30:53 +0200
 
 xserver-xorg-video-nouveau (1:0.0.16+git20120529+ace77b6-1) experimental; urgency=low
 

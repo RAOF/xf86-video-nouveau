@@ -1,4 +1,4 @@
-commit d99486bda5601cb887ac898037a2dfad795aeb8f
+commit 930ccbcd59c3b949eda3e851a68497fc63f12a75
 Author: Maarten Lankhorst <m.b.lankhorst@gmail.com>
 Date:   Wed May 23 09:29:29 2012 +0200
 
@@ -8,7 +8,7 @@ Date:   Wed May 23 09:29:29 2012 +0200
   in configure.ac, required by the included libdrm_nouveau. ]
 
 diff --git a/configure.ac b/configure.ac
-index afb6cde..233b4ba 100644
+index cc8732b..5d6e335 100644
 --- a/configure.ac
 +++ b/configure.ac
 @@ -52,6 +52,9 @@ AC_DISABLE_STATIC
@@ -2262,7 +2262,7 @@ index 0000000..db2f619
 +
 +#endif
 diff --git a/src/Makefile.am b/src/Makefile.am
-index 0bdd780..aa3eb59 100644
+index bf9c967..f0cafe9 100644
 --- a/src/Makefile.am
 +++ b/src/Makefile.am
 @@ -23,13 +23,16 @@
@@ -2280,6 +2280,6 @@ index 0bdd780..aa3eb59 100644
  nouveau_drv_la_SOURCES = \
 +			 ../drm_nouveau/abi16.c ../drm_nouveau/bufctx.c \
 +			 ../drm_nouveau/nouveau.c ../drm_nouveau/pushbuf.c \
- 			 nouveau_class.h nouveau_local.h \
  			 nouveau_exa.c nouveau_xv.c nouveau_dri2.c \
  			 nouveau_wfb.c \
+ 			 nv_accel_common.c \

@@ -1,3 +1,12 @@
+xserver-xorg-video-nouveau (1:1.0.0-1) UNRELEASED; urgency=low
+
+  [ Maarten Lankhorst ]
+  * New upstream snapshot.
+    - Bump to 1.0.0 release.
+    - Pick up a firefox tab draw fix for nv50 cards.
+
+ -- Maarten Lankhorst <maarten.lankhorst@canonical.com>  Mon, 18 Jun 2012 09:20:34 +0200
+
 xserver-xorg-video-nouveau (1:0.0.16+git20120614+36d3f8c-1) unstable; urgency=low
 
   [ Maarten Lankhorst ]

@@ -1,3 +1,33 @@
+commit 6dbf4ea12600275775123f9f564469454415da55
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Jun 18 13:28:07 2012 +1000
+
+    bump version to 1.0.0
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 5e74cee90eeb4e8e638b371a5f1a2c6737be70ff
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Jun 18 15:36:47 2012 +1000
+
+    distcheck fixes
+
+commit 383aef5a8882a65efdf34e8d2681cd5ccec51b22
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Jun 18 13:31:37 2012 +1000
+
+    exa: drop massive gart allocation in favour of smaller ones, as needed
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 52836c15b1c0e4f28d92ca9e6c76872481917fd4
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Jun 18 13:20:18 2012 +1000
+
+    nv50/exa: somehow fix firefox tabs not being drawn properly since vp xfrm
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
 commit 36d3f8c28c55c05ccf4efa985831d2d249bad2fe
 Author: Ben Skeggs <bskeggs@redhat.com>
 Date:   Wed Jun 13 22:41:58 2012 +1000

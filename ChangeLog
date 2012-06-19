@@ -1,3 +1,54 @@
+commit 0d2b414aff634c996e0468bb0df1894d6c28c09e
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue Jun 19 10:12:37 2012 +1000
+
+    bump version to 1.0.1
+
+commit f84c28c9e6a0079e527655994689cb9c2ba51999
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue Jun 19 09:49:02 2012 +1000
+
+    exa: fix remaining signed datatype issues
+    
+    Wasn't expecting this situation, apparently it happens..
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 794141f22179a09ba6b2a094ba72316c298fee8b
+Author: Maarten Maathuis <madman2003@gmail.com>
+Date:   Tue Jun 19 00:28:59 2012 +0200
+
+    exa: fix various issues in transfer bo handling
+    
+    Thanks to "Christoph Bumiller <e0425955@student.tuwien.ac.at>" for hinting
+    at the cause of the memory leak.
+    
+    Signed-off-by: Maarten Maathuis <madman2003@gmail.com>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 661d0cf42219a063f8faa0518f3490ddd38209ff
+Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+Date:   Mon Jun 18 17:13:55 2012 +0200
+
+    nve0: fix and improve NV12 shader
+    
+    Only the 1st set of coordinates is valid.
+    NVC0 was fixed in 9a3e579f637267b32efc46cfce5d1a36a41323b1.
+
+commit a907efe44177298cb1c42a236aab087c14b71657
+Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+Date:   Mon Jun 18 13:50:27 2012 +0200
+
+    nvc0/accel: oops fix method size in previous patch
+
+commit 8805e20bb9c1cfb7477f3eb7def64c5711fc91ea
+Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+Date:   Mon Jun 18 13:41:43 2012 +0200
+
+    nvc0/accel: use correct (signed) vertex data type in PUSH_VTX1/2s
+    
+    Could have kept s16 but decided against mask and shift.
+
 commit 6dbf4ea12600275775123f9f564469454415da55
 Author: Ben Skeggs <bskeggs@redhat.com>
 Date:   Mon Jun 18 13:28:07 2012 +1000

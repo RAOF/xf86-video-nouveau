@@ -1,8 +1,8 @@
-xserver-xorg-video-nouveau (1:1.0.0-1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:1.0.1-1) UNRELEASED; urgency=low
 
   [ Maarten Lankhorst ]
   * New upstream snapshot.
-    - Bump to 1.0.0 release.
+    - Bump to 1.0.1 release.
     - Pick up a firefox tab draw fix for nv50 cards.
 
   [ Sven Joachim ]

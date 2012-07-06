@@ -1,3 +1,10 @@
+xserver-xorg-video-nouveau (1:1.0.1-2) UNRELEASED; urgency=low
+
+  * Cherry-pick commit d1bc38b ("nv40/exa: fix shaders on big-endian
+    machines") from upstream (Closes: #679127).
+
+ -- Sven Joachim <svenjoac@gmx.de>  Fri, 06 Jul 2012 17:26:36 +0200
+
 xserver-xorg-video-nouveau (1:1.0.1-1) unstable; urgency=low
 
   [ Maarten Lankhorst ]

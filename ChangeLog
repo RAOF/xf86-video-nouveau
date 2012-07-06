@@ -1,3 +1,11 @@
+commit d1bc38b6673c54af61196056c489383fba8dced8
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Jul 6 16:23:50 2012 +1000
+
+    nv40/exa: fix shaders on big-endian machines
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
 commit 0d2b414aff634c996e0468bb0df1894d6c28c09e
 Author: Ben Skeggs <bskeggs@redhat.com>
 Date:   Tue Jun 19 10:12:37 2012 +1000

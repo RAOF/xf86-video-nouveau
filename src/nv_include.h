@@ -17,9 +17,6 @@
 #define PPC_MMIO_IS_BE
 #include "compiler.h"
 
-/* Drivers for PCI hardware need this */
-#include "xf86PciInfo.h"
-
 /* Drivers that need to access the PCI config space directly need this */
 #include "xf86Pci.h"
 
@@ -66,19 +63,13 @@
 
 #define NV_DMA_DEBUG 0
 
+#include "compat-api.h"
+
+#include "nouveau_local.h"
+
 #include "nv_type.h"
 #include "nv_proto.h"
 #include "nv_dma.h"
-#include "nouveau_class.h"
 #include "sarea.h"
-
-#include "nouveau_drmif.h"
-#include "nouveau_device.h"
-#include "nouveau_channel.h"
-#include "nouveau_bo.h"
-#include "nouveau_grobj.h"
-#include "nouveau_notifier.h"
-#include "nouveau_local.h"
-#include "nouveau_pushbuf.h"
 
 #endif /* __NV_INCLUDE_H__ */

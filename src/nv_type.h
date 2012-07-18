@@ -11,7 +11,6 @@
 #include "dri.h"
 #include <stdbool.h>
 #include <stdint.h>
-#include "nouveau_device.h"
 #include "xf86Crtc.h"
 #else
 #error "This driver requires a DRI-enabled X server"
@@ -25,6 +24,7 @@
 #define NV_ARCH_40  0x40
 #define NV_ARCH_50  0x50
 #define NV_ARCH_C0  0xc0
+#define NV_ARCH_E0  0xe0
 
 /* NV50 */
 typedef struct _NVRec *NVPtr;
@@ -35,11 +35,7 @@ typedef struct _NVRec {
     Bool                Primary;
     Bool		Secondary;
 
-    /* Various pinned memory regions */
     struct nouveau_bo * scanout;
-    struct nouveau_bo * offscreen;
-    void *              offscreen_map;
-    struct nouveau_bo * GART;
 
     Bool                NoAccel;
     Bool                HWCursor;
@@ -53,6 +49,9 @@ typedef struct _NVRec {
     Bool		tiled_scanout;
     Bool		glx_vblank;
     Bool		has_pageflip;
+    int 		swap_limit;
+    int 		max_swap_limit;
+
     ScreenBlockHandlerProcPtr BlockHandler;
     CreateScreenResourcesProcPtr CreateScreenResources;
     CloseScreenProcPtr  CloseScreen;
@@ -78,36 +77,42 @@ typedef struct _NVRec {
 	char *drm_device_name;
 
 	/* GPU context */
-	struct nouveau_channel *chan;
-	struct nouveau_notifier *notify0;
-	struct nouveau_notifier *vblank_sem;
-	struct nouveau_grobj *NvContextSurfaces;
-	struct nouveau_grobj *NvContextBeta1;
-	struct nouveau_grobj *NvContextBeta4;
-	struct nouveau_grobj *NvImagePattern;
-	struct nouveau_grobj *NvRop;
-	struct nouveau_grobj *NvRectangle;
-	struct nouveau_grobj *NvImageBlit;
-	struct nouveau_grobj *NvScaledImage;
-	struct nouveau_grobj *NvClipRectangle;
-	struct nouveau_grobj *NvMemFormat;
-	struct nouveau_grobj *NvImageFromCpu;
-	struct nouveau_grobj *Nv2D;
-	struct nouveau_grobj *Nv3D;
-	struct nouveau_grobj *NvSW;
-	struct nouveau_bo *tesla_scratch;
-	struct nouveau_bo *shader_mem;
-	struct nouveau_bo *xv_filtertable_mem;
+	struct nouveau_client *client;
+
+	struct nouveau_bo *transfer;
+	CARD32 transfer_offset;
+
+	struct nouveau_object *channel;
+	struct nouveau_pushbuf *pushbuf;
+	struct nouveau_bufctx *bufctx;
+	struct nouveau_object *notify0;
+	struct nouveau_object *vblank_sem;
+	struct nouveau_object *NvNull;
+	struct nouveau_object *NvContextSurfaces;
+	struct nouveau_object *NvContextBeta1;
+	struct nouveau_object *NvContextBeta4;
+	struct nouveau_object *NvImagePattern;
+	struct nouveau_object *NvRop;
+	struct nouveau_object *NvRectangle;
+	struct nouveau_object *NvImageBlit;
+	struct nouveau_object *NvScaledImage;
+	struct nouveau_object *NvClipRectangle;
+	struct nouveau_object *NvMemFormat;
+	struct nouveau_object *NvImageFromCpu;
+	struct nouveau_object *Nv2D;
+	struct nouveau_object *Nv3D;
+	struct nouveau_object *NvSW;
+	struct nouveau_bo *scratch;
+
+	Bool ce_enabled;
+	struct nouveau_object *ce_channel;
+	struct nouveau_pushbuf *ce_pushbuf;
+	struct nouveau_object *NvCopy;
 
 	/* Acceleration context */
 	PixmapPtr pspix, pmpix, pdpix;
-	PicturePtr pspict, pmpict, pdpict;
+	PicturePtr pspict, pmpict;
 	Pixel fg_colour;
-	Pixel planemask;
-	int alu;
-	unsigned point_x, point_y;
-	unsigned width_in, width_out;
-	unsigned height_in, height_out;
 } NVRec;
 
 #define NVPTR(p) ((NVPtr)((p)->driverPrivate))
@@ -205,5 +210,8 @@ static inline int nv_cursor_width(NVPtr pNv)
 {
 	return pNv->dev->chipset >= 0x10 ? NV10_CURSOR_SIZE : NV04_CURSOR_SIZE;
 }
+
+#define xFixedToFloat(v) \
+	((float)xFixedToInt((v)) + ((float)xFixedFrac(v) / 65536.0))
 
 #endif /* __NV_STRUCT_H__ */

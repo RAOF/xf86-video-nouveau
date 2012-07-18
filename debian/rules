@@ -1,89 +1,40 @@
 #!/usr/bin/make -f
 
-include debian/xsfbs/xsfbs.mk
+export CPPFLAGS := $(shell dpkg-buildflags --get CPPFLAGS)
+export CFLAGS := $(shell dpkg-buildflags --get CFLAGS)
+export LDFLAGS := $(shell dpkg-buildflags --get LDFLAGS)
 
-CFLAGS = -Wall -g
-ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
-	CFLAGS += -O0
-else
-	CFLAGS += -O2
-endif
-ifeq (,$(findstring nostrip,$(DEB_BUILD_OPTIONS)))
-	INSTALL_PROGRAM += -s
-endif
+# Needed to find ChangeLog:
+override_dh_auto_configure:
+	dh_auto_configure -- CURDIR="$(CURDIR)"
 
-DEB_HOST_ARCH      ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
-DEB_HOST_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
-DEB_BUILD_GNU_TYPE ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
+# Install in debian/tmp to retain control through dh_install:
+override_dh_auto_install:
+	dh_auto_install --destdir=debian/tmp
 
-ifeq ($(DEB_BUILD_GNU_TYPE), $(DEB_HOST_GNU_TYPE))
-	confflags += --build=$(DEB_HOST_GNU_TYPE)
-else
-	confflags += --build=$(DEB_BUILD_GNU_TYPE) --host=$(DEB_HOST_GNU_TYPE)
-endif
+# Kill *.la files, and forget no-one:
+override_dh_install:
+	find debian/tmp -name '*.la' -delete
+	dh_install --fail-missing
 
-# kbd_drv.a isn't phenomenally useful; kbd_drv.so more so
-confflags += --disable-static
+# Debug package:
+override_dh_strip:
+	dh_strip --dbg-package=xserver-xorg-video-nouveau-dbg
 
+# That's a plugin, use appropriate warning level:
+override_dh_shlibdeps:
+	dh_shlibdeps -- --warnings=6
+
+%:
+	dh $@ --with quilt,autoreconf,xsf --builddirectory=build/
+
+
+# Build me a tarball:
 get-orig-source:
 	git clone git://anongit.freedesktop.org/git/nouveau/xf86-video-nouveau && \
 	cd xf86-video-nouveau && git log > ChangeLog && \
 	REVISION=$$(git show --pretty=format:"%h" HEAD | head -n1) && cd .. && \
-	PREFIX=xserver-xorg-video-nouveau_0.0.16+git$$(date +%Y%m%d)+$$REVISION && \
+	PREFIX=xserver-xorg-video-nouveau_1.0.1+git$$(date +%Y%m%d)+$$REVISION && \
 	rm -rf xf86-video-nouveau/.git && \
 	tar czf $$PREFIX.orig.tar.gz xf86-video-nouveau && \
 	rm -rf xf86-video-nouveau
-
-build: build-stamp
-build-stamp: configure
-	dh_testdir
-	test -d build || mkdir build
-	cd build && \
-	../configure --prefix=/usr --mandir=\$${prefix}/share/man \
-	             --infodir=\$${prefix}/share/info $(confflags) \
-	             CFLAGS="$(CFLAGS)" CURDIR=$(CURDIR)
-	cd build && $(MAKE)
-	touch $@
-
-configure: $(STAMP_DIR)/patch
-	dh_testdir
-	autoreconf -vfi
-
-clean: xsfclean
-	dh_testdir
-	dh_testroot
-	rm -f build-stamp
-	[ ! -f Makefile ] || $(MAKE) distclean
-	rm -rf build
-	dh_clean
-
-install: build
-	dh_testdir
-	dh_testroot
-	dh_prep
-	dh_installdirs
-
-	cd build && $(MAKE) DESTDIR=$(CURDIR)/debian/tmp install
-	find $(CURDIR)/debian/tmp -name '*.la' -delete
-
-binary-arch: build install serverabi
-	dh_testdir
-	dh_testroot
-	dh_installdocs
-	dh_installexamples
-	dh_installchangelogs
-	dh_install --sourcedir=debian/tmp --fail-missing
-	dh_link
-	dh_strip --dbg-package=xserver-xorg-video-nouveau-dbg
-	dh_compress
-	dh_fixperms
-	dh_installdeb
-	dh_shlibdeps -- --warnings=6
-	dh_gencontrol
-	dh_md5sums
-	dh_builddeb
-
-binary-indep: build install
-
-binary: binary-indep binary-arch
-.PHONY: build clean binary-indep binary-arch binary install get-orig-source

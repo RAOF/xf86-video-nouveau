@@ -3,11 +3,12 @@
 
 /* in drmmode_display.c */
 Bool drmmode_pre_init(ScrnInfoPtr pScrn, int fd, int cpp);
-void drmmode_adjust_frame(ScrnInfoPtr pScrn, int x, int y, int flags);
+void drmmode_adjust_frame(ScrnInfoPtr pScrn, int x, int y);
 void drmmode_remove_fb(ScrnInfoPtr pScrn);
 Bool drmmode_cursor_init(ScreenPtr pScreen);
 void drmmode_fbcon_copy(ScreenPtr pScreen);
-Bool drmmode_page_flip(DrawablePtr draw, PixmapPtr back, void *priv);
+Bool drmmode_page_flip(DrawablePtr draw, PixmapPtr back, void *priv,
+		       unsigned int ref_crtc_hw_id);
 void drmmode_screen_init(ScreenPtr pScreen);
 void drmmode_screen_fini(ScreenPtr pScreen);
 
@@ -26,6 +27,8 @@ Bool nouveau_allocate_surface(ScrnInfoPtr scrn, int width, int height,
 void nouveau_dri2_vblank_handler(int fd, unsigned int frame,
 				 unsigned int tv_sec, unsigned int tv_usec,
 				 void *event_data);
+void nouveau_dri2_flip_event_handler(unsigned int frame, unsigned int tv_sec,
+				     unsigned int tv_usec, void *event_data);
 Bool nouveau_dri2_init(ScreenPtr pScreen);
 void nouveau_dri2_fini(ScreenPtr pScreen);
 
@@ -33,6 +36,7 @@ void nouveau_dri2_fini(ScreenPtr pScreen);
 void NVInitVideo(ScreenPtr);
 void NVTakedownVideo(ScrnInfoPtr);
 void NVSetPortDefaults (ScrnInfoPtr pScrn, NVPortPrivPtr pPriv);
+void NVXVComputeBicubicFilter(struct nouveau_bo *, unsigned, unsigned);
 unsigned int nv_window_belongs_to_crtc(ScrnInfoPtr, int, int, int, int);
 
 /* in nv_dma.c */
@@ -43,6 +47,10 @@ void  NVTakedownDma(ScrnInfoPtr pScrn);
 Bool nouveau_exa_init(ScreenPtr pScreen);
 Bool nouveau_exa_pixmap_is_onscreen(PixmapPtr pPixmap);
 bool nv50_style_tiled_pixmap(PixmapPtr ppix);
+Bool NVAccelM2MF(NVPtr pNv, int w, int h, int cpp, uint32_t srco, uint32_t dsto,
+		 struct nouveau_bo *s, int sd, int sp, int sh, int sx, int sy,
+		 struct nouveau_bo *d, int dd, int dp, int dh, int dx, int dy);
+
 
 /* in nouveau_wfb.c */
 void nouveau_wfb_setup_wrap(ReadMemoryProcPtr *, WriteMemoryProcPtr *,
@@ -78,6 +86,9 @@ void NV04EXACopy(PixmapPtr, int, int, int, int, int, int);
 void NV04EXADoneCopy(PixmapPtr);
 Bool NV04EXAUploadIFC(ScrnInfoPtr, const char *src, int src_pitch,
 		      PixmapPtr pdPix, int x, int y, int w, int h, int cpp);
+Bool NV04EXARectM2MF(NVPtr pNv, int, int, int,
+		     struct nouveau_bo *, uint32_t, int, int, int, int, int,
+		     struct nouveau_bo *, uint32_t, int, int, int, int, int);
 
 /* in nv10_exa.c */
 Bool NVAccelInitNV10TCL(ScrnInfoPtr pScrn);
@@ -132,7 +143,17 @@ int NV40SetTexturePortAttribute(ScrnInfoPtr, Atom, INT32, pointer);
 
 /* in nv50_accel.c */
 void NV50SyncToVBlank(PixmapPtr ppix, BoxPtr box);
+Bool NVAccelInitM2MF_NV50(ScrnInfoPtr pScrn);
+Bool NVAccelInitCopy_NV50(ScrnInfoPtr pScrn);
+Bool NVAccelInit2D_NV50(ScrnInfoPtr pScrn);
 Bool NVAccelInitNV50TCL(ScrnInfoPtr pScrn);
+
+/* in nvc0_accel.c */
+Bool NVAccelInitM2MF_NVC0(ScrnInfoPtr pScrn);
+Bool NVAccelInitCopy_NVC0(ScrnInfoPtr pScrn);
+Bool NVAccelInitP2MF_NVE0(ScrnInfoPtr pScrn);
+Bool NVAccelInit2D_NVC0(ScrnInfoPtr pScrn);
+Bool NVAccelInit3D_NVC0(ScrnInfoPtr pScrn);
 
 /* in nv50_exa.c */
 Bool NV50EXAPrepareSolid(PixmapPtr, int, Pixel, Pixel);
@@ -148,6 +169,41 @@ void NV50EXAComposite(PixmapPtr, int, int, int, int, int, int, int, int);
 void NV50EXADoneComposite(PixmapPtr);
 Bool NV50EXAUploadSIFC(const char *src, int src_pitch,
 		       PixmapPtr pdPix, int x, int y, int w, int h, int cpp);
+Bool NV50EXARectM2MF(NVPtr pNv, int, int, int,
+		     struct nouveau_bo *, uint32_t, int, int, int, int, int,
+		     struct nouveau_bo *, uint32_t, int, int, int, int, int);
+Bool NVA3EXARectCopy(NVPtr pNv, int, int, int,
+		     struct nouveau_bo *, uint32_t, int, int, int, int, int,
+		     struct nouveau_bo *, uint32_t, int, int, int, int, int);
+
+/* in nvc0_exa.c */
+Bool NVC0AccelUploadM2MF(PixmapPtr pdpix, int x, int y, int w, int h,
+			 const char *src, int src_pitch);
+Bool NVC0AccelDownloadM2MF(PixmapPtr pspix, int x, int y, int w, int h,
+			   char *dst, unsigned dst_pitch);
+
+Bool NVC0EXAPrepareSolid(PixmapPtr, int, Pixel, Pixel);
+void NVC0EXASolid(PixmapPtr, int, int, int, int);
+void NVC0EXADoneSolid(PixmapPtr);
+Bool NVC0EXAPrepareCopy(PixmapPtr, PixmapPtr, int, int, int, Pixel);
+void NVC0EXACopy(PixmapPtr, int, int, int, int, int, int);
+void NVC0EXADoneCopy(PixmapPtr);
+Bool NVC0EXACheckComposite(int, PicturePtr, PicturePtr, PicturePtr);
+Bool NVC0EXAPrepareComposite(int, PicturePtr, PicturePtr, PicturePtr,
+				  PixmapPtr, PixmapPtr, PixmapPtr);
+void NVC0EXAComposite(PixmapPtr, int, int, int, int, int, int, int, int);
+void NVC0EXADoneComposite(PixmapPtr);
+Bool NVC0EXAUploadSIFC(const char *src, int src_pitch,
+		       PixmapPtr pdPix, int x, int y, int w, int h, int cpp);
+Bool NVC0EXARectM2MF(NVPtr pNv, int, int, int,
+		     struct nouveau_bo *, uint32_t, int, int, int, int, int,
+		     struct nouveau_bo *, uint32_t, int, int, int, int, int);
+Bool NVC0EXARectCopy(NVPtr pNv, int, int, int,
+		     struct nouveau_bo *, uint32_t, int, int, int, int, int,
+		     struct nouveau_bo *, uint32_t, int, int, int, int, int);
+Bool NVE0EXARectCopy(NVPtr pNv, int, int, int,
+		     struct nouveau_bo *, uint32_t, int, int, int, int, int,
+		     struct nouveau_bo *, uint32_t, int, int, int, int, int);
 
 /* nv50_xv.c */
 int nv50_xv_image_put(ScrnInfoPtr, struct nouveau_bo *, int, int, int, int,
@@ -159,6 +215,13 @@ int nv50_xv_port_attribute_set(ScrnInfoPtr, Atom, INT32, pointer);
 int nv50_xv_port_attribute_get(ScrnInfoPtr, Atom, INT32 *, pointer);
 void nv50_xv_set_port_defaults(ScrnInfoPtr, NVPortPrivPtr);
 void nv50_xv_csc_update(ScrnInfoPtr, NVPortPrivPtr);
+
+/* nvc0_xv.c */
+int nvc0_xv_image_put(ScrnInfoPtr, struct nouveau_bo *, int, int, int, int,
+		      BoxPtr, int, int, int, int, uint16_t, uint16_t,
+		      uint16_t, uint16_t, uint16_t, uint16_t,
+		      RegionPtr, PixmapPtr, NVPortPrivPtr);
+void nvc0_xv_csc_update(NVPtr, float, float *, float *, float *);
 
 /* To support EXA 2.0, 2.1 has this in the header */
 #ifndef exaMoveInPixmap

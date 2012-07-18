@@ -83,6 +83,21 @@ typedef struct {
     drmmode_prop_ptr props;
 } drmmode_output_private_rec, *drmmode_output_private_ptr;
 
+typedef struct {
+    drmmode_ptr drmmode;
+    unsigned old_fb_id;
+    int flip_count;
+    void *event_data;
+    unsigned int fe_frame;
+    unsigned int fe_tv_sec;
+    unsigned int fe_tv_usec;
+} drmmode_flipdata_rec, *drmmode_flipdata_ptr;
+
+typedef struct {
+    drmmode_flipdata_ptr flipdata;
+    Bool dispatch_me;
+} drmmode_flipevtcarrier_rec, *drmmode_flipevtcarrier_ptr;
+
 static void drmmode_output_dpms(xf86OutputPtr output, int mode);
 
 static drmmode_ptr
@@ -102,7 +117,7 @@ static PixmapPtr
 drmmode_pixmap_wrap(ScreenPtr pScreen, int width, int height, int depth,
 		    int bpp, int pitch, struct nouveau_bo *bo, void *data)
 {
-	NVPtr pNv = NVPTR(xf86Screens[pScreen->myNum]);
+	NVPtr pNv = NVPTR(xf86ScreenToScrn(pScreen));
 	PixmapPtr ppix;
 
 	if (!pNv->NoAccel)
@@ -186,7 +201,7 @@ drmmode_crtc_dpms(xf86CrtcPtr drmmode_crtc, int mode)
 void
 drmmode_fbcon_copy(ScreenPtr pScreen)
 {
-	ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+	ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
 	NVPtr pNv = NVPTR(pScrn);
 #if XORG_VERSION_CURRENT >= 10999001
 	ExaDriverPtr exa = pNv->EXADriverPtr;
@@ -211,7 +226,7 @@ drmmode_fbcon_copy(ScreenPtr pScreen)
 	if (!fbcon_id)
 		goto fallback;
 
-	fb = drmModeGetFB(nouveau_device(pNv->dev)->fd, fbcon_id);
+	fb = drmModeGetFB(pNv->dev->fd, fbcon_id);
 	if (!fb) {
 		xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
 			   "Failed to retrieve fbcon fb: id %d\n", fbcon_id);
@@ -257,13 +272,12 @@ drmmode_fbcon_copy(ScreenPtr pScreen)
 	exa->PrepareCopy(pspix, pdpix, 0, 0, GXcopy, ~0);
 	exa->Copy(pdpix, 0, 0, 0, 0, w, h);
 	exa->DoneCopy(pdpix);
-	FIRE_RING (pNv->chan);
+	PUSH_KICK(pNv->pushbuf);
 
 	/* wait for completion before continuing, avoids seeing a momentary
 	 * flash of "corruption" on occasion
 	 */
-	nouveau_bo_map(pNv->scanout, NOUVEAU_BO_RDWR);
-	nouveau_bo_unmap(pNv->scanout);
+	nouveau_bo_wait(pNv->scanout, NOUVEAU_BO_RDWR, pNv->client);
 
 	pScreen->DestroyPixmap(pdpix);
 	pScreen->DestroyPixmap(pspix);
@@ -272,10 +286,9 @@ drmmode_fbcon_copy(ScreenPtr pScreen)
 
 fallback:
 #endif
-	if (nouveau_bo_map(pNv->scanout, NOUVEAU_BO_WR))
+	if (nouveau_bo_map(pNv->scanout, NOUVEAU_BO_WR, pNv->client))
 		return;
 	memset(pNv->scanout->map, 0x00, pNv->scanout->size);
-	nouveau_bo_unmap(pNv->scanout);
 }
 
 static Bool
@@ -395,9 +408,8 @@ drmmode_load_cursor_argb (xf86CrtcPtr crtc, CARD32 *image)
 	struct nouveau_bo *cursor = drmmode_crtc->cursor;
 	drmmode_ptr drmmode = drmmode_crtc->drmmode;
 
-	nouveau_bo_map(cursor, NOUVEAU_BO_WR);
+	nouveau_bo_map(cursor, NOUVEAU_BO_WR, pNv->client);
 	convert_cursor(cursor->map, image, 64, nv_cursor_width(pNv));
-	nouveau_bo_unmap(cursor);
 
 	if (drmmode_crtc->cursor_visible) {
 		drmModeSetCursor(drmmode->fd, drmmode_crtc->mode_crtc->crtc_id,
@@ -447,7 +459,8 @@ drmmode_crtc_shadow_allocate(xf86CrtcPtr crtc, int width, int height)
 		return NULL;
 	}
 
-	ret = nouveau_bo_map(drmmode_crtc->rotate_bo, NOUVEAU_BO_RDWR);
+	ret = nouveau_bo_map(drmmode_crtc->rotate_bo, NOUVEAU_BO_RDWR,
+			     NVPTR(scrn)->client);
 	if (ret) {
 		xf86DrvMsg(crtc->scrn->scrnIndex, X_ERROR,
 			   "Couldn't get virtual address of shadow scanout\n");
@@ -455,7 +468,6 @@ drmmode_crtc_shadow_allocate(xf86CrtcPtr crtc, int width, int height)
 		return NULL;
 	}
 	virtual = drmmode_crtc->rotate_bo->map;
-	nouveau_bo_unmap(drmmode_crtc->rotate_bo);
 
 	ret = drmModeAddFB(drmmode->fd, width, height, crtc->scrn->depth,
 			   crtc->scrn->bitsPerPixel, drmmode_crtc->rotate_pitch,
@@ -496,7 +508,6 @@ drmmode_crtc_shadow_destroy(xf86CrtcPtr crtc, PixmapPtr rotate_pixmap, void *dat
 {
 	drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
 	drmmode_ptr drmmode = drmmode_crtc->drmmode;
-	NVPtr pNv = NVPTR(crtc->scrn);
 
 	if (rotate_pixmap)
 		FreeScratchPixmapHeader(rotate_pixmap);
@@ -504,8 +515,7 @@ drmmode_crtc_shadow_destroy(xf86CrtcPtr crtc, PixmapPtr rotate_pixmap, void *dat
 	if (data) {
 		drmModeRmFB(drmmode->fd, drmmode_crtc->rotate_fb_id);
 		drmmode_crtc->rotate_fb_id = 0;
-		if (!pNv->NoAccel)
-			nouveau_bo_ref(NULL, &drmmode_crtc->rotate_bo);
+		nouveau_bo_ref(NULL, &drmmode_crtc->rotate_bo);
 		drmmode_crtc->rotate_pixmap = NULL;
 	}
 }
@@ -558,7 +568,7 @@ drmmode_crtc_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int num)
 	drmmode_crtc->drmmode = drmmode;
 
 	ret = nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_MAP, 0,
-			     64*64*4, &drmmode_crtc->cursor);
+			     64*64*4, NULL, &drmmode_crtc->cursor);
 	assert(ret == 0);
 
 	crtc->driver_private = drmmode_crtc;
@@ -1066,7 +1076,7 @@ static Bool
 drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
 {
 	xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(scrn);
-	ScreenPtr screen = screenInfo.screens[scrn->scrnIndex];
+	ScreenPtr screen = xf86ScrnToScreen(scrn);
 	NVPtr pNv = NVPTR(scrn);
 	drmmode_crtc_private_ptr
 		    drmmode_crtc = xf86_config->crtc[0]->driver_private;
@@ -1099,15 +1109,13 @@ drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
 	scrn->virtualY = height;
 	scrn->displayWidth = pitch / (scrn->bitsPerPixel >> 3);
 
-	nouveau_bo_map(pNv->scanout, NOUVEAU_BO_RDWR);
+	nouveau_bo_map(pNv->scanout, NOUVEAU_BO_RDWR, pNv->client);
 
 	ret = drmModeAddFB(drmmode->fd, width, height, scrn->depth,
 			   scrn->bitsPerPixel, pitch, pNv->scanout->handle,
 			   &drmmode->fb_id);
-	if (ret) {
-		nouveau_bo_unmap(pNv->scanout);
+	if (ret)
 		goto fail;
-	}
 
 	if (pNv->ShadowPtr) {
 		free(pNv->ShadowPtr);
@@ -1124,7 +1132,15 @@ drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height)
 #if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 9
 	scrn->pixmapPrivate.ptr = ppix->devPrivate.ptr;
 #endif
-	nouveau_bo_unmap(pNv->scanout);
+
+	if (!pNv->NoAccel) {
+		pNv->EXADriverPtr->PrepareSolid(ppix, GXcopy, ~0, 0);
+		pNv->EXADriverPtr->Solid(ppix, 0, 0, width, height);
+		pNv->EXADriverPtr->DoneSolid(ppix);
+		nouveau_bo_map(pNv->scanout, NOUVEAU_BO_RDWR, pNv->client);
+	} else {
+		memset(pNv->scanout->map, 0x00, pNv->scanout->size);
+	}
 
 	for (i = 0; i < xf86_config->num_crtc; i++) {
 		xf86CrtcPtr crtc = xf86_config->crtc[i];
@@ -1158,7 +1174,6 @@ static const xf86CrtcConfigFuncsRec drmmode_xf86crtc_config_funcs = {
 
 Bool drmmode_pre_init(ScrnInfoPtr pScrn, int fd, int cpp)
 {
-	xf86CrtcConfigPtr   xf86_config;
 	drmmode_ptr drmmode;
 	int i;
 
@@ -1167,7 +1182,6 @@ Bool drmmode_pre_init(ScrnInfoPtr pScrn, int fd, int cpp)
 	drmmode->fb_id = 0;
 
 	xf86CrtcConfigInit(pScrn, &drmmode_xf86crtc_config_funcs);
-	xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
 
 	drmmode->cpp = cpp;
 	drmmode->mode_res = drmModeGetResources(drmmode->fd);
@@ -1177,8 +1191,8 @@ Bool drmmode_pre_init(ScrnInfoPtr pScrn, int fd, int cpp)
 	xf86CrtcSetSizeRange(pScrn, 320, 200, drmmode->mode_res->max_width,
 			     drmmode->mode_res->max_height);
 	for (i = 0; i < drmmode->mode_res->count_crtcs; i++) {
-		if (!xf86IsEntityShared(pScrn->entityList[0] ||
-		     pScrn->confScreen->device->screen == i))
+		if (!xf86IsEntityShared(pScrn->entityList[0]) ||
+		     (pScrn->confScreen->device->screen == i))
 			drmmode_crtc_init(pScrn, drmmode, i);
 	}
 
@@ -1191,7 +1205,7 @@ Bool drmmode_pre_init(ScrnInfoPtr pScrn, int fd, int cpp)
 }
 
 void
-drmmode_adjust_frame(ScrnInfoPtr scrn, int x, int y, int flags)
+drmmode_adjust_frame(ScrnInfoPtr scrn, int x, int y)
 {
 	xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(scrn);
 	xf86OutputPtr output = config->output[config->compat_output];
@@ -1227,7 +1241,7 @@ drmmode_remove_fb(ScrnInfoPtr pScrn)
 int
 drmmode_cursor_init(ScreenPtr pScreen)
 {
-	NVPtr pNv = NVPTR(xf86Screens[pScreen->myNum]);
+	NVPtr pNv = NVPTR(xf86ScreenToScrn(pScreen));
 	int size = nv_cursor_width(pNv);
 	int flags = HARDWARE_CURSOR_TRUECOLOR_AT_8BPP |
 		    HARDWARE_CURSOR_SOURCE_MASK_INTERLEAVE_32 |
@@ -1238,13 +1252,17 @@ drmmode_cursor_init(ScreenPtr pScreen)
 }
 
 Bool
-drmmode_page_flip(DrawablePtr draw, PixmapPtr back, void *priv)
+drmmode_page_flip(DrawablePtr draw, PixmapPtr back, void *priv,
+		  unsigned int ref_crtc_hw_id)
 {
-	ScrnInfoPtr scrn = xf86Screens[draw->pScreen->myNum];
+	ScrnInfoPtr scrn = xf86ScreenToScrn(draw->pScreen);
 	xf86CrtcConfigPtr config = XF86_CRTC_CONFIG_PTR(scrn);
 	drmmode_crtc_private_ptr crtc = config->crtc[0]->driver_private;
 	drmmode_ptr mode = crtc->drmmode;
 	int ret, i, old_fb_id;
+	int emitted = 0;
+	drmmode_flipdata_ptr flipdata;
+	drmmode_flipevtcarrier_ptr flipcarrier;
 
 	old_fb_id = mode->fb_id;
 	ret = drmModeAddFB(mode->fd, scrn->virtualX, scrn->virtualY,
@@ -1257,24 +1275,64 @@ drmmode_page_flip(DrawablePtr draw, PixmapPtr back, void *priv)
 		return FALSE;
 	}
 
+	flipdata = calloc(1, sizeof(drmmode_flipdata_rec));
+	if (!flipdata) {
+		xf86DrvMsg(scrn->scrnIndex, X_WARNING,
+		"flip queue: data alloc failed.\n");
+		goto error_undo;
+	}
+
+	flipdata->event_data = priv;
+	flipdata->drmmode = mode;
+
 	for (i = 0; i < config->num_crtc; i++) {
 		crtc = config->crtc[i]->driver_private;
 
 		if (!config->crtc[i]->enabled)
 			continue;
 
+		flipdata->flip_count++;
+
+		flipcarrier = calloc(1, sizeof(drmmode_flipevtcarrier_rec));
+		if (!flipcarrier) {
+			xf86DrvMsg(scrn->scrnIndex, X_WARNING,
+				   "flip queue: carrier alloc failed.\n");
+			if (emitted == 0)
+				free(flipdata);
+			goto error_undo;
+		}
+
+		/* Only the reference crtc will finally deliver its page flip
+		 * completion event. All other crtc's events will be discarded.
+		 */
+		flipcarrier->dispatch_me = ((1 << i) == ref_crtc_hw_id);
+		flipcarrier->flipdata = flipdata;
+
 		ret = drmModePageFlip(mode->fd, crtc->mode_crtc->crtc_id,
-				      mode->fb_id, 0, priv);
+				      mode->fb_id, DRM_MODE_PAGE_FLIP_EVENT,
+				      flipcarrier);
 		if (ret) {
 			xf86DrvMsg(scrn->scrnIndex, X_WARNING,
 				   "flip queue failed: %s\n", strerror(errno));
-			return FALSE;
+
+			free(flipcarrier);
+			if (emitted == 0)
+				free(flipdata);
+			goto error_undo;
 		}
+
+		emitted++;
 	}
 
-	drmModeRmFB(mode->fd, old_fb_id);
+	/* Will release old fb after all crtc's completed flip. */
+	flipdata->old_fb_id = old_fb_id;
 
 	return TRUE;
+
+error_undo:
+	drmModeRmFB(mode->fd, mode->fb_id);
+	mode->fb_id = old_fb_id;
+	return FALSE;
 }
 
 #ifdef HAVE_LIBUDEV
@@ -1288,7 +1346,7 @@ drmmode_handle_uevents(ScrnInfoPtr scrn)
 	if (!dev)
 		return;
 
-	RRGetInfo(screenInfo.screens[scrn->scrnIndex], TRUE);
+	RRGetInfo(xf86ScrnToScreen(scrn), TRUE);
 	udev_device_unref(dev);
 }
 #endif
@@ -1340,6 +1398,42 @@ drmmode_uevent_fini(ScrnInfoPtr scrn)
 }
 
 static void
+drmmode_flip_handler(int fd, unsigned int frame, unsigned int tv_sec,
+		     unsigned int tv_usec, void *event_data)
+{
+	drmmode_flipevtcarrier_ptr flipcarrier = event_data;
+	drmmode_flipdata_ptr flipdata = flipcarrier->flipdata;
+	drmmode_ptr drmmode = flipdata->drmmode;
+
+	/* Is this the event whose info shall be delivered to higher level? */
+	if (flipcarrier->dispatch_me) {
+		/* Yes: Cache msc, ust for later delivery. */
+		flipdata->fe_frame = frame;
+		flipdata->fe_tv_sec = tv_sec;
+		flipdata->fe_tv_usec = tv_usec;
+	}
+	free(flipcarrier);
+
+	/* Last crtc completed flip? */
+	flipdata->flip_count--;
+	if (flipdata->flip_count > 0)
+		return;
+
+	/* Release framebuffer */
+	drmModeRmFB(drmmode->fd, flipdata->old_fb_id);
+
+	if (flipdata->event_data == NULL) {
+		free(flipdata);
+		return;
+	}
+
+	/* Deliver cached msc, ust from reference crtc to flip event handler */
+	nouveau_dri2_flip_event_handler(flipdata->fe_frame, flipdata->fe_tv_sec,
+					flipdata->fe_tv_usec, flipdata->event_data);
+	free(flipdata);
+}
+
+static void
 drmmode_wakeup_handler(pointer data, int err, pointer p)
 {
 	ScrnInfoPtr scrn = data;
@@ -1361,7 +1455,7 @@ drmmode_wakeup_handler(pointer data, int err, pointer p)
 void
 drmmode_screen_init(ScreenPtr pScreen)
 {
-	ScrnInfoPtr scrn = xf86Screens[pScreen->myNum];
+	ScrnInfoPtr scrn = xf86ScreenToScrn(pScreen);
 	drmmode_ptr drmmode = drmmode_from_scrn(scrn);
 
 	drmmode_uevent_init(scrn);
@@ -1369,6 +1463,10 @@ drmmode_screen_init(ScreenPtr pScreen)
 	/* Plug in a vblank event handler */
 	drmmode->event_context.version = DRM_EVENT_CONTEXT_VERSION;
 	drmmode->event_context.vblank_handler = nouveau_dri2_vblank_handler;
+
+	/* Plug in a pageflip completion event handler */
+	drmmode->event_context.page_flip_handler = drmmode_flip_handler;
+
 	AddGeneralSocket(drmmode->fd);
 
 	/* Register a wakeup handler to get informed on DRM events */
@@ -1379,7 +1477,7 @@ drmmode_screen_init(ScreenPtr pScreen)
 void
 drmmode_screen_fini(ScreenPtr pScreen)
 {
-	ScrnInfoPtr scrn = xf86Screens[pScreen->myNum];
+	ScrnInfoPtr scrn = xf86ScreenToScrn(pScreen);
 
 	drmmode_uevent_fini(scrn);
 }

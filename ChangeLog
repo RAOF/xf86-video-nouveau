@@ -1,3 +1,1099 @@
+commit d1bc38b6673c54af61196056c489383fba8dced8
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Jul 6 16:23:50 2012 +1000
+
+    nv40/exa: fix shaders on big-endian machines
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 0d2b414aff634c996e0468bb0df1894d6c28c09e
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue Jun 19 10:12:37 2012 +1000
+
+    bump version to 1.0.1
+
+commit f84c28c9e6a0079e527655994689cb9c2ba51999
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue Jun 19 09:49:02 2012 +1000
+
+    exa: fix remaining signed datatype issues
+    
+    Wasn't expecting this situation, apparently it happens..
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 794141f22179a09ba6b2a094ba72316c298fee8b
+Author: Maarten Maathuis <madman2003@gmail.com>
+Date:   Tue Jun 19 00:28:59 2012 +0200
+
+    exa: fix various issues in transfer bo handling
+    
+    Thanks to "Christoph Bumiller <e0425955@student.tuwien.ac.at>" for hinting
+    at the cause of the memory leak.
+    
+    Signed-off-by: Maarten Maathuis <madman2003@gmail.com>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 661d0cf42219a063f8faa0518f3490ddd38209ff
+Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+Date:   Mon Jun 18 17:13:55 2012 +0200
+
+    nve0: fix and improve NV12 shader
+    
+    Only the 1st set of coordinates is valid.
+    NVC0 was fixed in 9a3e579f637267b32efc46cfce5d1a36a41323b1.
+
+commit a907efe44177298cb1c42a236aab087c14b71657
+Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+Date:   Mon Jun 18 13:50:27 2012 +0200
+
+    nvc0/accel: oops fix method size in previous patch
+
+commit 8805e20bb9c1cfb7477f3eb7def64c5711fc91ea
+Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+Date:   Mon Jun 18 13:41:43 2012 +0200
+
+    nvc0/accel: use correct (signed) vertex data type in PUSH_VTX1/2s
+    
+    Could have kept s16 but decided against mask and shift.
+
+commit 6dbf4ea12600275775123f9f564469454415da55
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Jun 18 13:28:07 2012 +1000
+
+    bump version to 1.0.0
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 5e74cee90eeb4e8e638b371a5f1a2c6737be70ff
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Jun 18 15:36:47 2012 +1000
+
+    distcheck fixes
+
+commit 383aef5a8882a65efdf34e8d2681cd5ccec51b22
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Jun 18 13:31:37 2012 +1000
+
+    exa: drop massive gart allocation in favour of smaller ones, as needed
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 52836c15b1c0e4f28d92ca9e6c76872481917fd4
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Jun 18 13:20:18 2012 +1000
+
+    nv50/exa: somehow fix firefox tabs not being drawn properly since vp xfrm
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 36d3f8c28c55c05ccf4efa985831d2d249bad2fe
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Wed Jun 13 22:41:58 2012 +1000
+
+    dri2: kill debug spam
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 4dbc132f22721e3da30eb2e7fc97dea5b8458df6
+Author: Viktor Novotný <noviktor@seznam.cz>
+Date:   Sat May 26 22:15:20 2012 +0200
+
+    nv04/exa: Reset destination surface offset in the same call of NV04EXACopy
+    
+    Fixes FDO bug #48954.
+    
+    Signed-off-by: Viktor Novotný <noviktor@seznam.cz>
+    Reviewed-by: Marcin Slusarz <marcin.slusarz@gmail.com>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit aab58ee9a8025422416458d637c203af5ba008fd
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Tue Jun 5 12:34:06 2012 +0100
+
+    nouveau: i is used inside the function
+    
+    fixes build, reported by tallica on irc.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 619e99731f772ff8d9d93cd1d6d83de5d450574b
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Tue Jun 5 11:02:54 2012 +0100
+
+    nouveau: port to compat server API.
+    
+    This ports to the new server API.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit d2e16c62b5054f34a439e504bfa261fb71f5d7de
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Tue Jun 5 10:57:30 2012 +0100
+
+    nouveau: drop flags arg to adjust frame
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit fadf83d7b373282ccbf0fa0c01928a35ff717a5e
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu May 31 15:46:57 2012 +1000
+
+    nvc0/exa: add support for async UTS/DFS copies
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 1600f7f202721c4b29c29e94f7fb69dc313b99dc
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu May 31 15:40:45 2012 +1000
+
+    nva3/exa: add support for async UTS/DFS copies
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit ace77b6b1304826f4004bde23809b55d476b0615
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue May 29 21:21:57 2012 +1000
+
+    disable fermi accel on 0.0.16 interface
+    
+    Kepler accel support broke some assumption made by the older kernel
+    interface, and Fermi shares the same code.  It can't work (without
+    some annoying hacks anyway) with the 0.0.16 kernel anymore.
+
+commit 7041e30ab8beb627bbf569367961a658e79c2bdc
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Wed May 23 14:18:24 2012 +0100
+
+    vl_hwmc: add missing compat include.
+    
+    Reported-by: tallica on irc.
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 2abf8467cfb7a7648ce73ba5bcbbc62219d65d6d
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Wed May 23 11:29:05 2012 +0100
+
+    nouveau: add compat-api.h to makefile.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 1d861ad716861c57b2b81531d21840d7c8de024b
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Wed May 23 11:15:06 2012 +0100
+
+    nouveau: convert two more xf86Screens access to macros
+    
+    for some reason the script missed these two, just fix them manually.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 5625fb84efc699e65da0062ae101915a49f2969b
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Wed May 23 11:13:30 2012 +0100
+
+    nouveau: convert scrn/screen to using new interfaces
+    
+    This commit was generated with the util/modular/x-driver-screen-scrn-conv.sh
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 9f037f7be516ebf8fa4a67a5c9ff258594ab353e
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Wed May 23 11:12:59 2012 +0100
+
+    nouveau: add initial compat-api header
+    
+    This just provides the scrn conversion and picture stuff so far.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 581564466c47ab0435ecca3cf4d82c03e1b30259
+Author: Francisco Jerez <currojerez@riseup.net>
+Date:   Tue May 8 14:02:44 2012 +0200
+
+    dri2: Don't try to page-flip pixmaps (fdo bug 49351).
+    
+    Reported-by: Marcin Slusarz <marcin.slusarz@gmail.com>
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit b1efc807392d372e6a232aad9d16ae6e1b1c1916
+Author: Marcin Slusarz <marcin.slusarz@gmail.com>
+Date:   Sun Apr 15 13:46:42 2012 +0200
+
+    nv50: add missing pushbuf space check in NV50SyncToVBlank
+    
+    Regression from "WIP: port to new libdrm".
+
+commit 174f17072005971fee6e4eb76a273c3cc1aa10d3
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue Apr 24 21:55:03 2012 +1000
+
+    nv40/exa: return false from gradient picture setup
+    
+    Not implemented yet.  Shouldn't hit this anyway, fallback in check_composite,
+    but, best be safe :)
+    
+    Reported-by: Maarten Maathuis <madman2003@gmail.com>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 60edf2a87b928f413385443335493cb27da30a48
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue Apr 24 10:54:51 2012 +1000
+
+    nv40/exa: support for solid pictures
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 067b8416ad1ab3e71ebbb8db8bfb82ff6041939b
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Apr 23 17:49:57 2012 +1000
+
+    nv30/exa: implement support for solid pictures using register combiners
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit b09a61780ea6710b679a6a099e35987e7a5f559f
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Apr 23 14:49:22 2012 +1000
+
+    nv10/exa: implement support for solid pictures
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 9583753a205c585ec844dfb7168513a2c2a157ba
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Apr 20 20:52:01 2012 +1000
+
+    nv10/exa: use fixed-function texture matrix for transforms
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit c21c0ae57717bfb0fceab82505009a5382d1428d
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Apr 20 20:30:44 2012 +1000
+
+    nv30/exa: use fixed-function texture matrix for src/mask transforms
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 24a5ca723539a940bc2dabcc50aa631f0d9d4219
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Apr 20 15:24:45 2012 +1000
+
+    nv40/exa: do transforms in vertex program
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 9a3e579f637267b32efc46cfce5d1a36a41323b1
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Apr 19 16:58:52 2012 +1000
+
+    nvc0/exa: port recent nv50 changes (vp transform, solid pictures, etc)
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 8ea09db1a1e8dff7c341dc3da17edefda7e56e6d
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Apr 19 13:46:03 2012 +1000
+
+    nv50/exa: support solid pictures
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit b48bcc094beecf521899dd63c8fdbccfd534e5cd
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Apr 19 13:21:27 2012 +1000
+
+    nv50/exa: perform texcoord transformations in vertex program
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 5ac2ca8c56ec8b055878c8ac4cbc8ca74379abda
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Apr 19 09:52:24 2012 +1000
+
+    nv50: implement and use PUSH_DATAu
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 6c41b3d7a8799daa9d0b34dcfbfc5c891c24fffa
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue Apr 17 11:07:05 2012 +1000
+
+    nv30/nv40: upload shaders directly from rankine/curie init
+    
+    Also removes A8 surface shader hack, and implements proper shaders for
+    the specific purpose.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit ec019b3a50475b7ff1b5e0a5dbe14e5ef677bd9e
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue Apr 17 09:30:49 2012 +1000
+
+    Keep a single buffer for random accel data, rather than 3 different ones
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit fb3a36b1e5af0f81bb266da894d3442eed8e4e55
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Wed Mar 28 16:38:30 2012 +1000
+
+    nve0: initial exa/xv acceleration for kepler chipsets
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 95be16d8cd88db1ace0ac4568b4c67b51fd30fd9
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Mar 29 19:55:27 2012 +1000
+
+    nvc0: create scratch buffer before initialising m2mf
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 4896c87484e1cf1e5421de377b6b83890948664d
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Mar 29 19:47:21 2012 +1000
+
+    nvc0: switch to kepler's subchannel assignments (see note)
+    
+    This will bust for kernels with nouveau ABI version < 1.0.0... It should
+    be possible to add compat for 0.0.16 however...
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 4225b486cb8ab98d27ba23874096ff0879d45575
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Mar 29 15:56:02 2012 +1000
+
+    nvc0: tidy and cull a heap of fermi init (stuff in default grctx)
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 007dd62a8c5244bc5e71fe8f32520fb35b67a237
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Mar 29 15:28:03 2012 +1000
+
+    nvc0: punt shaders out to a header file
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 1c7651532975cf738b3aac4ec3c3b46187e24eea
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Mar 29 14:25:15 2012 +1000
+
+    nvc0: do tic/tsc binding only once, at startup
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 180d8778764913ed061e68520603c0925477faba
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Mar 29 14:21:25 2012 +1000
+
+    nvc0: replace direct inline m2mf with inline helper to do the same
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit e70d801ae9287eab5e82f4d467dc8cd4be1b31a8
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Dec 9 18:15:32 2011 +1000
+
+    WIP: port to new libdrm
+    
+    calim: nv50,nvc0/xv: fix src_w/h width/height confusion
+
+commit ab7291d368ddc66ad21c5ad5caa0faeee42ccaf1
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Wed Mar 21 14:56:55 2012 +1000
+
+    xv: don't try to init textured video without 3d engine object
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit fe7e0425a4a43b2a7d4743a0a90a86724c3b6775
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Mar 12 11:59:29 2012 +1000
+
+    recognise kepler
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit f5d1cd2cb6808838ae1a188cef888eaa9582c76d
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue Mar 6 08:16:51 2012 +1000
+
+    remove use of xf86PciInfo.h, deprecated now apparently
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 248de8cdbd6d0bc062633b49896fa4791148cd3b
+Author: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+Date:   Thu Feb 16 00:45:24 2012 +0100
+
+    dri2: Fix corner case crash for swaplimit > 1
+    
+    If a swaplimit > 1 is set on a server which
+    supports the swaplimit api (XOrg 1.12.0+),
+    the following can happen:
+    
+    1. Client calls glXSwapBuffersMscOML() with a
+       swap target > 1 vblank in the future, or a
+       client calls glXSwapbuffers() while the swap
+       interval is set to > 1 (unusual but possible).
+    
+    2. nouveau_dri2_finish_swap() is therefore called
+       only at the target vblank, instead of immediately.
+    
+    3. Because of the deferred execution of
+       nouveu_dri2_finish_swap(), the OpenGL client
+       can call x-servers DRI2GetBuffersWithFormat()
+       before nouveau_dri2_finish_swap() executes and
+       it deletes pixmaps that would be needed by
+       nouveau_dri2_finish_swap() --> Segfault --> Crash.
+    
+    Prevent this: When a swap is scheduled into the
+    future, we temporarily reduce the swaplimit to 1
+    until nouveau_dri2_finish_swap() is done, then
+    restore it to its original value. This throttles
+    the client inside the server in DRI2ThrottleClient()
+    before it can call the evil DRI2GetbuffersWithFormat().
+    
+    The client will still be released one video refresh
+    interval before swap completion, so there is still
+    some potential win.
+    
+    This doesn't affect the common case of swapping at
+    the next vblank, where this throttling is not needed
+    or done.
+    
+    Signed-off-by: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 247465ec5e21ce7151ef1e6a3e7644bc74d48a5b
+Author: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+Date:   Thu Feb 16 00:45:23 2012 +0100
+
+    dri2: Reimplement hack for triple-buffering on old X-Servers.
+    
+    X-Servers before 1.12.0 don't have the DRI2SwapLimit()
+    API. On these, default to a swaplimit of 1 - double-buffering.
+    
+    This patch implements support for swap limit of 2,
+    triple-buffering, on old x-servers via Francisco Jerez
+    previous hack:
+    
+    Return DRI2SwapComplete() before the swap has completed,
+    so clients don't get blocked on the pending swap. This
+    allows for a "triple-buffering look-alike" behaviour, but
+    breaks the swap scheduling and timestamping defined
+    in the OML_sync_control spec, so applications which
+    rely on conformant behaviour will break with a swap
+    limit of 2 on pre 1.12.0 x-servers.
+    
+    Signed-off-by: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit a1902ffaab1f6807fdaac0fce49f784e7208d1a5
+Author: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+Date:   Thu Feb 16 00:45:22 2012 +0100
+
+    dri2: Allow vblank controlled swaps for redirected windows. Part II
+    
+    This part implements proper throttling for clients. For
+    vblank synchronized blits, it defers DRI2SwapComplete()
+    until 1 vblank after the framebuffer blit is submitted to
+    the gpu.
+    
+    Rationale:
+    
+    For unredirected windows, this is the earliest time the
+    "blit swap" can complete, as blits are submitted one vblank
+    before the target vblank and synchronized with vblank in the
+    gpu. This makes swap completion timestamps at least reasonable.
+    
+    For redirected windows, the compositor will probably pick
+    up the "blit swapped" frontbuffer pixmap of the window quickly,
+    but defer its own recomposition to the next vblank, at least
+    if sync to vblank for the compositor is on.
+    
+    Signed-off-by: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit c8572d329014afc0c79b5765468dcdfb65be0868
+Author: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+Date:   Thu Feb 16 00:45:21 2012 +0100
+
+    dri2: Allow vblank controlled swaps for redirected windows. Part I
+    
+    Make sure that swaps for redirected windows under a
+    compositor are still scheduled via vblank events, to
+    avoid effects like 2900 fps swaps under a compositor.
+    
+    See discussion with Francisco Jerez at:
+    
+    http://lists.freedesktop.org/archives/nouveau/2011-September/009278.html
+    http://lists.freedesktop.org/archives/nouveau/2011-September/009292.html
+    
+    This is part I of the agreed upon band-aid, in a separate patch.
+    
+    It allows to use vblank related functions on redirected
+    windows and thereby fixes functions from sgi_sync_control
+    and oml_sync_control extension, e.g., glXWaitForMscOML(),
+    glXGetSyncValuesOML(), glXWaitVideoSyncSGI, ...
+    
+    Signed-off-by: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 919643888045b102f3e10dfdeb6210ab14b6ecab
+Author: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+Date:   Thu Feb 16 00:45:20 2012 +0100
+
+    dri2: Fixes to swap scheduling.
+    
+    Fix some small off-by-one errors and a mismatch
+    between 32 bit kernel interfaces for vblank count
+    and 64 bit dri2 interfaces for target_msc et al.
+    
+    Return corrected target_msc to swap scheduling in
+    x-server.
+    
+    A revised version of the patch discussed here:
+    http://lists.freedesktop.org/archives/nouveau/2011-September/009143.html
+    
+    Signed-off-by: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 5ede4538366a352aa9726560f8d42e85df4aec82
+Author: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+Date:   Thu Feb 16 00:45:19 2012 +0100
+
+    dri2: Update front buffer pixmap and name before exchanging buffers
+    
+    Buffer exchange assumes that the front buffer pixmap and name
+    information is accurate. That may not be the case eg. if the window
+    has been (un)redirected since the buffer was created.
+    
+    This is a translation to nouveau of a fix that was originally developed
+    by Ville Syrjala <syrjala@sci.fi> for the ati/radeon ddx to fix the
+    same bug there.
+    
+    See thread at:
+    
+    http://lists.x.org/archives/xorg-devel/2011-May/021908.html
+    
+    Fixes FDO bug #35452.
+    
+    Signed-off-by: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 6fdf60b7288d49f889c80705aabc1db3bc327ba3
+Author: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+Date:   Thu Feb 16 00:45:18 2012 +0100
+
+    dri2: Add support for DRI2SwapLimit() API.
+    
+    Uses the new DRI2SwapLimit() API of X-Server 1.12+
+    to allow to change the maximum number of pending
+    swaps on a drawable before the OpenGL client is
+    throttled by the server.
+    
+    The new optional xorg.conf parameter "SwapLimit"
+    allows to select a new swap limit >= 1. The default
+    swap limit is 2 for triple-buffering on XOrg 1.12+,
+    1 for double-buffering on older servers, as we can't
+    change the swap limit there.
+    
+    Signed-off-by: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 820916e722db2997a53128f2f370d14a02d4401c
+Author: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+Date:   Thu Feb 16 00:45:17 2012 +0100
+
+    dri2: Implement handling of pageflip completion events.
+    
+    Requests pageflip completion events from the kernel.
+    Implements pageflip completion handler to finalize
+    and timestamp swaps.
+    
+    Completion handler includes a consistency check, and
+    disambiguation if multiple crtc's are involved in a
+    pageflip (e.g., clone mode, extendend desktop). Only
+    the timestamp of the crtc whose vblank event initially
+    triggered the swap is used, but handler waits for flip
+    completion on all involved crtc's before completing the
+    swap and releasing the old framebuffer.
+    
+    This code is almost identical to the code used in the
+    ati/radeon ddx and intel ddx.
+    
+    Signed-off-by: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 4da68cedbefef4f72c00bb088e179071490882c8
+Author: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+Date:   Thu Mar 1 19:11:14 2012 +0100
+
+    dri2: Fix can_exchange() to allow page-flipping on more mesa versions.
+    
+    can_exchange() returns false and thereby prevents page
+    flipping on some drawables where page flipping would
+    work fine. This due to non-matching drawable depths values
+    between front buffer pixmap and back buffer pixmap, because
+    front buffer pixmaps inherit the depth of the screen, typically
+    24 bits, whereas the depth value of back buffer pixmaps for a
+    given RGB8 or RGBA8 visual depends on the mesa version in use,
+    either 24 bits or 32 bits.
+    
+    Use bitsPerPixel instead of depth to decide if drawable
+    is flippable. This will still catch really incompatible
+    formats like 32 bpp vs. 16 bpp buffers.
+    
+    Tested for screen DefaultDepth 24 and also 30 bits
+    (for RGB10 framebuffers) on NV-50.
+    
+    The problem was fixed in the same way in the ati & intel ddx.
+    
+    Signed-off-by: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit b0d7f4ddd94154491d04dcb9698d63d61e9240dc
+Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+Date:   Mon Jan 9 15:17:27 2012 +0100
+
+    dri2: CreateBuffer format may be 0, use depth in that case
+
+commit 3d9f6b32e0ad72dc8c7db07d039d87e83d8fdb1d
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Dec 9 17:45:31 2011 +1000
+
+    nv50/xv: bump max dims to 8k
+    
+    Untested, but I don't see why this wouldn't work...
+
+commit 57c62228e2e67370feeeb421c369fbf940d30ca4
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Dec 9 17:44:07 2011 +1000
+
+    xv: stop using custom m2mf code
+
+commit ad402333157c437ccd2c639f5b3f3bcb81e78d6c
+Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+Date:   Sat Dec 10 13:32:24 2011 +0100
+
+    dri2: fix allocation of Z16 depth attachments
+
+commit 3d2a752ca8aafee5e1e94dabfd7deec439890e95
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Dec 1 11:31:49 2011 +1000
+
+    move away from libdrm's BEGIN_RING (and variants) macros
+    
+    subchan auto-assignment is now gone.
+
+commit b6cfdc01aeb5c2ab401ee81fff66bd0560abdfcc
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Dec 1 11:25:10 2011 +1000
+
+    Append _CLASS to object class id definitions
+    
+    I want to be able to use ring macros of the same name
+
+commit 1dadb5826363d0d8ed1a72209be18277550f8345
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Dec 1 09:06:24 2011 +1000
+
+    exa: create general m2mf rect copy for each chipset, use for UTS/DFS
+    
+    No point having duplicated UTS/DFS logic in each implementation.  This also
+    splits nv50 out into its own code, in preparation for it being made to not
+    use relocs at all.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit b5534a15a5f5e1c3bd6c92e3ed8391ff628c09bb
+Author: Marcin Slusarz <marcin.slusarz@gmail.com>
+Date:   Wed Nov 30 18:56:54 2011 +0100
+
+    fix typo in conversion to rnn headers
+
+commit 5975ce34a12d1943b2852d0f5fbe09358754c2ad
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Wed Nov 30 17:40:02 2011 +1000
+
+    convert entire ddx to rnn headers
+
+commit 9fa0c6c74d0b9f7d66ebe3c99184eaa13abeb1a0
+Author: Marcin Slusarz <marcin.slusarz@gmail.com>
+Date:   Sun Nov 6 20:32:10 2011 +0100
+
+    Default to 16bpp for low memory cards.
+
+commit 5aa30ae6554c957609929ef29d1b27c89e9a7f06
+Author: Marcin Slusarz <marcin.slusarz@gmail.com>
+Date:   Sun Nov 6 20:32:09 2011 +0100
+
+    nv50/exa: wait for enough space for at least one composite operation
+
+commit 3d54426c4833a7e058e50624452f89139921e64b
+Author: Marcin Slusarz <marcin.slusarz@gmail.com>
+Date:   Sun Nov 6 20:32:08 2011 +0100
+
+    add missing return in nv50_accel_init failure path
+
+commit d575a28a5020ff083836d3d1cf50018a99f49c9f
+Author: Maarten Lankhorst <m.b.lankhorst@gmail.com>
+Date:   Sat Oct 8 10:33:20 2011 +0200
+
+    dri2: Add vdpau driver name entry
+    
+    libvdpau has a driver loading mechanism that looks for a dri2 driver
+    first before falling back to nvidia, so lets use that.
+
+commit 656cfe3bdb8b487827b710a0cea35ae1bcd5044e
+Author: Marcin Slusarz <marcin.slusarz@gmail.com>
+Date:   Sat Sep 10 23:14:53 2011 +0200
+
+    xv: support AI44/IA44
+    
+    It's needed for osd in mplayer's xvmc output.
+
+commit 169512fbe91f0671a90dfee5e280357f0a4ef701
+Author: Maxim Levitsky <maximlevitsky@gmail.com>
+Date:   Tue Aug 23 13:10:59 2011 +0200
+
+    dri2: Disable the "exchange" swapbuffers path for the moment (bug 35930).
+    
+    Allow page flipping only for scanout buffer for now as simple swapping
+    between off-screen pixmaps confuses compiz because there is no
+    syncronization method to tell it about that swap
+    
+    Signed-off-by: Francisco Jerez <currojerez@riseup.net>
+
+commit b806e3f97a73701f057c45b1f45233e69e19f113
+Author: Bryan Cain <bryancain3@gmail.com>
+Date:   Wed Jul 20 13:48:36 2011 -0500
+
+    g3dvl: update for compatibility with latest pipe-video branch in Mesa
+    
+    Signed-off-by: Bryan Cain <bryancain3@gmail.com>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit de9d1ba7efeba64f319efa00df183d3cb78f24af
+Author: Emil Velikov <emil.l.velikov@gmail.com>
+Date:   Tue Jul 19 00:35:38 2011 +0100
+
+    drmmode_display: Resolve missing brackets
+    
+    Correct some missing/misplaced brackets in drmmode_pre_init()
+    The issue was exposed when trying a 4 monitor desktop using two
+    cards/gpus
+    
+    Resolves https://bugs.freedesktop.org/show_bug.cgi?id=39099
+    
+    Reported-By: Damian Nowak <nowaker@geozone.pl>
+    Tested-By: Damian Nowak <nowaker@geozone.pl>
+    Signed-off-by: Emil Velikov <emil.l.velikov@gmail.com>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit ef4957492956df54fafa6c75d576a07ce678ea0a
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Jul 11 12:48:34 2011 +1000
+
+    kms: fix multiple rotations in noaccel mode
+
+commit ab89aa022f0c78154e525b5f5787feee8024171f
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Jun 17 10:10:09 2011 +1000
+
+    nvc0: accept 0xdx chipsets
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 7dd8987b8b69f56d04a199207122d2e51b9caa6e
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Jun 17 10:07:36 2011 +1000
+
+    nvc0: assume 0x9097's presence on all chipsets
+    
+    This appears to be the case thus far, and is what the 3D driver does.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 98ee2105dbd8685e59c1967a587fccb6135743ac
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon May 30 10:10:58 2011 +1000
+
+    kms: clear new fb to black on fb resize
+
+commit 8378443bd3b26b57ef2ae424a700e01ead813d33
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Mar 24 02:13:12 2011 +1000
+
+    nv50-nvc0/exa: fix bug causing surface state to not be reemitted after flush
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 92db2bc192a074d4b7fc3e9c16e9aa62a8deaeb6
+Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+Date:   Thu Mar 3 22:17:23 2011 +0100
+
+    nvc0/accel: allow nvc1,nvc3,nvc4 in 3D engine init and use 9097
+
+commit ace98a492353e6de712f4f717e6d3f562e3591f0
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Tue Mar 1 13:54:38 2011 +1000
+
+    dri2: return an error rather than crashing if we can't allocate a buffer
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit bc5dec2ca7ca7edc340a99bd73946e228117dfd8
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Feb 24 15:15:00 2011 +1000
+
+    dri2: disable page flipping if any crtc is rotated
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit c123618470b5ff32c6377a4cae0f148d4a518a5d
+Author: Francesco Marella <francesco.marella@gmail.com>
+Date:   Thu Feb 17 03:48:16 2011 +0100
+
+    Fix gcc 4.6.0 set but unused variable warnings
+    
+    Signed-off-by: Francesco Marella <fmarl@paranoici.org>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 3531b2aa13e9c78288d96fe5e1492f0b6e899b00
+Author: Francesco Marella <francesco.marella@gmail.com>
+Date:   Thu Feb 17 03:47:46 2011 +0100
+
+    Page flipping man page update
+    
+    Signed-off-by: Francesco Marella <fmarl@paranoici.org>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 85a706df6f7986158c964e3afd0aa8e352ff5cea
+Author: Francesco Marella <francesco.marella@gmail.com>
+Date:   Thu Feb 17 03:47:08 2011 +0100
+
+    Update configure.ac with autoupdate
+    
+    Signed-off-by: Francesco Marella <fmarl@paranoici.org>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 42c16ff33dcca6cd9bae62fe0d71a40452e03581
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Wed Feb 16 13:51:54 2011 +1000
+
+    nv50: attempt to allocate compressed Z buffers
+    
+    This should automagically fallback to the non-compressed version on kernels
+    that don't support compression.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 46acb7e095e9c0d55b90070b77c64679fcfb9d4e
+Author: Marcin Slusarz <marcin.slusarz@gmail.com>
+Date:   Sun Feb 13 20:46:42 2011 +0100
+
+    fix drmSetMaster error reporting
+    
+    On error, drmSetMaster returns -1 and sets errno.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 54764980411b4b8124c36edb8730612b04f292a9
+Author: Maarten Maathuis <madman2003@gmail.com>
+Date:   Thu Feb 10 20:12:07 2011 +0100
+
+    Also flush from the BlockHandler.
+    
+    - The fact that commit 02c50db307a4e4eeb87f7db5d401bc53cce3b21f
+      fixed missing text for some people proves this is needed.
+      That commit should have only improved latency a bit.
+    - The FlushCallback is still needed for DRI2 texture_from_pixmap.
+    - See bugs.fd.o #33977 for discussion.
+    
+    Signed-off-by: Maarten Maathuis <madman2003@gmail.com>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 02c50db307a4e4eeb87f7db5d401bc53cce3b21f
+Author: Maarten Maathuis <madman2003@gmail.com>
+Date:   Mon Feb 7 19:37:47 2011 +0100
+
+    exa: Flush (S)IFC to the frontbuffer immediately.
+    
+    This avoids high latency while typing with core fonts for example.
+    
+    Signed-off-by: Maarten Maathuis <madman2003@gmail.com>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit e4fb9fd2f790ed66e4be61ca00d55522525619f4
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Wed Feb 9 13:46:32 2011 +1000
+
+    dri2: allow page flipping to be disabled in xorg.conf
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 38e8809bb415bae5c182fc79c8fc62992c5e4ed0
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Jan 17 09:14:31 2011 +1000
+
+    nvc0: merge initial acceleration support
+    
+    Squashed commit of the following:
+    
+    commit e8ce1ef351ee51bec51211dca6fda88fdbfbefee
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Mon Jan 17 08:55:04 2011 +1000
+    
+        fix hardcoding of nvc0 wfb path
+    
+    commit b414b1f948da18d96309bad84c54948d877efaa6
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Mon Jan 17 08:52:53 2011 +1000
+    
+        general tidy-ups in preparation for merge to master
+    
+    commit 73bf71d5de0cb990178a1d2a31e0ea1717c214a4
+    Merge: fb499a4 b795ca6
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Mon Jan 17 08:47:40 2011 +1000
+    
+        Merge branch 'master' into nvc0
+    
+    commit fb499a4e9d95650dc89f4c1820b94d01344733f6
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Mon Dec 20 12:54:43 2010 +1000
+    
+        nvc0: switch to "standard" RING macros
+    
+    commit 64f0e1d0e9e29c5437ad4e52d01ccfb0b03a2ae9
+    Merge: eba7e17 c2092a4
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Mon Dec 20 11:58:42 2010 +1000
+    
+        Merge branch 'master' into nvc0
+    
+        Conflicts:
+        	src/nv_dma.c
+    
+    commit eba7e173a5006ff50b950d0e8b8154564471a9ce
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Fri Dec 17 11:04:40 2010 +1000
+    
+        nvc0/xv: use mad in nv12 shader, rather than mul+add
+    
+        Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+    
+    commit b025ceb40a5e94a3657f3c7f76044c49a1a05e8d
+    Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+    Date:   Thu Dec 16 23:34:29 2010 +0100
+    
+        nvc0: fix offset of 17bc buffer
+    
+        I had messed it up in 5e4da3451c3c0f645f98fea7fb0ce2629b1bfd2f.
+    
+    commit 6ff5a9a7f3411ef218f17fa481c583596ffde2cc
+    Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+    Date:   Thu Dec 16 01:07:25 2010 +0100
+    
+        nvc0/xv: bind textures for the FP, not the TEP
+    
+    commit 5e4da3451c3c0f645f98fea7fb0ce2629b1bfd2f
+    Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+    Date:   Thu Dec 16 01:02:58 2010 +0100
+    
+        nvc0: switch to rnn headers
+    
+    commit 0839041e79dbb0e629326d0f240220b33921db1a
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Wed Dec 15 16:42:41 2010 +1000
+    
+        nvc0/exa: fix m2mf dfs
+    
+    commit 88c1c43302331e1cb8b7035bfb4677a5e7da3090
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Mon Dec 13 12:00:23 2010 +1000
+    
+        nvc0: add Xv implementation
+    
+    commit ad5b4cfe388a102a0c93f7281cb4bba532b1796b
+    Merge: 1942a81 b6cb21b
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Wed Dec 15 14:57:04 2010 +1000
+    
+        Merge branch 'master' into nvc0
+    
+    commit 1942a81c0eb592972d4a3e8c46b80192ae8d1a59
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Thu Dec 9 12:48:27 2010 +1000
+    
+        nvc0: call grobj_alloc for all used object classes
+    
+        Though the hardware has no concept of object handles any more, the nouveau
+        DRM still uses this call to know what engines are in use.
+    
+    commit 0c670a6d406fe0a57373fa9e03005be6f28ecc3e
+    Author: Ben Skeggs <bskeggs@redhat.com>
+    Date:   Thu Dec 9 12:44:41 2010 +1000
+    
+        nvc0: don't try and create DmaNotifier0
+    
+    commit 5d3d20d908a50ad7742567d58969c7f12dd944f7
+    Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+    Date:   Thu Dec 9 01:36:32 2010 +0100
+    
+        nvc0: change tile_mode to contain 0xZYX instead of 0xZY
+    
+        Warning: the kernel will not like that (EVO)
+    
+    commit dd7fd8263e0e9f92412fb20086e4c8acf8cab099
+    Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+    Date:   Thu Dec 9 00:29:58 2010 +0100
+    
+        exa: don't fall back to nv04 m2mf if nvc0 m2mf fails
+    
+    commit b4cf5a8f2276392945c2530f0d6fe96b5ab4b5da
+    Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+    Date:   Thu Dec 9 00:07:59 2010 +0100
+    
+        nvc0/exa: remove noisy debug messages
+    
+    commit 5419ef6d2cfabb7329982cb8dbdb5bbc8e973fe3
+    Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+    Date:   Wed Dec 8 23:55:51 2010 +0100
+    
+        nvc0/accel: remove unneeded scratch method 0x3420 init
+    
+        It was intended be read by a MACRO method to get the address for
+        constants upload.
+    
+    commit 178356391ff6831599eba257a5912079894641a1
+    Merge: 8573280 8bb8231
+    Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+    Date:   Thu Dec 9 01:31:40 2010 +0100
+    
+        Merge remote branch 'origin/master' into nvc0
+    
+        Conflicts:
+        	src/drmmode_display.c
+        	src/nouveau_exa.c
+        	src/nv_driver.c
+        	src/nv_type.h
+    
+    commit 8573280871401e29f27fa24d0b7c6ac5e35b2cc1
+    Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+    Date:   Sat Jul 3 14:27:36 2010 +0200
+    
+        nvc0: initial implementation
+    
+        EXA should work, Xv not yet done.
+
 commit b795ca6e97fae9735843748585401098dae1c3e1
 Author: Ben Skeggs <bskeggs@redhat.com>
 Date:   Fri Jan 7 13:33:36 2011 +1000
@@ -459,25 +1555,6 @@ Date:   Wed May 26 16:09:48 2010 +1000
 
     update nouveau_class.h
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-commit b9f414c589d89887722942463bcbf5f85191e71a
-Author: Christopher James Halse Rogers <christopher.halse.rogers@canonical.com>
-Date:   Tue May 18 18:36:33 2010 +1000
-
-    Imported Upstream version 0.0.15+git20100518+4b8f1a0
-
-commit 429576639e3d463e821505eaf45c6a2ec764b456
-Merge: 9dc12f0 4b8f1a0
-Author: Christopher James Halse Rogers <raof@ubuntu.com>
-Date:   Tue May 18 16:08:22 2010 +1000
-
-    Merge remote branch 'upstream/master' into upstream-ubuntu
-
->>>>>>> upstream/0.0.16+git20110107+b795ca6e
-=======
->>>>>>> debian-experimental
 commit 4b8f1a082069a17555d4142003213cf83d4e5464
 Author: Lubomir Rintel <lkundrak@v3.sk>
 Date:   Mon May 10 09:25:55 2010 +0200
@@ -596,19 +1673,6 @@ Date:   Tue Feb 23 15:03:38 2010 +1000
 
     Add connector name for eDP
 
-commit 9dc12f0de18594c12301535bf89590671ef463f6
-Author: Christopher James Halse Rogers <raof@ubuntu.com>
-Date:   Fri Feb 19 20:33:58 2010 +1100
-
-    Imported Upstream version 0.0.15+git+20100219+9b4118d
-
-commit 9f2672351b2028ac78edaeadf012f968ae237f08
-Merge: d4fd2c0 9b4118d
-Author: Christopher James Halse Rogers <raof@ubuntu.com>
-Date:   Fri Feb 19 20:20:45 2010 +1100
-
-    Merge remote branch 'upstream/master' into upstream-ubuntu
-
 commit 29647021044463768cbfa3eead1416ef1cf27fa1
 Author: Ben Skeggs <bskeggs@redhat.com>
 Date:   Thu Feb 18 14:17:57 2010 +1000
@@ -721,42 +1785,6 @@ Date:   Sun Jan 31 17:43:54 2010 +0100
     nv10/exa: Fix build after the last nouveau_class.h changes.
     
     Signed-off-by: Francisco Jerez <currojerez@riseup.net>
-
-commit d4fd2c0762967c985e219e16914ae63fea2a5718
-Author: Christopher James Halse Rogers <raof@ubuntu.com>
-Date:   Thu Jan 28 11:52:46 2010 +1100
-
-    Imported Upstream version 0.0.10~git+20100128+2630a15
-
-commit b08689b2ed227df98429b9926276e78f791357b6
-Merge: 4162e08 2630a15
-Author: Christopher James Halse Rogers <raof@ubuntu.com>
-Date:   Thu Jan 28 10:45:16 2010 +1100
-
-    Merge remote branch 'upstream/master' into upstream-ubuntu
-    
-    * upstream/master: (31 commits)
-      Remove nv_dripriv.h, nv_local.h
-      xv: use nouveau_bo_new_tile()
-      Remove deprecated NV1 readme
-      exa: remove nouveau_pixmap_offset()
-      exa: remove nouveau_exa_pixmap_{map,unmap}
-      Check for drm+kms availability in NVPciProbe()
-      bump xorg-server requirement to 1.7
-      remove more unused code
-      exa: Remove non-driver pixmaps path
-      Remove pNv->NVArch
-      Remove pNv->Chipset use
-      remove pNv->VRAMPhysical
-      dri1: remove DRI1 support
-      xv: ifdef out another problematic piece of overlay support for the moment
-      Initial pass at removal of non-KMS support.
-      exa: Some compat defines for new pixman formats.
-      start using BEGIN_RING_NI
-      nv50: always set semaphore handle and offset
-      nv50: upgrade nv50_texture.h
-      nv50/exa: add support for more color formats
-      ...
 
 commit 2630a1553d560ce2c7391bc103d4a543f7d3d0da
 Author: Marcin Kościelnicki <koriakin@0x04.net>
@@ -1021,12 +2049,6 @@ Date:   Mon Dec 7 15:31:53 2009 +1000
     Unfortunately NV_CONTEXT_SURFACES_2D on most cards (probably only PCIE cards
     work actually, but that's not confirmed) rejects a GART DMA object, so the
     usefulness is a bit more limited than I'd hoped.
-
-commit 4162e080f2922f8aac0606b216990666b1f6e006
-Author: Christopher James Halse Rogers <raof@ubuntu.com>
-Date:   Mon Dec 7 13:11:46 2009 +1100
-
-    Imported Upstream version 0.0.10+git20091207+60a3942
 
 commit 60a394222b410da8bb832935fc525132218b4d94
 Author: Ben Skeggs <bskeggs@redhat.com>

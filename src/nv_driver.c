@@ -24,13 +24,14 @@
 
 #include "nv_include.h"
 
-#include "nouveau_pushbuf.h"
-
 #include "xorg-server.h"
 #include "xf86int10.h"
 #include "xf86drm.h"
 #include "xf86drmMode.h"
 #include "nouveau_drm.h"
+#ifdef DRI2
+#include "dri2.h"
+#endif
 
 /*
  * Forward definitions for the functions that make up the driver.
@@ -39,18 +40,17 @@
 static const OptionInfoRec * NVAvailableOptions(int chipid, int busid);
 static void    NVIdentify(int flags);
 static Bool    NVPreInit(ScrnInfoPtr pScrn, int flags);
-static Bool    NVScreenInit(int Index, ScreenPtr pScreen, int argc,
-                            char **argv);
-static Bool    NVEnterVT(int scrnIndex, int flags);
-static void    NVLeaveVT(int scrnIndex, int flags);
-static Bool    NVCloseScreen(int scrnIndex, ScreenPtr pScreen);
+static Bool    NVScreenInit(SCREEN_INIT_ARGS_DECL);
+static Bool    NVEnterVT(VT_FUNC_ARGS_DECL);
+static void    NVLeaveVT(VT_FUNC_ARGS_DECL);
+static Bool    NVCloseScreen(CLOSE_SCREEN_ARGS_DECL);
 static Bool    NVSaveScreen(ScreenPtr pScreen, int mode);
 static void    NVCloseDRM(ScrnInfoPtr);
 
 /* Optional functions */
-static Bool    NVSwitchMode(int scrnIndex, DisplayModePtr mode, int flags);
-static void    NVAdjustFrame(int scrnIndex, int x, int y, int flags);
-static void    NVFreeScreen(int scrnIndex, int flags);
+static Bool    NVSwitchMode(SWITCH_MODE_ARGS_DECL);
+static void    NVAdjustFrame(ADJUST_FRAME_ARGS_DECL);
+static void    NVFreeScreen(FREE_SCREEN_ARGS_DECL);
 
 /* Internally used functions */
 
@@ -62,8 +62,8 @@ static Bool	NVUnmapMem(ScrnInfoPtr pScrn);
 	  0x00030000, 0x00ffffff, 0 }
 
 static const struct pci_id_match nouveau_device_match[] = {
-	NOUVEAU_PCI_DEVICE(PCI_VENDOR_NVIDIA, PCI_MATCH_ANY),
-	NOUVEAU_PCI_DEVICE(PCI_VENDOR_NVIDIA_SGS, PCI_MATCH_ANY),
+	NOUVEAU_PCI_DEVICE(0x12d2, PCI_MATCH_ANY),
+	NOUVEAU_PCI_DEVICE(0x10de, PCI_MATCH_ANY),
 	{ 0, 0, 0 },
 };
 
@@ -112,6 +112,8 @@ static struct NvFamily NVKnownFamilies[] =
   { "GeForce 6",   "NV4x" },
   { "GeForce 7",   "G7x" },
   { "GeForce 8",   "G8x" },
+  { "GeForce GTX 200", "NVA0" },
+  { "GeForce GTX 400", "NVC0" },
   { NULL, NULL}
 };
 
@@ -219,7 +221,7 @@ NVPciProbe(DriverPtr drv, int entity_num, struct pci_device *pci_dev,
 	}
 	busid = DRICreatePCIBusID(pci_dev);
 
-	ret = nouveau_device_open(&dev, busid);
+	ret = nouveau_device_open(busid, &dev);
 	if (ret) {
 		xf86DrvMsg(-1, X_ERROR, "[drm] failed to open device\n");
 		free(busid);
@@ -231,14 +233,14 @@ NVPciProbe(DriverPtr drv, int entity_num, struct pci_device *pci_dev,
 	 * But, we're currently using the kernel patchlevel to also version
 	 * the DRI interface.
 	 */
-	version = drmGetVersion(nouveau_device(dev)->fd);
+	version = drmGetVersion(dev->fd);
 	xf86DrvMsg(-1, X_INFO, "[drm] nouveau interface version: %d.%d.%d\n",
 		   version->version_major, version->version_minor,
 		   version->version_patchlevel);
 	drmFree(version);
 
 	chipset = dev->chipset;
-	nouveau_device_close(&dev);
+	nouveau_device_del(&dev);
 
 	ret = drmCheckModesettingSupported(busid);
 	free(busid);
@@ -259,6 +261,8 @@ NVPciProbe(DriverPtr drv, int entity_num, struct pci_device *pci_dev,
 	case 0x90:
 	case 0xa0:
 	case 0xc0:
+	case 0xd0:
+	case 0xe0:
 		break;
 	default:
 		xf86DrvMsg(-1, X_ERROR, "Unknown chipset: NV%02x\n", chipset);
@@ -295,9 +299,9 @@ NVPciProbe(DriverPtr drv, int entity_num, struct pci_device *pci_dev,
 #define MAX_CHIPS MAXSCREENS
 
 Bool
-NVSwitchMode(int scrnIndex, DisplayModePtr mode, int flags)
+NVSwitchMode(SWITCH_MODE_ARGS_DECL)
 {
-	ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
+	SCRN_INFO_PTR(arg);
 
 	return xf86SetSingleMode(pScrn, mode, RR_Rotate_0);
 }
@@ -308,11 +312,10 @@ NVSwitchMode(int scrnIndex, DisplayModePtr mode, int flags)
  */
 /* Usually mandatory */
 void 
-NVAdjustFrame(int scrnIndex, int x, int y, int flags)
+NVAdjustFrame(ADJUST_FRAME_ARGS_DECL)
 {
-	ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
-
-	drmmode_adjust_frame(pScrn, x, y, flags);
+	SCRN_INFO_PTR(arg);
+	drmmode_adjust_frame(pScrn, x, y);
 }
 
 /*
@@ -322,17 +325,17 @@ NVAdjustFrame(int scrnIndex, int x, int y, int flags)
 
 /* Mandatory */
 static Bool
-NVEnterVT(int scrnIndex, int flags)
+NVEnterVT(VT_FUNC_ARGS_DECL)
 {
-	ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
+	SCRN_INFO_PTR(arg);
 	NVPtr pNv = NVPTR(pScrn);
 	int ret;
 
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "NVEnterVT is called.\n");
 
-	ret = drmSetMaster(nouveau_device(pNv->dev)->fd);
+	ret = drmSetMaster(pNv->dev->fd);
 	if (ret)
-		ErrorF("Unable to get master: %d\n", ret);
+		ErrorF("Unable to get master: %s\n", strerror(errno));
 
 	if (!xf86SetDesiredModes(pScrn))
 		return FALSE;
@@ -350,15 +353,15 @@ NVEnterVT(int scrnIndex, int flags)
 
 /* Mandatory */
 static void
-NVLeaveVT(int scrnIndex, int flags)
+NVLeaveVT(VT_FUNC_ARGS_DECL)
 {
-	ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
+	SCRN_INFO_PTR(arg);
 	NVPtr pNv = NVPTR(pScrn);
 	int ret;
 
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "NVLeaveVT is called.\n");
 
-	ret = drmDropMaster(nouveau_device(pNv->dev)->fd);
+	ret = drmDropMaster(pNv->dev->fd);
 	if (ret)
 		ErrorF("Error dropping master: %d\n", ret);
 }
@@ -370,33 +373,31 @@ NVFlushCallback(CallbackListPtr *list, pointer user_data, pointer call_data)
 	NVPtr pNv = NVPTR(pScrn);
 
 	if (pScrn->vtSema && !pNv->NoAccel)
-		FIRE_RING (pNv->chan);
+		nouveau_pushbuf_kick(pNv->pushbuf, pNv->pushbuf->channel);
 }
 
 static void 
-NVBlockHandler (
-	int i, 
-	pointer blockData, 
-	pointer pTimeout,
-	pointer pReadmask
-)
+NVBlockHandler (BLOCKHANDLER_ARGS_DECL)
 {
-	ScreenPtr pScreen = screenInfo.screens[i];
-	ScrnInfoPtr pScrnInfo = xf86Screens[i];
-	NVPtr pNv = NVPTR(pScrnInfo);
+	SCREEN_PTR(arg);
+	ScrnInfoPtr pScrn   = xf86ScreenToScrn(pScreen);
+	NVPtr pNv = NVPTR(pScrn);
 
 	pScreen->BlockHandler = pNv->BlockHandler;
-	(*pScreen->BlockHandler) (i, blockData, pTimeout, pReadmask);
+	(*pScreen->BlockHandler) (BLOCKHANDLER_ARGS);
 	pScreen->BlockHandler = NVBlockHandler;
 
+	if (pScrn->vtSema && !pNv->NoAccel)
+		nouveau_pushbuf_kick(pNv->pushbuf, pNv->pushbuf->channel);
+
 	if (pNv->VideoTimerCallback) 
-		(*pNv->VideoTimerCallback)(pScrnInfo, currentTime.milliseconds);
+		(*pNv->VideoTimerCallback)(pScrn, currentTime.milliseconds);
 }
 
 static Bool
 NVCreateScreenResources(ScreenPtr pScreen)
 {
-	ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+	ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
 	NVPtr pNv = NVPTR(pScrn);
 	PixmapPtr ppix;
 
@@ -406,7 +407,7 @@ NVCreateScreenResources(ScreenPtr pScreen)
 	pScreen->CreateScreenResources = NVCreateScreenResources;
 
 	drmmode_fbcon_copy(pScreen);
-	if (!NVEnterVT(pScrn->scrnIndex, 0))
+	if (!NVEnterVT(VT_FUNC_ARGS(0)))
 		return FALSE;
 
 	if (!pNv->NoAccel) {
@@ -426,9 +427,9 @@ NVCreateScreenResources(ScreenPtr pScreen)
 
 /* Mandatory */
 static Bool
-NVCloseScreen(int scrnIndex, ScreenPtr pScreen)
+NVCloseScreen(CLOSE_SCREEN_ARGS_DECL)
 {
-	ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
+	ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
 	NVPtr pNv = NVPTR(pScrn);
 
 	drmmode_screen_fini(pScreen);
@@ -437,7 +438,7 @@ NVCloseScreen(int scrnIndex, ScreenPtr pScreen)
 		nouveau_dri2_fini(pScreen);
 
 	if (pScrn->vtSema) {
-		NVLeaveVT(scrnIndex, 0);
+		NVLeaveVT(VT_FUNC_ARGS(0));
 		pScrn->vtSema = FALSE;
 	}
 
@@ -479,21 +480,20 @@ NVCloseScreen(int scrnIndex, ScreenPtr pScreen)
 	pScrn->vtSema = FALSE;
 	pScreen->CloseScreen = pNv->CloseScreen;
 	pScreen->BlockHandler = pNv->BlockHandler;
-	return (*pScreen->CloseScreen)(scrnIndex, pScreen);
+	return (*pScreen->CloseScreen)(CLOSE_SCREEN_ARGS);
 }
 
 /* Free up any persistent data structures */
 
 /* Optional */
 static void
-NVFreeScreen(int scrnIndex, int flags)
+NVFreeScreen(FREE_SCREEN_ARGS_DECL)
 {
 	/*
 	 * This only gets called when a screen is being deleted.  It does not
 	 * get called routinely at the end of a server generation.
 	 */
-
-	ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
+	SCRN_INFO_PTR(arg);
 	NVPtr pNv = NVPTR(pScrn);
 
 	if (!pNv)
@@ -507,7 +507,7 @@ NVFreeScreen(int scrnIndex, int flags)
 
 #define NVPreInitFail(fmt, args...) do {                                    \
 	xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "%d: "fmt, __LINE__, ##args); \
-	NVFreeScreen(pScrn->scrnIndex, 0);                                  \
+	NVFreeScreen(FREE_SCREEN_ARGS(pScrn));			\
 	return FALSE;                                                       \
 } while(0)
 
@@ -516,7 +516,7 @@ NVCloseDRM(ScrnInfoPtr pScrn)
 {
 	NVPtr pNv = NVPTR(pScrn);
 
-	nouveau_device_close(&pNv->dev);
+	nouveau_device_del(&pNv->dev);
 	drmFree(pNv->drm_device_name);
 }
 
@@ -575,12 +575,16 @@ NVPreInitDRM(ScrnInfoPtr pScrn)
 	}
 
 	/* Initialise libdrm_nouveau */
-	ret = nouveau_device_open_existing(&pNv->dev, 1, DRIMasterFD(pScrn), 0);
+	ret = nouveau_device_wrap(DRIMasterFD(pScrn), 1, &pNv->dev);
 	if (ret) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "[drm] error creating device\n");
 		return FALSE;
 	}
+
+	ret = nouveau_client_new(pNv->dev, &pNv->client);
+	if (ret)
+		return FALSE;
 
 	pNv->drm_device_name = drmGetDeviceNameFromFd(DRIMasterFD(pScrn));
 
@@ -594,8 +598,10 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 	struct nouveau_device *dev;
 	NVPtr pNv;
 	MessageType from;
+	const char *reason;
 	uint64_t v;
-	int ret, i;
+	int ret;
+	int defaultDepth = 0;
 
 	if (flags & PROBE_DETECT) {
 		EntityInfoPtr pEnt = xf86GetEntityInfo(pScrn->entityList[0]);
@@ -603,7 +609,6 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 		if (!pEnt)
 			return FALSE;
 
-		i = pEnt->index;
 		free(pEnt);
 
 		return TRUE;
@@ -681,7 +686,11 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 		pNv->Architecture = NV_ARCH_50;
 		break;
 	case 0xc0:
+	case 0xd0:
 		pNv->Architecture = NV_ARCH_C0;
+		break;
+	case 0xe0:
+		pNv->Architecture = NV_ARCH_E0;
 		break;
 	default:
 		return FALSE;
@@ -694,7 +703,9 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 	 * The first thing we should figure out is the depth, bpp, etc.
 	 */
 
-	if (!xf86SetDepthBpp(pScrn, 0, 0, 0, Support32bppFb)) {
+	if (dev->vram_size <= 16 * 1024 * 1024)
+		defaultDepth = 16;
+	if (!xf86SetDepthBpp(pScrn, defaultDepth, 0, 0, Support32bppFb)) {
 		NVPreInitFail("\n");
 	} else {
 		/* Check that the returned depth is one we support */
@@ -799,6 +810,9 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 		pNv->tiled_scanout = TRUE;
 	}
 
+	pNv->ce_enabled =
+		xf86ReturnOptValBool(pNv->Options, OPTION_ASYNC_COPY, FALSE);
+
 	if (!pNv->NoAccel && pNv->dev->chipset >= 0x11) {
 		from = X_DEFAULT;
 		if (xf86GetOptValBool(pNv->Options, OPTION_GLX_VBLANK,
@@ -810,13 +824,22 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 	}
 
 #ifdef NOUVEAU_GETPARAM_HAS_PAGEFLIP
-	ret = nouveau_device_get_param(pNv->dev,
-				       NOUVEAU_GETPARAM_HAS_PAGEFLIP, &v);
-	if (!ret)
-		pNv->has_pageflip = v;
+	reason = ": no kernel support";
+	from = X_DEFAULT;
+
+	ret = nouveau_getparam(pNv->dev, NOUVEAU_GETPARAM_HAS_PAGEFLIP, &v);
+	if (ret == 0 && v == 1) {
+		pNv->has_pageflip = TRUE;
+		if (xf86GetOptValBool(pNv->Options, OPTION_PAGE_FLIP, &pNv->has_pageflip))
+			from = X_CONFIG;
+		reason = "";
+	}
 #else
-	(void)v;
+	reason = ": not available at build time";
 #endif
+
+	xf86DrvMsg(pScrn->scrnIndex, from, "Page flipping %sabled%s\n",
+		   pNv->has_pageflip ? "en" : "dis", reason);
 
 	if(xf86GetOptValInteger(pNv->Options, OPTION_VIDEO_KEY, &(pNv->videoKey))) {
 		xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, "video key set to 0x%x\n",
@@ -827,8 +850,39 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 		(((pScrn->mask.blue >> pScrn->offset.blue) - 1) << pScrn->offset.blue);
 	}
 
-	ret = drmmode_pre_init(pScrn, nouveau_device(pNv->dev)->fd,
-			       pScrn->bitsPerPixel >> 3);
+	/* Limit to max 2 pending swaps - we can't handle more than triple-buffering: */
+	pNv->max_swap_limit = 2;
+
+	if(xf86GetOptValInteger(pNv->Options, OPTION_SWAP_LIMIT, &(pNv->swap_limit))) {
+		if (pNv->swap_limit < 1)
+			pNv->swap_limit = 1;
+
+		if (pNv->swap_limit > pNv->max_swap_limit)
+			pNv->swap_limit = pNv->max_swap_limit;
+
+		reason = "";
+		from = X_CONFIG;
+
+		if ((DRI2INFOREC_VERSION < 6) && (pNv->swap_limit > 1)) {
+			/* No swap limit api in server. A value > 1 requires use
+			 * of problematic hacks.
+			 */
+			from = X_WARNING;
+			reason = ": Caution: Use of this swap limit > 1 violates OML_sync_control spec on this X-Server!\n";
+		}
+	} else {
+		/* Driver default: Double buffering on old servers, triple-buffering
+		 * on Xorg 1.12+.
+		 */
+		pNv->swap_limit = (DRI2INFOREC_VERSION < 6) ? 1 : 2;
+		reason = "";
+		from = X_DEFAULT;
+	}
+
+	xf86DrvMsg(pScrn->scrnIndex, from, "Swap limit set to %d [Max allowed %d]%s\n",
+		   pNv->swap_limit, pNv->max_swap_limit, reason);
+
+	ret = drmmode_pre_init(pScrn, pNv->dev->fd, pScrn->bitsPerPixel >> 3);
 	if (ret == FALSE)
 		NVPreInitFail("Kernel modesetting failed to initialize\n");
 
@@ -881,8 +935,7 @@ static Bool
 NVMapMem(ScrnInfoPtr pScrn)
 {
 	NVPtr pNv = NVPTR(pScrn);
-	struct nouveau_device *dev = pNv->dev;
-	int ret, pitch, size;
+	int ret, pitch;
 
 	ret = nouveau_allocate_surface(pScrn, pScrn->virtualX, pScrn->virtualY,
 				       pScrn->bitsPerPixel,
@@ -899,25 +952,6 @@ NVMapMem(ScrnInfoPtr pScrn)
 	if (pNv->NoAccel)
 		return TRUE;
 
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "GART: %dMiB available\n",
-		   (unsigned int)(dev->vm_gart_size >> 20));
-	if (dev->vm_gart_size > (16 * 1024 * 1024))
-		size = 16 * 1024 * 1024;
-	else
-		/* always leave 512kb for other things like the fifos */
-		size = dev->vm_gart_size - 512*1024;
-
-	if (nouveau_bo_new(dev, NOUVEAU_BO_GART | NOUVEAU_BO_MAP,
-			   0, size, &pNv->GART)) {
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			   "Unable to allocate GART memory\n");
-	}
-	if (pNv->GART) {
-		xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-			   "GART: Allocated %dMiB as a scratch buffer\n",
-			   (unsigned int)(pNv->GART->size >> 20));
-	}
-
 	return TRUE;
 }
 
@@ -932,9 +966,8 @@ NVUnmapMem(ScrnInfoPtr pScrn)
 
 	drmmode_remove_fb(pScrn);
 
+	nouveau_bo_ref(NULL, &pNv->transfer);
 	nouveau_bo_ref(NULL, &pNv->scanout);
-	nouveau_bo_ref(NULL, &pNv->offscreen);
-	nouveau_bo_ref(NULL, &pNv->GART);
 	return TRUE;
 }
 
@@ -1000,9 +1033,9 @@ NVLoadPalette(ScrnInfoPtr pScrn, int numColors, int *indices,
 
 /* This gets called at the start of each server generation */
 static Bool
-NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
+NVScreenInit(SCREEN_INIT_ARGS_DECL)
 {
-	ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+	ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
 	NVPtr pNv = NVPTR(pScrn);
 	int ret;
 	VisualPtr visual;
@@ -1080,9 +1113,8 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	if (pNv->NoAccel) {
 		pNv->ShadowPtr = NULL;
 		displayWidth = pScrn->displayWidth;
-		nouveau_bo_map(pNv->scanout, NOUVEAU_BO_RDWR);
+		nouveau_bo_map(pNv->scanout, NOUVEAU_BO_RDWR, pNv->client);
 		FBStart = pNv->scanout->map;
-		nouveau_bo_unmap(pNv->scanout);
 	} else {
 		pNv->ShadowPtr = NULL;
 		displayWidth = pScrn->displayWidth;
@@ -1105,7 +1137,7 @@ NVScreenInit(int scrnIndex, ScreenPtr pScreen, int argc, char **argv)
 	}
 		break;
 	default:
-		xf86DrvMsg(scrnIndex, X_ERROR,
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "Internal error: invalid bpp (%d) in NVScreenInit\n",
 			   pScrn->bitsPerPixel);
 		ret = FALSE;

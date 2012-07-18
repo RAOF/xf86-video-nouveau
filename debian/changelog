@@ -1,3 +1,107 @@
+xserver-xorg-video-nouveau (1:1.0.1-3) UNRELEASED; urgency=low
+
+  [ Maarten Lankhorst ]
+  * Rebuild for x server 1.13rc1
+  * Drop 02-drm-nouveau-newabi.patch and require libdrm 2.4.34
+
+ -- Maarten Lankhorst <maarten.lankhorst@canonical.com>  Mon, 16 Jul 2012 15:22:19 +0200
+
+xserver-xorg-video-nouveau (1:1.0.1-2) unstable; urgency=low
+
+  * Cherry-pick commit d1bc38b ("nv40/exa: fix shaders on big-endian
+    machines") from upstream (Closes: #679127).
+
+ -- Sven Joachim <svenjoac@gmx.de>  Sat, 07 Jul 2012 09:31:04 +0200
+
+xserver-xorg-video-nouveau (1:1.0.1-1) unstable; urgency=low
+
+  [ Maarten Lankhorst ]
+  * New upstream snapshot.
+    - Bump to 1.0.1 release.
+    - Pick up a firefox tab draw fix for nv50 cards.
+
+  [ Sven Joachim ]
+  * Actually look for upstream releases in debian/watch.
+
+ -- Sven Joachim <svenjoac@gmx.de>  Wed, 20 Jun 2012 17:56:51 +0200
+
+xserver-xorg-video-nouveau (1:0.0.16+git20120614+36d3f8c-1) unstable; urgency=low
+
+  [ Maarten Lankhorst ]
+  * New upstream snapshot. Picks up a EXA fix for pre-nv50 cards.
+  * Cherry pick the silence flip event patch too to reduce spam.
+
+ -- Sven Joachim <svenjoac@gmx.de>  Sat, 16 Jun 2012 17:30:53 +0200
+
+xserver-xorg-video-nouveau (1:0.0.16+git20120529+ace77b6-1) experimental; urgency=low
+
+  [ Maarten Lankhorst ]
+  * New upstream snapshot. First one to have the new ABI.
+  * Add 02-drm-nouveau-newabi.patch to build with old libdrm
+  - Until mesa 8.1 is released, we cannot build with new libdrm yet
+
+  [ Sven Joachim ]
+  * Mention in NEWS.Debian that Linux 3.4 is currently necessary to
+    provide acceleration for Fermi cards.
+
+ -- Sven Joachim <svenjoac@gmx.de>  Sat, 02 Jun 2012 19:30:08 +0200
+
+xserver-xorg-video-nouveau (1:0.0.16+git20120322+ab7291d-1) unstable; urgency=low
+
+  [ Julien Cristau ]
+  * Add Dm-Upload-Allowed control field to allow Sven to upload this package.
+
+  [ Sven Joachim ]
+  * New upstream snapshot.
+  * Update README.Debian:
+    - Nouveau moves out of staging in Linux 3.4.
+    - Generalize the firmware section.
+  * Bump Standards-Version to 3.9.3, no changes needed.
+
+ -- Cyril Brulebois <kibi@debian.org>  Tue, 01 May 2012 15:17:37 +0200
+
+xserver-xorg-video-nouveau (1:0.0.16+git20111201+b5534a1-1) unstable; urgency=low
+
+  [ Sven Joachim ]
+  * New upstream snapshot.
+    - Default color depth is now 16bpp for low memory cards, so it should
+      be possible to use high resolutions with them (Closes: #585651).
+  * Bump Standards-Version to 3.9.2, no changes needed.
+  * Don't claim that the driver is experimental in the description.
+  * Recommend libmesa-gl1-dri (>= 7.11.1) for the 3D drivers.
+  * Update README.Debian:
+    - No need to uninstall nvidia-glx anymore, you can select the mesa
+      alternative with "update-alternatives --config glx".
+    - Linux 3.1 includes free firmware for some Fermi cards.
+    - Drop section about lack of DRI and 3D support.
+  * Use dpkg-buildflags to set compiler flags.
+  * Update debian/copyright.
+
+ -- Cyril Brulebois <kibi@debian.org>  Fri, 02 Dec 2011 15:06:30 +0100
+
+xserver-xorg-video-nouveau (1:0.0.16+git20110411+8378443-1) unstable; urgency=low
+
+  [ Sven Joachim ]
+  * New upstream snapshot.
+    - Fixes sluggish rendering of X core fonts (Closes: #614938).
+    - Better support for NVC0 (aka Fermi) cards. Linux 2.6.38 and not readily
+      available firmware is required for acceleration, see README.Debian.
+    - Bump build-dependency on libdrm-dev to (>= 2.4.24) due to
+      libdrm-nouveau API changes.
+  * Drop patch 03_work-around-exa-hangs.patch.  Affected users should upgrade
+    their kernel to 2.6.36 or newer.
+  * Update README.Debian:
+    - Former nvidia-glx users should remove the libgl{1,x}-nvidia-alternatives
+      packages which divert the Mesa/Xorg files in Squeeze and later.
+    - Drop vga16fb from the list of incompatible drivers, KMS handover should
+      work as of Linux 2.6.35.
+    - Don't mention nv anymore, it has been removed from Debian.
+  * Drop unnecessary leading asterisk from NEWS.Debian.
+  * Drop the sample xorg.conf, no longer needed.
+  * Build against Xserver 1.9.
+
+ -- Cyril Brulebois <kibi@debian.org>  Tue, 12 Apr 2011 01:33:01 +0200
+
 xserver-xorg-video-nouveau (1:0.0.16+git20110107+b795ca6e-0ubuntu7) natty; urgency=low
 
   * debian/patches/04_emit_surface_state_after_flush.diff:
@@ -60,6 +164,31 @@ xserver-xorg-video-nouveau (1:0.0.16+git20110107+b795ca6e-0ubuntu1) natty; urgen
     - Document how to update to a new upstream snapshot.
 
  -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 26 Jan 2011 13:48:15 +1100
+
+xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-2+exp2) experimental; urgency=low
+
+  * Rebuild against Xserver 1.10 rc3.
+
+ -- Cyril Brulebois <kibi@debian.org>  Fri, 25 Feb 2011 15:46:57 +0100
+
+xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-2+exp1) experimental; urgency=low
+
+  * Rebuild against Xserver 1.10 rc2.
+
+ -- Cyril Brulebois <kibi@debian.org>  Sun, 20 Feb 2011 20:59:59 +0100
+
+xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-2) unstable; urgency=low
+
+  * Switch to dh:
+    - Use debhelper 8.
+    - Use dh-autoreconf.
+    - Get rid of debian/clean accordingly.
+    - Bump xserver-xorg-dev build-dep for dh_xsf_substvars and xsf
+      debhelper sequence.
+  * Remove xsfbs accordingly.
+  * Update Uploaders list. Thanks, Chris & Matthew!
+
+ -- Cyril Brulebois <kibi@debian.org>  Sat, 05 Feb 2011 14:52:43 +0100
 
 xserver-xorg-video-nouveau (1:0.0.16+git20101210+8bb8231-1) experimental; urgency=low
 

@@ -1,3 +1,92 @@
+commit 20f3830ddf868c0d1a46c18fa381585c076bfb8d
+Author: Maarten Lankhorst <maarten.lankhorst@canonical.com>
+Date:   Wed Sep 12 13:42:43 2012 +0200
+
+    bump version to 1.0.2
+
+commit 239f39977ebb64c9d545c6f3c905de3c0ad840d0
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Thu Jul 19 13:46:44 2012 +1000
+
+    nouveau: enable provider/capabilities
+    
+    this adds the provider object for nouveau and enables the capabilities
+    on it.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 28abba276e36fd0176f416996d44297ddf13f5cd
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Thu Jul 19 13:46:12 2012 +1000
+
+    nouveau/dri2: add support for DRI2 offload
+    
+    This adds the nouveau interfaces for DRI2 offload, this allows nouveau
+    to act as an offload slave.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit b0be0ac86bae871c9f1724c40298d50d7f2b08e4
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Thu Jul 19 13:45:32 2012 +1000
+
+    nouveau: add pixmap tracking/updating support.
+    
+    This should allow nouveau to act as an output master for driving output
+    slaves.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit baf485b1d304d741073f058d524ca698af3c15cd
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Thu Jul 19 13:42:13 2012 +1000
+
+    nouveau/exa: add support for shared pixmaps.
+    
+    This adds the pixmap export/import hooks, along with code for nv50/nvc0
+    to validate shared buffers in GTT space.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 2f48b8f462a03cb92db9e9a7ae1957eb27473965
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Thu Jul 19 13:40:23 2012 +1000
+
+    nouveau: add platform bus support
+    
+    This adds the ability to load nouveau via the new platform apis.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 3aa9a296f508089a247f92b829036ca6a55b7b42
+Author: Adam Jackson <ajax@redhat.com>
+Date:   Wed Aug 15 13:26:51 2012 -0400
+
+    Remove vbe and int10 includes
+    
+    This driver has never used int10 or vbe, presumably these were just
+    copypasta from nv.
+    
+    Signed-off-by: Adam Jackson <ajax@redhat.com>
+
+commit 9b9be11e99930136a591059db1bf4ceaca8806e7
+Author: Adam Jackson <ajax@redhat.com>
+Date:   Thu Jul 19 18:22:44 2012 -0400
+
+    Implement ->driverFunc
+    
+    Copied from fbdev, makes it so we can run without iopl.
+    
+    Signed-off-by: Adam Jackson <ajax@redhat.com>
+
+commit 6629066b87142cdd1d9e881b61ef55c97aedf949
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Aug 3 17:05:33 2012 +1000
+
+    nvc0/nve0: support sync-to-vblank if kernel is new enough
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
 commit d1bc38b6673c54af61196056c489383fba8dced8
 Author: Ben Skeggs <bskeggs@redhat.com>
 Date:   Fri Jul 6 16:23:50 2012 +1000

@@ -1,7 +1,7 @@
-xserver-xorg-video-nouveau (1:1.0.1-4) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:1.0.2-1) UNRELEASED; urgency=low
 
   [ Maarten Lankhorst ]
-  * Rebuild for x server 1.13rc1
+  * New upstream release.
   * Drop 02-drm-nouveau-newabi.patch and require libdrm 2.4.34
 
  -- Maarten Lankhorst <maarten.lankhorst@canonical.com>  Mon, 16 Jul 2012 15:22:19 +0200

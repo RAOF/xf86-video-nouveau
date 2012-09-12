@@ -5,7 +5,7 @@ xserver-xorg-video-nouveau (1:1.0.2-1) UNRELEASED; urgency=low
   * Drop 02-drm-nouveau-newabi.patch and require libdrm 2.4.34
 
   [ Timo Aaltonen ]
-  * watch: Use the .gz tarball.
+  * watch: Use the .gz tarball, and update the url.
 
  -- Maarten Lankhorst <maarten.lankhorst@canonical.com>  Mon, 16 Jul 2012 15:22:19 +0200
 

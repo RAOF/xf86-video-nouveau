@@ -20,6 +20,10 @@
 /* Drivers that need to access the PCI config space directly need this */
 #include "xf86Pci.h"
 
+#ifdef XSERVER_PLATFORM_BUS
+#include "xf86platformBus.h"
+#endif
+
 /* All drivers initialising the SW cursor need this */
 #include "mipointer.h"
 
@@ -29,8 +33,6 @@
 #include "micmap.h"
 
 #include "xf86DDC.h"
-
-#include "vbe.h"
 
 #include "xf86RandR12.h"
 

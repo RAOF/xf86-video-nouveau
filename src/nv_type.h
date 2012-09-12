@@ -3,7 +3,6 @@
 
 #include "colormapst.h"
 #include "xf86Cursor.h"
-#include "xf86int10.h"
 #include "exa.h"
 #ifdef XF86DRI
 #define _XF86DRI_SERVER_
@@ -14,6 +13,10 @@
 #include "xf86Crtc.h"
 #else
 #error "This driver requires a DRI-enabled X server"
+#endif
+
+#if XF86_CRTC_VERSION >= 5
+#define NOUVEAU_PIXMAP_SHARING 1
 #endif
 
 #define NV_ARCH_03  0x03
@@ -166,6 +169,7 @@ struct nouveau_pixmap {
 	struct nouveau_bo *bo;
 	void *linear;
 	unsigned size;
+	Bool shared;
 };
 
 static inline struct nouveau_pixmap *

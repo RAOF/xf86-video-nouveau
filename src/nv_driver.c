@@ -25,7 +25,6 @@
 #include "nv_include.h"
 
 #include "xorg-server.h"
-#include "xf86int10.h"
 #include "xf86drm.h"
 #include "xf86drmMode.h"
 #include "nouveau_drm.h"
@@ -48,6 +47,8 @@ static Bool    NVSaveScreen(ScreenPtr pScreen, int mode);
 static void    NVCloseDRM(ScrnInfoPtr);
 
 /* Optional functions */
+static Bool    NVDriverFunc(ScrnInfoPtr scrn, xorgDriverFuncOp op,
+			    void *data);
 static Bool    NVSwitchMode(SWITCH_MODE_ARGS_DECL);
 static void    NVAdjustFrame(ADJUST_FRAME_ARGS_DECL);
 static void    NVFreeScreen(FREE_SCREEN_ARGS_DECL);
@@ -72,6 +73,39 @@ static Bool NVPciProbe (	DriverPtr 		drv,
 				struct pci_device	*dev,
 				intptr_t		match_data	);
 
+#ifdef XSERVER_PLATFORM_BUS
+static Bool
+NVPlatformProbe(DriverPtr driver,
+            int entity_num, int flags, struct xf86_platform_device *dev, intptr_t dev_match_data)
+{
+	ScrnInfoPtr scrn = NULL;
+	uint32_t scr_flags = 0;
+
+	if (!dev->pdev)
+		return FALSE;
+
+        if (flags & PLATFORM_PROBE_GPU_SCREEN)
+               scr_flags = XF86_ALLOCATE_GPU_SCREEN;
+
+	scrn = xf86AllocateScreen(driver, scr_flags);
+	xf86AddEntityToScreen(scrn, entity_num);
+
+	scrn->driverVersion    = NV_VERSION;
+	scrn->driverName       = NV_DRIVER_NAME;
+	scrn->name             = NV_NAME;
+
+	scrn->Probe            = NULL;
+	scrn->PreInit          = NVPreInit;
+	scrn->ScreenInit       = NVScreenInit;
+	scrn->SwitchMode       = NVSwitchMode;
+	scrn->AdjustFrame      = NVAdjustFrame;
+	scrn->EnterVT          = NVEnterVT;
+	scrn->LeaveVT          = NVLeaveVT;
+	scrn->FreeScreen       = NVFreeScreen;
+	return scrn != NULL;
+}
+#endif
+
 /*
  * This contains the functions needed by the server after loading the
  * driver module.  It must be supplied, and gets added the driver list by
@@ -88,9 +122,12 @@ _X_EXPORT DriverRec NV = {
 	NVAvailableOptions,
 	NULL,
 	0,
-	NULL,
+	NVDriverFunc,
 	nouveau_device_match,
-	NVPciProbe
+	NVPciProbe,
+#ifdef XSERVER_PLATFORM_BUS
+	NVPlatformProbe,
+#endif
 };
 
 struct NvFamily
@@ -196,6 +233,21 @@ NVIdentify(int flags)
         }
         xf86ErrorF("(%s)\n", family->chipset);
         family++;
+    }
+}
+
+static Bool
+NVDriverFunc(ScrnInfoPtr scrn, xorgDriverFuncOp op, void *data)
+{
+    xorgHWFlags *flag;
+
+    switch (op) {
+	case GET_REQUIRED_HW_INTERFACES:
+	    flag = (CARD32 *)data;
+	    (*flag) = 0;
+	    return TRUE;
+	default:
+	    return FALSE;
     }
 }
 
@@ -376,6 +428,39 @@ NVFlushCallback(CallbackListPtr *list, pointer user_data, pointer call_data)
 		nouveau_pushbuf_kick(pNv->pushbuf, pNv->pushbuf->channel);
 }
 
+#ifdef NOUVEAU_PIXMAP_SHARING
+static void
+redisplay_dirty(ScreenPtr screen, PixmapDirtyUpdatePtr dirty)
+{
+	RegionRec pixregion;
+
+	PixmapRegionInit(&pixregion, dirty->slave_dst->master_pixmap);
+
+	PixmapSyncDirtyHelper(dirty, &pixregion);
+
+	DamageRegionAppend(&dirty->slave_dst->drawable, &pixregion);
+	RegionUninit(&pixregion);
+}
+
+static void
+nouveau_dirty_update(ScreenPtr screen)
+{
+	RegionPtr region;
+	PixmapDirtyUpdatePtr ent;
+
+	if (xorg_list_is_empty(&screen->pixmap_dirty_list))
+		return;
+
+	xorg_list_for_each_entry(ent, &screen->pixmap_dirty_list, ent) {
+		region = DamageRegion(ent->damage);
+		if (RegionNotEmpty(region)) {
+			redisplay_dirty(screen, ent);
+			DamageEmpty(ent->damage);
+		}
+	}
+}
+#endif
+
 static void 
 NVBlockHandler (BLOCKHANDLER_ARGS_DECL)
 {
@@ -386,6 +471,10 @@ NVBlockHandler (BLOCKHANDLER_ARGS_DECL)
 	pScreen->BlockHandler = pNv->BlockHandler;
 	(*pScreen->BlockHandler) (BLOCKHANDLER_ARGS);
 	pScreen->BlockHandler = NVBlockHandler;
+
+#ifdef NOUVEAU_PIXMAP_SHARING
+	nouveau_dirty_update(pScreen);
+#endif
 
 	if (pScrn->vtSema && !pNv->NoAccel)
 		nouveau_pushbuf_kick(pNv->pushbuf, pNv->pushbuf->channel);
@@ -554,6 +643,25 @@ NVDRIGetVersion(ScrnInfoPtr pScrn)
 	return TRUE;
 }
 
+static void
+nouveau_setup_capabilities(ScrnInfoPtr pScrn)
+{
+#ifdef NOUVEAU_PIXMAP_SHARING
+	NVPtr pNv = NVPTR(pScrn);
+	uint64_t value;
+	int ret;
+
+	pScrn->capabilities = 0;
+	ret = drmGetCap(pNv->dev->fd, DRM_CAP_PRIME, &value);
+	if (ret == 0) {
+		if (value & DRM_PRIME_CAP_EXPORT)
+			pScrn->capabilities |= RR_Capability_SourceOutput;
+		if (value & DRM_PRIME_CAP_IMPORT)
+			pScrn->capabilities |= RR_Capability_SourceOffload;
+	}
+#endif
+}
+
 static Bool
 NVPreInitDRM(ScrnInfoPtr pScrn)
 {
@@ -638,7 +746,11 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 
 	/* Get the entity, and make sure it is PCI. */
 	pNv->pEnt = xf86GetEntityInfo(pScrn->entityList[0]);
-	if (pNv->pEnt->location.type != BUS_PCI)
+	if (pNv->pEnt->location.type != BUS_PCI
+#ifdef XSERVER_PLATFORM_BUS
+		&& pNv->pEnt->location.type != BUS_PLATFORM
+#endif
+		)
 		return FALSE;
 
 	if (xf86IsEntityShared(pScrn->entityList[0])) {
@@ -657,6 +769,8 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 	if (!NVPreInitDRM(pScrn))
 		NVPreInitFail("\n");
 	dev = pNv->dev;
+
+	nouveau_setup_capabilities(pScrn);
 
 	pScrn->chipset = malloc(sizeof(char) * 25);
 	sprintf(pScrn->chipset, "NVIDIA NV%02x", dev->chipset);
@@ -1221,6 +1335,11 @@ NVScreenInit(SCREEN_INIT_ARGS_DECL)
 	pScreen->CloseScreen = NVCloseScreen;
 	pNv->CreateScreenResources = pScreen->CreateScreenResources;
 	pScreen->CreateScreenResources = NVCreateScreenResources;
+
+#ifdef NOUVEAU_PIXMAP_SHARING
+	pScreen->StartPixmapTracking = PixmapStartDirtyTracking;
+	pScreen->StopPixmapTracking = PixmapStopDirtyTracking;
+#endif
 
 	if (!xf86CrtcScreenInit(pScreen))
 		return FALSE;

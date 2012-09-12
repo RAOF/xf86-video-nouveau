@@ -1,3 +1,9 @@
+xserver-xorg-video-nouveau (1:1.0.2-0ubuntu1) quantal; urgency=low
+
+  * Sync from unreleased debian git.
+
+ -- Timo Aaltonen <tjaalton@ubuntu.com>  Wed, 12 Sep 2012 17:26:27 +0300
+
 xserver-xorg-video-nouveau (1:1.0.2-1) UNRELEASED; urgency=low
 
   [ Maarten Lankhorst ]

@@ -2,4 +2,4 @@
 version=3
 # Only a bzip2 tarball is currently available -- you need to
 # use uscan's --repack option
-http://nouveau.freedesktop.org/release/xf86-video-nouveau-(.+)\.tar\.bz2
+http://nouveau.freedesktop.org/release/xf86-video-nouveau-(.+)\.tar\.gz

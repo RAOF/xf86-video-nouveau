@@ -1,4 +1,5 @@
 01-set-NV_DRIVER_DATE-from-ChangeLog.diff
+02-clamp-to-edge.patch
 
 # Ubuntu patches
 

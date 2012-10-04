@@ -1,3 +1,10 @@
+xserver-xorg-video-nouveau (1:1.0.2-0ubuntu3) UNRELEASED; urgency=low
+
+  * Add upstream exa rendering fix (FDo: #55310)
+    - 02-clamp-to-edge.patch
+
+ -- Maarten Lankhorst <maarten.lankhorst@canonical.com>  Thu, 04 Oct 2012 14:00:08 +0200
+
 xserver-xorg-video-nouveau (1:1.0.2-0ubuntu2) quantal; urgency=low
 
   [ Maarten Lankhorst ]

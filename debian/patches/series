@@ -4,3 +4,6 @@
 # Ubuntu patches
 
 100-vblank-on.diff
+101-bounds.diff
+102-vblank-race.diff
+103-solidfill.diff

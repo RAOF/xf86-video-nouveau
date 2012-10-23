@@ -5,8 +5,10 @@ xserver-xorg-video-nouveau (1:1.0.2-0ubuntu4) UNRELEASED; urgency=low
     - 101-bounds.diff
   * Fix race condition in vblank
     - 102-vblank.diff
-  * Fix corruption in software center (LP: #1010794)
+  * Add solid fill acceleration (LP: #1010794)
     - 103-solidfill.diff
+  * Cleanup download/upload screen functions (LP: #1010794)
+    - 104-fix-access.diff
 
  -- Maarten Lankhorst <maarten.lankhorst@canonical.com>  Mon, 22 Oct 2012 12:24:31 +0200
 

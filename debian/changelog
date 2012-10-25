@@ -1,4 +1,4 @@
-xserver-xorg-video-nouveau (1:1.0.2-1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:1.0.3-1) UNRELEASED; urgency=low
 
   [ Maarten Lankhorst ]
   * New upstream release.
@@ -6,9 +6,6 @@ xserver-xorg-video-nouveau (1:1.0.2-1) UNRELEASED; urgency=low
 
   [ Timo Aaltonen ]
   * watch: Use the .gz tarball, and update the url.
-
-  [ Maarten Lankhorst ]
-  * add upstream 02-clamp-to-edge.patch to fix a exa rendering error
 
  -- Maarten Lankhorst <maarten.lankhorst@canonical.com>  Mon, 16 Jul 2012 15:22:19 +0200
 

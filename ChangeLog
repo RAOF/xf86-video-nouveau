@@ -1,3 +1,150 @@
+commit 8c3e1623b0be15f8cc590d893bfd19be87bd079a
+Author: Maarten Lankhorst <maarten.lankhorst@canonical.com>
+Date:   Wed Oct 24 11:19:04 2012 +0200
+
+    bump version to 1.0.3
+
+commit 6644a3a724a11150eba0c0082c8d4fe167b1755e
+Author: Maarten Lankhorst <maarten.lankhorst@canonical.com>
+Date:   Tue Oct 23 20:17:29 2012 +0200
+
+    exa: remove exaMarkSync from download/upload screen
+    
+    They're noops on nouveau since sync markers are unused and
+    download/upload are always synchronous anyway from exa's POV.
+    
+    Signed-off-by: Maarten Lankhorst <maarten.lankhorst@canonical.com>
+
+commit 2a757b7dffa85c30879653a1e52e33b8f4fa8806
+Author: Maarten Lankhorst <maarten.lankhorst@canonical.com>
+Date:   Tue Oct 23 17:04:37 2012 +0200
+
+    exa: fix comparison in download_from_screen
+    
+    Presumably a copy/paste error from upload_to_screen.
+    
+    Signed-off-by: Maarten Lankhorst <maarten.lankhorst@canonical.com>
+
+commit 72230cd5a7846f7a26f929262a745dc0bdc34a3d
+Author: Maarten Lankhorst <maarten.lankhorst@canonical.com>
+Date:   Tue Oct 23 10:37:27 2012 +0200
+
+    exa: fix up download_from/upload_to screen
+    
+    Add a missing return TRUE to download_from_screen.
+    Add a missing exaMarkSync to memcpy in upload_to_screen.
+    Add a really loud warning to both if memcpy to/from tiled is done.
+    
+    Signed-off-by: Maarten Lankhorst <maarten.lankhorst@canonical.com>
+
+commit 1d7890ecb8b3188177ab85608ea232812672d923
+Author: Maarten Lankhorst <maarten.lankhorst@canonical.com>
+Date:   Tue Oct 23 09:53:39 2012 +0200
+
+    remove unused members from nv_type.h
+
+commit 0b2a548316b0ce88ba19d5e05fdca205fc139962
+Author: Maarten Lankhorst <maarten.lankhorst@canonical.com>
+Date:   Mon Oct 22 13:12:06 2012 +0200
+
+    nvc0/exa: make solid fill actually work
+    
+    Some investigation showed that the code for accelerating solid fill
+    didn't actually work because NVC0EXACheckTexture would fail.
+    
+    Making the check the same as in NV50EXACheckTexture fixes this, and
+    seems to get acceleration for solid fills working right.
+    
+    Signed-off-by: Maarten Lankhorst <maarten.lankhorst@canonical.com>
+
+commit b4231dd715a8a7f86b04519b5f4e8a8d93c2f561
+Author: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+Date:   Tue Oct 9 09:06:59 2012 +0200
+
+    dri2: Fix potential race and crash for swap at next vblank.
+    
+    This fixes a potential race + crash that wasn't properly
+    handled by commit 248de8cdbd6d0bc062633b49896fa4791148cd3b
+    and happened at least on one users machine.
+    
+    That commit wrongly assumed no special action would be needed
+    for swaps at next vblank while triple-buffering is enabled on
+    XOrg server 1.12 or later.
+    
+    Closer inspection of the x-server main dispatch loop shows
+    it is possible that the client manages to get the server
+    to dispatch a new DRI2GetBuffersWithFormat() call before
+    the server calls the vblank event handler and executes
+    the nouveau_dri2_finish_swap() routine. Such a race would
+    cause a crash, as described in above commit.
+    
+    This commit handles the "swap at next vblank" case by
+    calling nouveau_dri2_finish_swap() immediately without
+    the roundtrip (queue vblank_event -> kernel -> deliver event
+    -> x-server processes event -> nouveau vblank event handler),
+    before control gets returned to the client.
+    
+    This avoids the race while retaining triple-buffering. As
+    a bonus, time-critical swaps at next vblank get processed
+    without roundtrip delay, increasing the chance of not
+    skipping a frame due to vblank miss while sync to vblank is
+    on.
+    
+    Thanks to Anssi for reporting this problem on the nouveau
+    mailing list at 12th July 2012 and for testing this patch.
+    
+    Reported-by: Anssi Hannula <anssi.hannula@iki.fi>
+    Tested-by: Anssi Hannula <anssi.hannula@iki.fi>
+    Signed-off-by: Mario Kleiner <mario.kleiner@tuebingen.mpg.de>
+
+commit 01c9a9cff7d6232ca6eafa59dd60833a0d9cdc5b
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Thu Oct 18 18:38:21 2012 +1000
+
+    shadowfb: fix segfault due to reading outside of shadow buffer
+    
+    Probably caused by the new libdrm port, the new libdrm sets the bo
+    size field to the *allocated* size and not the *requested* size,
+    making the max_height calculation here invalid.
+    
+    Switched to using virtualX/virtualY as the bounds, which should
+    hopefully do the right thing..
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 297fd0d0755bda698be1d0b30cc60a41d7673c0b
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Tue Oct 16 16:15:16 2012 +1000
+
+    nouveau/dri2: fix pixmap/window offset calcs.
+    
+    This should fix prime rendering under kwin, and not break it under the
+    others.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 5c9379b14cdabc81fd5d4c916dcd93dc77c4f683
+Author: Sebastian Keller <sebastian-keller@gmx.de>
+Date:   Tue Sep 25 11:35:35 2012 +0200
+
+    exa: use CLAMP_TO_EDGE for RepeatPad
+    
+    This fixes border rendering in some gtk3 themes.
+    https://bugs.freedesktop.org/show_bug.cgi?id=55310
+    
+    v2 (Ben Skeggs): implement same fix for fermi/kepler too
+    
+    Signed-off-by: Sebastian Keller <sebastian-keller@gmx.de>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 302b5da84b4890c067f5f7e8b0f4e689909bbb51
+Author: Adam Jackson <ajax@redhat.com>
+Date:   Tue Sep 25 10:44:32 2012 -0400
+
+    Remove mibstore.h
+    
+    Signed-off-by: Adam Jackson <ajax@redhat.com>
+
 commit 20f3830ddf868c0d1a46c18fa381585c076bfb8d
 Author: Maarten Lankhorst <maarten.lankhorst@canonical.com>
 Date:   Wed Sep 12 13:42:43 2012 +0200

@@ -269,7 +269,7 @@ nouveau_exa_download_from_screen(PixmapPtr pspix, int x, int y, int w, int h,
 			goto memcpy;
 
 		nouveau_bo_wait(tmp, NOUVEAU_BO_RD, pNv->client);
-		if (src_pitch == tmp_pitch) {
+		if (dst_pitch == tmp_pitch) {
 			memcpy(dst, tmp->map + tmp_offset, dst_pitch * lines);
 			dst += dst_pitch * lines;
 		} else {
@@ -285,9 +285,14 @@ nouveau_exa_download_from_screen(PixmapPtr pspix, int x, int y, int w, int h,
 		h -= lines;
 		y += lines;
 	}
+	return TRUE;
 
 memcpy:
 	bo = nouveau_pixmap_bo(pspix);
+	if (nv50_style_tiled_pixmap(pspix))
+		ErrorF("%s:%d - falling back to memcpy ignores tiling\n",
+		       __func__, __LINE__);
+
 	if (nouveau_bo_map(bo, NOUVEAU_BO_RD, pNv->client))
 		return FALSE;
 	src = (char *)bo->map + (y * src_pitch) + (x * cpp);
@@ -316,20 +321,17 @@ nouveau_exa_upload_to_screen(PixmapPtr pdpix, int x, int y, int w, int h,
 		if (pNv->Architecture < NV_ARCH_50) {
 			if (NV04EXAUploadIFC(pScrn, src, src_pitch, pdpix,
 					     x, y, w, h, cpp)) {
-				exaMarkSync(pdpix->drawable.pScreen);
 				return TRUE;
 			}
 		} else
 		if (pNv->Architecture < NV_ARCH_C0) {
 			if (NV50EXAUploadSIFC(src, src_pitch, pdpix,
 					      x, y, w, h, cpp)) {
-				exaMarkSync(pdpix->drawable.pScreen);
 				return TRUE;
 			}
 		} else {
 			if (NVC0EXAUploadSIFC(src, src_pitch, pdpix,
 					      x, y, w, h, cpp)) {
-				exaMarkSync(pdpix->drawable.pScreen);
 				return TRUE;
 			}
 		}
@@ -367,12 +369,15 @@ nouveau_exa_upload_to_screen(PixmapPtr pdpix, int x, int y, int w, int h,
 		y += lines;
 	}
 
-	exaMarkSync(pdpix->drawable.pScreen);
 	return TRUE;
 
 	/* fallback to memcpy-based transfer */
 memcpy:
 	bo = nouveau_pixmap_bo(pdpix);
+	if (nv50_style_tiled_pixmap(pdpix))
+		ErrorF("%s:%d - falling back to memcpy ignores tiling\n",
+		       __func__, __LINE__);
+
 	if (nouveau_bo_map(bo, NOUVEAU_BO_WR, pNv->client))
 		return FALSE;
 	dst = (char *)bo->map + (y * dst_pitch) + (x * cpp);

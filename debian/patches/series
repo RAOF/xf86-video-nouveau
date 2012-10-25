@@ -1,10 +1,5 @@
 01-set-NV_DRIVER_DATE-from-ChangeLog.diff
-02-clamp-to-edge.patch
 
 # Ubuntu patches
 
 100-vblank-on.diff
-101-bounds.diff
-102-vblank-race.diff
-103-solidfill.diff
-104-fix-access.diff

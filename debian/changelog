@@ -1,3 +1,15 @@
+xserver-xorg-video-nouveau (1:1.0.4-1) UNRELEASED; urgency=low
+
+  [ Maarten Lankhorst ]
+  * New upstream release.
+  * Drop 02-drm-nouveau-newabi.patch and require libdrm 2.4.34
+  * add 02-kms-edid-block-fix.patch from upstream commit.
+
+  [ Timo Aaltonen ]
+  * watch: Use the .gz tarball, and update the url.
+
+ -- Maarten Lankhorst <maarten.lankhorst@canonical.com>  Mon, 16 Jul 2012 15:22:19 +0200
+
 xserver-xorg-video-nouveau (1:1.0.3-0ubuntu0.1) quantal-proposed; urgency=low
 
   [ Maarten Lankhorst ]
@@ -9,17 +21,6 @@ xserver-xorg-video-nouveau (1:1.0.3-0ubuntu0.1) quantal-proposed; urgency=low
   * Fix prime rendering with kwin
 
  -- Timo Aaltonen <tjaalton@ubuntu.com>  Thu, 25 Oct 2012 13:23:57 +0300
-
-xserver-xorg-video-nouveau (1:1.0.3-1) UNRELEASED; urgency=low
-
-  [ Maarten Lankhorst ]
-  * New upstream release.
-  * Drop 02-drm-nouveau-newabi.patch and require libdrm 2.4.34
-
-  [ Timo Aaltonen ]
-  * watch: Use the .gz tarball, and update the url.
-
- -- Maarten Lankhorst <maarten.lankhorst@canonical.com>  Mon, 16 Jul 2012 15:22:19 +0200
 
 xserver-xorg-video-nouveau (1:1.0.2-0ubuntu3) quantal; urgency=low
 

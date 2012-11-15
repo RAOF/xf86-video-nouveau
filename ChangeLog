@@ -1,3 +1,109 @@
+commit 018ab2d4634f3c8923038337ce9600973e2f0002
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Fri Nov 9 12:16:00 2012 +1000
+
+    bump version to 1.0.4
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 0d32d964dbba3864af0946aa8894cef858eb1319
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Wed Nov 7 14:49:03 2012 +1000
+
+    nouveau: drop unused nv private members.
+    
+    these are no longer needed.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit b1a630b48210d6a3c44994fce1b73273000ace5c
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Wed Nov 7 14:45:14 2012 +1000
+
+    nouveau: drop DRI1 device open interface.
+    
+    this is a DRI1 left over, the driver is meant to open the device itself now.
+    
+    this old interface did crazy stuff like drmAddMap.
+    
+    Reviewed-by: Ben Skeggs <bskeggs@redhat.com>
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 27a1a0616304e9b9f0ae842899b7d614f1026578
+Author: Emil Velikov <emil.l.velikov@gmail.com>
+Date:   Fri Nov 2 03:57:42 2012 +0000
+
+    nouveau: NVPlatformProbe, handle shareable entities
+    
+    During NVPciProbe, xf86ConfigPciEntity() implicitly calls checks and sets
+    the entity as shared
+    Here we are only allocating the screen, thus need to explicitly call the
+    functions
+    
+    ZaphodHead and Xinerama should finally work
+    
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=56347
+    
+    Reported-By: Vladimir Chebotarev <exc@rbcmail.ru>
+    Reported-By: Damian Nowak <nowaker@geozone.pl>
+    Tested-By: Damian Nowak <nowaker@geozone.pl>
+    Signed-off-by: Emil Velikov <emil.l.velikov@gmail.com>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit e34cfbd5bd23f7f15372af52d8a39a5715ce7310
+Author: Emil Velikov <emil.l.velikov@gmail.com>
+Date:   Fri Nov 2 03:57:41 2012 +0000
+
+    nouveau: Factor out common code to NVHasKMS()
+    
+    As the name suggests checks if it has kernel mode setting,
+    prints out the interface version and checkes if the chipset
+    is supported
+    
+    Function is used in NVPciProbe and NVPlatformProbe
+    
+    Signed-off-by: Emil Velikov <emil.l.velikov@gmail.com>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 78f24dc3798d635fca2e20856a09012c28bbbb8b
+Author: Emil Velikov <emil.l.velikov@gmail.com>
+Date:   Fri Nov 2 03:57:40 2012 +0000
+
+    nouveau: introduce NVInitScrn()
+    
+    Common/helper function for NV{Pci,Platform}Probe()
+    
+    This introduces some the following functions to the
+    NVPlatformProbe codepath
+    * xf86SetEntitySharable()
+    * xf86SetEntityInstanceForScreen()
+    
+    Necessary for dualhead, xinerama and/or zaphodhead
+    
+    v2: Rename nouveau_init_scrn() to NVInitScrn()
+    Signed-off-by: Emil Velikov <emil.l.velikov@gmail.com>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 47457fbd5006070ea9a06238a5a69ca8167dac77
+Author: Emil Velikov <emil.l.velikov@gmail.com>
+Date:   Fri Nov 2 03:57:39 2012 +0000
+
+    nouveau: Remove unneeded xf86GetEntityInfo()
+    
+    Retrieving the whole entity information is not needed as we only
+    use the index - stored already in entity_num
+    
+    Signed-off-by: Emil Velikov <emil.l.velikov@gmail.com>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 20995bb5920021668b8b607f886201c643ee0e9a
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Fri Nov 2 09:04:43 2012 +1000
+
+    nouveau: fix regression in virtualbox drawing hopefully.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
 commit 8c3e1623b0be15f8cc590d893bfd19be87bd079a
 Author: Maarten Lankhorst <maarten.lankhorst@canonical.com>
 Date:   Wed Oct 24 11:19:04 2012 +0200

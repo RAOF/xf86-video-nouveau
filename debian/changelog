@@ -1,8 +1,9 @@
-xserver-xorg-video-nouveau (1:1.0.3-1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:1.0.4-1) UNRELEASED; urgency=low
 
   [ Maarten Lankhorst ]
   * New upstream release.
   * Drop 02-drm-nouveau-newabi.patch and require libdrm 2.4.34
+  * add 02-kms-edid-block-fix.patch from upstream commit.
 
   [ Timo Aaltonen ]
   * watch: Use the .gz tarball, and update the url.

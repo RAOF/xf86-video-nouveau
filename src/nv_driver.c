@@ -74,36 +74,10 @@ static Bool NVPciProbe (	DriverPtr 		drv,
 				intptr_t		match_data	);
 
 #ifdef XSERVER_PLATFORM_BUS
-static Bool
-NVPlatformProbe(DriverPtr driver,
-            int entity_num, int flags, struct xf86_platform_device *dev, intptr_t dev_match_data)
-{
-	ScrnInfoPtr scrn = NULL;
-	uint32_t scr_flags = 0;
-
-	if (!dev->pdev)
-		return FALSE;
-
-        if (flags & PLATFORM_PROBE_GPU_SCREEN)
-               scr_flags = XF86_ALLOCATE_GPU_SCREEN;
-
-	scrn = xf86AllocateScreen(driver, scr_flags);
-	xf86AddEntityToScreen(scrn, entity_num);
-
-	scrn->driverVersion    = NV_VERSION;
-	scrn->driverName       = NV_DRIVER_NAME;
-	scrn->name             = NV_NAME;
-
-	scrn->Probe            = NULL;
-	scrn->PreInit          = NVPreInit;
-	scrn->ScreenInit       = NVScreenInit;
-	scrn->SwitchMode       = NVSwitchMode;
-	scrn->AdjustFrame      = NVAdjustFrame;
-	scrn->EnterVT          = NVEnterVT;
-	scrn->LeaveVT          = NVLeaveVT;
-	scrn->FreeScreen       = NVFreeScreen;
-	return scrn != NULL;
-}
+static Bool NVPlatformProbe(DriverPtr driver,
+				int entity_num, int flags,
+				struct xf86_platform_device *dev,
+				intptr_t dev_match_data);
 #endif
 
 /*
@@ -251,21 +225,34 @@ NVDriverFunc(ScrnInfoPtr scrn, xorgDriverFuncOp op, void *data)
     }
 }
 
-static Bool
-NVPciProbe(DriverPtr drv, int entity_num, struct pci_device *pci_dev,
-	   intptr_t match_data)
+static void
+NVInitScrn(ScrnInfoPtr pScrn, int entity_num)
 {
-	PciChipsets NVChipsets[] = {
-		{ pci_dev->device_id,
-		  (pci_dev->vendor_id << 16) | pci_dev->device_id, NULL },
-		{ -1, -1, NULL }
-	};
+	pScrn->driverVersion    = NV_VERSION;
+	pScrn->driverName       = NV_DRIVER_NAME;
+	pScrn->name             = NV_NAME;
+
+	pScrn->Probe            = NULL;
+	pScrn->PreInit          = NVPreInit;
+	pScrn->ScreenInit       = NVScreenInit;
+	pScrn->SwitchMode       = NVSwitchMode;
+	pScrn->AdjustFrame      = NVAdjustFrame;
+	pScrn->EnterVT          = NVEnterVT;
+	pScrn->LeaveVT          = NVLeaveVT;
+	pScrn->FreeScreen       = NVFreeScreen;
+
+	xf86SetEntitySharable(entity_num);
+	xf86SetEntityInstanceForScreen(pScrn, entity_num,
+					xf86GetNumEntityInstances(entity_num) - 1);
+}
+
+static Bool
+NVHasKMS(struct pci_device *pci_dev)
+{
 	struct nouveau_device *dev = NULL;
-	EntityInfoPtr pEnt = NULL;
-	ScrnInfoPtr pScrn = NULL;
 	drmVersion *version;
-	int chipset, ret;
 	char *busid;
+	int chipset, ret;
 
 	if (!xf86LoaderCheckSymbol("DRICreatePCIBusID")) {
 		xf86DrvMsg(-1, X_ERROR, "[drm] No DRICreatePCIBusID symbol\n");
@@ -273,10 +260,17 @@ NVPciProbe(DriverPtr drv, int entity_num, struct pci_device *pci_dev,
 	}
 	busid = DRICreatePCIBusID(pci_dev);
 
+	ret = drmCheckModesettingSupported(busid);
+	if (ret) {
+		xf86DrvMsg(-1, X_ERROR, "[drm] KMS not enabled\n");
+		free(busid);
+		return FALSE;
+	}
+
 	ret = nouveau_device_open(busid, &dev);
+	free(busid);
 	if (ret) {
 		xf86DrvMsg(-1, X_ERROR, "[drm] failed to open device\n");
-		free(busid);
 		return FALSE;
 	}
 
@@ -294,12 +288,6 @@ NVPciProbe(DriverPtr drv, int entity_num, struct pci_device *pci_dev,
 	chipset = dev->chipset;
 	nouveau_device_del(&dev);
 
-	ret = drmCheckModesettingSupported(busid);
-	free(busid);
-	if (ret) {
-		xf86DrvMsg(-1, X_ERROR, "[drm] KMS not enabled\n");
-		return FALSE;
-	}
 
 	switch (chipset & 0xf0) {
 	case 0x00:
@@ -320,33 +308,63 @@ NVPciProbe(DriverPtr drv, int entity_num, struct pci_device *pci_dev,
 		xf86DrvMsg(-1, X_ERROR, "Unknown chipset: NV%02x\n", chipset);
 		return FALSE;
 	}
+	return TRUE;
+}
+
+static Bool
+NVPciProbe(DriverPtr drv, int entity_num, struct pci_device *pci_dev,
+	   intptr_t match_data)
+{
+	PciChipsets NVChipsets[] = {
+		{ pci_dev->device_id,
+		  (pci_dev->vendor_id << 16) | pci_dev->device_id, NULL },
+		{ -1, -1, NULL }
+	};
+	ScrnInfoPtr pScrn = NULL;
+
+	if (!NVHasKMS(pci_dev))
+		return FALSE;
 
 	pScrn = xf86ConfigPciEntity(pScrn, 0, entity_num, NVChipsets,
 				    NULL, NULL, NULL, NULL, NULL);
 	if (!pScrn)
 		return FALSE;
 
-	pScrn->driverVersion    = NV_VERSION;
-	pScrn->driverName       = NV_DRIVER_NAME;
-	pScrn->name             = NV_NAME;
-
-	pScrn->Probe            = NULL;
-	pScrn->PreInit          = NVPreInit;
-	pScrn->ScreenInit       = NVScreenInit;
-	pScrn->SwitchMode       = NVSwitchMode;
-	pScrn->AdjustFrame      = NVAdjustFrame;
-	pScrn->EnterVT          = NVEnterVT;
-	pScrn->LeaveVT          = NVLeaveVT;
-	pScrn->FreeScreen       = NVFreeScreen;
-
-	xf86SetEntitySharable(entity_num);
-
-	pEnt = xf86GetEntityInfo(entity_num);
-	xf86SetEntityInstanceForScreen(pScrn, pEnt->index, xf86GetNumEntityInstances(pEnt->index) - 1);
-	free(pEnt);
+	NVInitScrn(pScrn, entity_num);
 
 	return TRUE;
 }
+
+#ifdef XSERVER_PLATFORM_BUS
+static Bool
+NVPlatformProbe(DriverPtr driver,
+            int entity_num, int flags, struct xf86_platform_device *dev, intptr_t dev_match_data)
+{
+	ScrnInfoPtr scrn = NULL;
+	uint32_t scr_flags = 0;
+
+	if (!dev->pdev)
+		return FALSE;
+
+	if (!NVHasKMS(dev->pdev))
+		return FALSE;
+
+	if (flags & PLATFORM_PROBE_GPU_SCREEN)
+		scr_flags = XF86_ALLOCATE_GPU_SCREEN;
+
+	scrn = xf86AllocateScreen(driver, scr_flags);
+	if (!scrn)
+		return FALSE;
+
+	if (xf86IsEntitySharable(entity_num))
+		xf86SetEntityShared(entity_num);
+	xf86AddEntityToScreen(scrn, entity_num);
+
+	NVInitScrn(scrn, entity_num);
+
+	return TRUE;
+}
+#endif
 
 #define MAX_CHIPS MAXSCREENS
 
@@ -662,31 +680,61 @@ nouveau_setup_capabilities(ScrnInfoPtr pScrn)
 #endif
 }
 
+static Bool NVOpenDRMMaster(ScrnInfoPtr pScrn)
+{
+	NVPtr pNv = NVPTR(pScrn);
+	struct pci_device *dev = pNv->PciInfo;
+	char *busid;
+	drmSetVersion sv;
+	int err;
+	int ret;
+
+#if XORG_VERSION_CURRENT >= XORG_VERSION_NUMERIC(1,9,99,901,0)
+	XNFasprintf(&busid, "pci:%04x:%02x:%02x.%d",
+		    dev->domain, dev->bus, dev->dev, dev->func);
+#else
+	busid = XNFprintf("pci:%04x:%02x:%02x.%d",
+			  dev->domain, dev->bus, dev->dev, dev->func);
+#endif
+
+	ret = nouveau_device_open(busid, &pNv->dev);
+	if (ret) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			   "[drm] Failed to open DRM device for %s: %d\n",
+			   busid, ret);
+		free(busid);
+		return FALSE;
+	}
+	free(busid);
+
+	sv.drm_di_major = 1;
+	sv.drm_di_minor = 1;
+	sv.drm_dd_major = -1;
+	sv.drm_dd_minor = -1;
+	err = drmSetInterfaceVersion(pNv->dev->fd, &sv);
+	if (err != 0) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			   "[drm] failed to set drm interface version.\n");
+		nouveau_device_del(&pNv->dev);
+		return FALSE;
+	}
+	return TRUE;
+}
+
 static Bool
 NVPreInitDRM(ScrnInfoPtr pScrn)
 {
 	NVPtr pNv = NVPTR(pScrn);
-	char *bus_id;
 	int ret;
 
 	if (!NVDRIGetVersion(pScrn))
 		return FALSE;
 
 	/* Load the kernel module, and open the DRM */
-	bus_id = DRICreatePCIBusID(pNv->PciInfo);
-	ret = DRIOpenDRMMaster(pScrn, SAREA_MAX, bus_id, "nouveau");
-	free(bus_id);
+	ret = NVOpenDRMMaster(pScrn);
 	if (!ret) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "[drm] error opening the drm\n");
-		return FALSE;
-	}
-
-	/* Initialise libdrm_nouveau */
-	ret = nouveau_device_wrap(DRIMasterFD(pScrn), 1, &pNv->dev);
-	if (ret) {
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			   "[drm] error creating device\n");
 		return FALSE;
 	}
 
@@ -694,7 +742,7 @@ NVPreInitDRM(ScrnInfoPtr pScrn)
 	if (ret)
 		return FALSE;
 
-	pNv->drm_device_name = drmGetDeviceNameFromFd(DRIMasterFD(pScrn));
+	pNv->drm_device_name = drmGetDeviceNameFromFd(pNv->dev->fd);
 
 	return TRUE;
 }

@@ -1,4 +1,4 @@
-xserver-xorg-video-nouveau (1:1.0.4-1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:1.0.4-1) experimental; urgency=low
 
   [ Maarten Lankhorst ]
   * New upstream release.
@@ -8,7 +8,7 @@ xserver-xorg-video-nouveau (1:1.0.4-1) UNRELEASED; urgency=low
   [ Timo Aaltonen ]
   * watch: Use the .gz tarball, and update the url.
 
- -- Maarten Lankhorst <maarten.lankhorst@canonical.com>  Mon, 16 Jul 2012 15:22:19 +0200
+ -- Sven Joachim <svenjoac@gmx.de>  Mon, 26 Nov 2012 19:18:41 +0100
 
 xserver-xorg-video-nouveau (1:1.0.1-4) unstable; urgency=low
 

@@ -3,7 +3,6 @@ Section: x11
 Priority: optional
 Maintainer: Debian X Strike Force <debian-x@lists.debian.org>
 Uploaders: Cyril Brulebois <kibi@debian.org>, Sven Joachim <svenjoac@gmx.de>
-Dm-Upload-Allowed: yes
 Build-Depends:
  debhelper (>= 8),
  dh-autoreconf,

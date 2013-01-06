@@ -1,3 +1,10 @@
+xserver-xorg-video-nouveau (1:1.0.4-2) UNRELEASED; urgency=low
+
+  * Bump build-dependency on libdrm-dev to (>= 2.4.40-1) and add an
+    override for the resulting lintian warning.
+
+ -- Sven Joachim <svenjoac@gmx.de>  Sun, 06 Jan 2013 14:56:59 +0100
+
 xserver-xorg-video-nouveau (1:1.0.4-1) experimental; urgency=low
 
   [ Maarten Lankhorst ]

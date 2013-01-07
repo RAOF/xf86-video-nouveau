@@ -1,4 +1,4 @@
-xserver-xorg-video-nouveau (1:1.0.6-0ubuntu1) raring; urgency=low
+xserver-xorg-video-nouveau (1:1.0.6-0ubuntu1) UNRELEASED; urgency=low
 
   * Sync from unreleased debian experimental git.
   * Remaining differences:
@@ -15,6 +15,7 @@ xserver-xorg-video-nouveau (1:1.0.6-1) UNRELEASED; urgency=low
 
   [ Maarten Lankhorst ]
   * New upstream release.
+  * Remove 02-kms-edid-block-fix.patch, upstreamed.
 
  -- Sven Joachim <svenjoac@gmx.de>  Sun, 06 Jan 2013 14:56:59 +0100
 

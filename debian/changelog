@@ -1,4 +1,4 @@
-xserver-xorg-video-nouveau (1:1.0.6-1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:1.0.6-1) experimental; urgency=low
 
   [ Sven Joachim ]
   * Bump build-dependency on libdrm-dev to (>= 2.4.40-1) and add an
@@ -8,7 +8,7 @@ xserver-xorg-video-nouveau (1:1.0.6-1) UNRELEASED; urgency=low
   * New upstream release.
   * Remove 02-kms-edid-block-fix.patch, upstreamed.
 
- -- Sven Joachim <svenjoac@gmx.de>  Sun, 06 Jan 2013 14:56:59 +0100
+ -- Sven Joachim <svenjoac@gmx.de>  Mon, 07 Jan 2013 21:16:59 +0100
 
 xserver-xorg-video-nouveau (1:1.0.4-1) experimental; urgency=low
 

@@ -357,7 +357,7 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 
 	if (ret) {
 		xf86DrvMsg(crtc->scrn->scrnIndex, X_ERROR,
-			   "failed to set mode: %s", strerror(-ret));
+			   "failed to set mode: %s\n", strerror(-ret));
 		return FALSE;
 	}
 
@@ -532,7 +532,7 @@ drmmode_gamma_set(xf86CrtcPtr crtc, CARD16 *red, CARD16 *green, CARD16 *blue,
 				  size, red, green, blue);
 	if (ret != 0) {
 		xf86DrvMsg(crtc->scrn->scrnIndex, X_ERROR,
-			   "failed to set gamma: %s", strerror(-ret));
+			   "failed to set gamma: %s\n", strerror(-ret));
 	}
 }
 
@@ -640,9 +640,12 @@ drmmode_output_get_modes(xf86OutputPtr output)
 		drmModeFreeProperty(props);
 	}
 
-	if (drmmode_output->edid_blob)
+	if (drmmode_output->edid_blob) {
 		ddc_mon = xf86InterpretEDID(output->scrn->scrnIndex,
 					    drmmode_output->edid_blob->data);
+		if (ddc_mon && drmmode_output->edid_blob->length > 128)
+			ddc_mon->flags |= MONITOR_EDID_COMPLETE_RAWDATA;
+	}
 	xf86OutputSetEDID(output, ddc_mon);
 
 	/* modes should already be available */

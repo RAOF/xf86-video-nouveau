@@ -1,3 +1,57 @@
+commit 8f934fad5d4934936b3265f272ca81e73c60d7dc
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Mon Jan 7 14:13:10 2013 +1000
+
+    bump to 1.0.6
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 00834273e22f7234a3755269100ea3f10b521e35
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Mon Jan 7 14:04:40 2013 +1000
+
+    nouveau: fix dirty redisplay damage handling
+    
+    This processes the damage in the correct order.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 389b8a8dd91a48dee524eac96e60813c507f1a82
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Jan 7 14:05:06 2013 +1000
+
+    bump to 1.0.5
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit efe9c57af6ff4c12936e49ac3e188c54b8b2d5bd
+Author: Ben Skeggs <bskeggs@redhat.com>
+Date:   Mon Jan 7 11:35:56 2013 +1000
+
+    nvc0-/exa: fix typo which caused breakage in rendercheck tmcoords test
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 5cd86445272818ec2f598f4685a5d7f24e403d07
+Author: Marcin Slusarz <marcin.slusarz@gmail.com>
+Date:   Sun Nov 25 22:59:49 2012 +0100
+
+    add some missing newlines in error messages
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 3b33a0b426b8915f302247dcd40c64fb1a6dcdd2
+Author: Emil Velikov <emil.l.velikov@gmail.com>
+Date:   Sun Nov 4 18:06:18 2012 +0000
+
+    kms: Let the server know if we got more than 1 EDID block
+    
+    Verbatim copy from xf86-video-radeon commit 809cacb
+    
+    Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=32341
+    Signed-off-by: Emil Velikov <emil.l.velikov@gmail.com>
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
 commit 018ab2d4634f3c8923038337ce9600973e2f0002
 Author: Ben Skeggs <bskeggs@redhat.com>
 Date:   Fri Nov 9 12:16:00 2012 +1000

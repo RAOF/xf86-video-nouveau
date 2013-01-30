@@ -1,3 +1,13 @@
+xserver-xorg-video-nouveau (1:1.0.6-0ubuntu2) UNRELEASED; urgency=low
+
+  * Cherry-pick upstream patches to sync with git 58284cf32
+    - 101-gart-cursor.patch
+    - 102-frame-throttle.patch
+  * Add patch to enable reverse-optimus support
+    - 103-reverse-optimus.patch
+
+ -- Maarten Lankhorst <maarten.lankhorst@ubuntu.com>  Wed, 30 Jan 2013 14:16:30 +0100
+
 xserver-xorg-video-nouveau (1:1.0.6-0ubuntu1) raring; urgency=low
 
   * Sync from unreleased debian experimental git.

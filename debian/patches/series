@@ -3,3 +3,6 @@
 # Ubuntu patches
 
 100-vblank-on.diff
+101-gart-cursor.patch
+102-frame-throttle.patch
+103-reverse-optimus.patch

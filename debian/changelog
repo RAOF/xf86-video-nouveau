@@ -1,10 +1,10 @@
-xserver-xorg-video-nouveau (1:1.0.1-5) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:1.0.1-5) unstable; urgency=low
 
   * New patch 03-fix-shaders-on-big-endian-machines.diff from
     Marcin Slucarz, fixes missing fonts on NV30 cards on powerpc
     (Closes: #699214).
 
- -- Sven Joachim <svenjoac@gmx.de>  Thu, 07 Feb 2013 18:01:41 +0100
+ -- Sven Joachim <svenjoac@gmx.de>  Thu, 07 Feb 2013 18:14:24 +0100
 
 xserver-xorg-video-nouveau (1:1.0.1-4) unstable; urgency=low
 

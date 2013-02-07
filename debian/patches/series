@@ -1,2 +1,3 @@
 01-set-NV_DRIVER_DATE-from-ChangeLog.diff
 02-drm-nouveau-newabi.patch
+03-fix-shaders-on-big-endian-machines.diff

@@ -1,4 +1,12 @@
-xserver-xorg-video-nouveau (1:1.0.6-0ubuntu2) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:1.0.6-0ubuntu3) raring; urgency=low
+
+  * Remove individual patches, sync to git a80785f792 to pick up some fixes.
+    - Mostly import for fixes to reverse prime support.
+  * This hopefully fixes (LP: #1124693)
+
+ -- Maarten Lankhorst <maarten.lankhorst@ubuntu.com>  Tue, 19 Feb 2013 17:34:52 +0100
+
+xserver-xorg-video-nouveau (1:1.0.6-0ubuntu2) raring; urgency=low
 
   * Cherry-pick upstream patches to sync with git 58284cf32
     - 101-gart-cursor.patch

@@ -1,9 +1,9 @@
-xserver-xorg-video-nouveau (1:1.0.6-0ubuntu4) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:1.0.6-0ubuntu4) raring; urgency=low
 
   * Clean up (forced) device close (LP: #1157614)
     - 102-fixup-close.diff
 
- -- Maarten Lankhorst <maarten.lankhorst@ubuntu.com>  Mon, 25 Mar 2013 13:59:55 +0100
+ -- Maarten Lankhorst <maarten.lankhorst@ubuntu.com>  Mon, 25 Mar 2013 14:01:46 +0100
 
 xserver-xorg-video-nouveau (1:1.0.6-0ubuntu3) raring; urgency=low
 

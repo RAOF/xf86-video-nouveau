@@ -3,5 +3,3 @@
 # Ubuntu patches
 
 100-vblank-on.diff
-101-git-a80785f792.diff
-102-fixup-close.diff

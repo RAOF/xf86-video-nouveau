@@ -1,3 +1,12 @@
+xserver-xorg-video-nouveau (1:1.0.7-0ubuntu1) UNRELEASED; urgency=low
+
+  * Sync to unreleased debian experimental git.
+  * Remaining differences:
+    - Try to enable vblank if available (LP: #1019131)
+      - 100-vblank-on.diff
+
+ -- Maarten Lankhorst <maarten.lankhorst@ubuntu.com>  Wed, 27 Mar 2013 13:37:09 +0100
+
 xserver-xorg-video-nouveau (1:1.0.7-1) UNRELEASED; urgency=low
 
   * New upstream release.

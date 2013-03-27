@@ -1,4 +1,4 @@
-xserver-xorg-video-nouveau (1:1.0.7-0ubuntu1) UNRELEASED; urgency=low
+xserver-xorg-video-nouveau (1:1.0.7-0ubuntu1) raring; urgency=low
 
   * Sync to unreleased debian experimental git.
   * Remaining differences:

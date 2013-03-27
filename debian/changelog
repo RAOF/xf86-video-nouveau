@@ -1,3 +1,9 @@
+xserver-xorg-video-nouveau (1:1.0.7-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+
+ -- Maarten Lankhorst <maarten.lankhorst@ubuntu.com>  Wed, 27 Mar 2013 13:37:09 +0100
+
 xserver-xorg-video-nouveau (1:1.0.6-1) experimental; urgency=low
 
   [ Sven Joachim ]

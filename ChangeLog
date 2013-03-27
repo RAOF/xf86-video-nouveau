@@ -1,3 +1,128 @@
+commit 6771424d79e541d2fa7253a582db3dc9108fd97d
+Author: Maarten Lankhorst <maarten.lankhorst@canonical.com>
+Date:   Wed Mar 27 09:50:03 2013 +0100
+
+    bump to 1.0.7
+    
+    Signed-off-by: Maarten Lankhorst <maarten.lankhorst@canonical.com>
+
+commit 84998320162a74a0861b7be1fcc230e50f08424a
+Author: Maarten Lankhorst <maarten.lankhorst@canonical.com>
+Date:   Mon Mar 25 13:55:37 2013 +0100
+
+    Clean up some errors on closing.
+    
+    If forced close happens, all ioctl's will fail. Some of the handlers
+    also need to be unregistered before the module is unloaded entirely.
+
+commit a80785f79268ed3701fc69cbd9194ad12822c82c
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Mon Feb 11 09:56:25 2013 +1000
+
+    nouveau: fix build against old servers (part 2)
+    
+    Should fix next bit of
+    https://bugs.freedesktop.org/show_bug.cgi?id=60369
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 05dc9b57896689a3dbd9e6aeb16d57c49515b02e
+Author: Marcin Slusarz <marcin.slusarz@gmail.com>
+Date:   Sun Feb 3 21:12:46 2013 +0100
+
+    nv30/exa: fix shaders on big-endian machines
+    
+    Direct port of commit d1bc38b6673c54af61196056c489383fba8dced8
+    "nv40/exa: fix shaders on big-endian machines" to nv30.
+    
+    Fixes https://bugs.freedesktop.org/show_bug.cgi?id=60050
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 61a277488f7195914cbdda10355db0d758fc801c
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Thu Feb 7 10:47:20 2013 +1000
+
+    nouveau: fix build on older X servers
+    
+    should fix https://bugs.freedesktop.org/show_bug.cgi?id=60369
+    
+    Reported-by: fabio.ped@libero.it
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit e8f222fd10e21f39488d3d8c697e4948cd787cd0
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Wed Feb 6 16:21:50 2013 +1000
+
+    nouveau: make prime regression fix more robust.
+    
+    This makes this fix more robust and less crashy.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit d762631c9306b6580b34db1e7eb57bbcac901390
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Wed Feb 6 15:52:33 2013 +1000
+
+    nouveau: align shared buffers to 256
+    
+    We were getting 0xa5 error code on 2D transfers from tiled VRAM to untiled
+    GART when using USB offload devices, this fixes this by upping the alignment
+    on the 2D engine for shared buffers.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit c6980b2add5752a7c285a846b2c9353c9d18afd4
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Wed Feb 6 15:24:09 2013 +1000
+
+    nouveau: fix regression in PRIME since 58284cf32778d54cde139423450bc33360784503
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 59fb3f0252e9b769c5877cfe83d8dbc51cdff232
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Wed Feb 6 14:58:08 2013 +1000
+
+    nouveau: create shared pixmaps in GART
+    
+    this creates the shared pixmaps in GART, and makes sure they are untiled.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 1fdd7db94b55c65ea62cc9eaefff620b20e9e4ea
+Author: Dave Airlie <airlied@redhat.com>
+Date:   Mon Jan 7 15:28:53 2013 +1000
+
+    nouveau: add reverse prime support
+    
+    This allows the nvidia card to scanout Intel cards rendering.
+    
+    Signed-off-by: Dave Airlie <airlied@redhat.com>
+
+commit 58284cf32778d54cde139423450bc33360784503
+Author: Christoph Bumiller <e0425955@student.tuwien.ac.at>
+Date:   Tue Jan 29 16:38:21 2013 +1000
+
+    dri2: fix missing frame throttle on copy_region buffer swaps
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
+commit 912d418fdfd2e99eef1e5c631c76dda1d82cf451
+Author: Marcin Slusarz <marcin.slusarz@gmail.com>
+Date:   Mon Jan 21 00:15:38 2013 +0100
+
+    nouveau: put cursor BO in GART
+    
+    Keeping it in VRAM wastes CPU time, because cursor_set ioctl reads
+    handed BO back to RAM, just to write it to actual cursor BO.
+    
+    Here (nv92/core i7), this patch decreases overall cpu usage of
+    drmmode_load_cursor_argb from 4.6ms to ~90us and lets nv50_crtc_cursor_set
+    disappear from perf traces.
+    
+    Signed-off-by: Ben Skeggs <bskeggs@redhat.com>
+
 commit 8f934fad5d4934936b3265f272ca81e73c60d7dc
 Author: Dave Airlie <airlied@redhat.com>
 Date:   Mon Jan 7 14:13:10 2013 +1000

@@ -432,8 +432,8 @@ NVLeaveVT(VT_FUNC_ARGS_DECL)
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "NVLeaveVT is called.\n");
 
 	ret = drmDropMaster(pNv->dev->fd);
-	if (ret)
-		ErrorF("Error dropping master: %d\n", ret);
+	if (ret && errno != EIO && errno != ENODEV)
+		ErrorF("Error dropping master: %i(%m)\n", -errno);
 }
 
 static void
@@ -452,7 +452,7 @@ redisplay_dirty(ScreenPtr screen, PixmapDirtyUpdatePtr dirty)
 {
 	RegionRec pixregion;
 
-	PixmapRegionInit(&pixregion, dirty->slave_dst->master_pixmap);
+	PixmapRegionInit(&pixregion, dirty->slave_dst);
 
 	DamageRegionAppend(&dirty->slave_dst->drawable, &pixregion);
 	PixmapSyncDirtyHelper(dirty, &pixregion);
@@ -624,8 +624,9 @@ NVCloseDRM(ScrnInfoPtr pScrn)
 {
 	NVPtr pNv = NVPTR(pScrn);
 
-	nouveau_device_del(&pNv->dev);
 	drmFree(pNv->drm_device_name);
+	nouveau_client_del(&pNv->client);
+	nouveau_device_del(&pNv->dev);
 }
 
 static Bool
@@ -676,7 +677,7 @@ nouveau_setup_capabilities(ScrnInfoPtr pScrn)
 		if (value & DRM_PRIME_CAP_EXPORT)
 			pScrn->capabilities |= RR_Capability_SourceOutput;
 		if (value & DRM_PRIME_CAP_IMPORT)
-			pScrn->capabilities |= RR_Capability_SourceOffload;
+			pScrn->capabilities |= RR_Capability_SourceOffload | RR_Capability_SinkOutput;
 	}
 #endif
 }

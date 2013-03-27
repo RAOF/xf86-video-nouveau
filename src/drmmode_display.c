@@ -42,6 +42,7 @@
 #include "libudev.h"
 #endif
 
+static Bool drmmode_xf86crtc_resize(ScrnInfoPtr scrn, int width, int height);
 typedef struct {
     int fd;
     uint32_t fb_id;
@@ -345,6 +346,11 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 	drmmode_ConvertToKMode(crtc->scrn, &kmode, mode);
 
 	fb_id = drmmode->fb_id;
+#ifdef NOUVEAU_PIXMAP_SHARING
+	if (crtc->randr_crtc->scanout_pixmap)
+		x = y = 0;
+	else
+#endif
 	if (drmmode_crtc->rotate_fb_id) {
 		fb_id = drmmode_crtc->rotate_fb_id;
 		x = 0;
@@ -536,6 +542,35 @@ drmmode_gamma_set(xf86CrtcPtr crtc, CARD16 *red, CARD16 *green, CARD16 *blue,
 	}
 }
 
+#ifdef NOUVEAU_PIXMAP_SHARING
+static Bool
+drmmode_set_scanout_pixmap(xf86CrtcPtr crtc, PixmapPtr ppix)
+{
+	ScreenPtr screen = xf86ScrnToScreen(crtc->scrn);
+	PixmapPtr screenpix = screen->GetScreenPixmap(screen);
+
+	if (!ppix) {
+		if (crtc->randr_crtc->scanout_pixmap)
+			PixmapStopDirtyTracking(crtc->randr_crtc->scanout_pixmap, screenpix);
+		return TRUE;
+	}
+
+	if (ppix->drawable.width > screenpix->drawable.width ||
+	    ppix->drawable.height > screenpix->drawable.height) {
+		Bool ret;
+		ret = drmmode_xf86crtc_resize(crtc->scrn, ppix->drawable.width, ppix->drawable.height);
+		if (ret == FALSE)
+			return FALSE;
+
+		screenpix = screen->GetScreenPixmap(screen);
+		screen->width = screenpix->drawable.width = ppix->drawable.width;
+		screen->height = screenpix->drawable.height = ppix->drawable.height;
+	}
+	PixmapStartDirtyTracking(ppix, screenpix, 0, 0);
+	return TRUE;
+}
+#endif
+
 static const xf86CrtcFuncsRec drmmode_crtc_funcs = {
 	.dpms = drmmode_crtc_dpms,
 	.set_mode_major = drmmode_set_mode_major,
@@ -547,6 +582,10 @@ static const xf86CrtcFuncsRec drmmode_crtc_funcs = {
 	.shadow_allocate = drmmode_crtc_shadow_allocate,
 	.shadow_destroy = drmmode_crtc_shadow_destroy,
 	.gamma_set = drmmode_gamma_set,
+
+#ifdef NOUVEAU_PIXMAP_SHARING
+	.set_scanout_pixmap = drmmode_set_scanout_pixmap,
+#endif
 };
 
 
@@ -567,7 +606,7 @@ drmmode_crtc_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int num)
 						 drmmode->mode_res->crtcs[num]);
 	drmmode_crtc->drmmode = drmmode;
 
-	ret = nouveau_bo_new(pNv->dev, NOUVEAU_BO_VRAM | NOUVEAU_BO_MAP, 0,
+	ret = nouveau_bo_new(pNv->dev, NOUVEAU_BO_GART | NOUVEAU_BO_MAP, 0,
 			     64*64*4, NULL, &drmmode_crtc->cursor);
 	assert(ret == 0);
 
@@ -587,6 +626,9 @@ drmmode_output_detect(xf86OutputPtr output)
 
 	drmmode_output->mode_output =
 		drmModeGetConnector(drmmode->fd, drmmode_output->output_id);
+
+	if (!drmmode_output->mode_output)
+		return XF86OutputStatusDisconnected;
 
 	switch (drmmode_output->mode_output->connection) {
 	case DRM_MODE_CONNECTED:
@@ -623,6 +665,9 @@ drmmode_output_get_modes(xf86OutputPtr output)
 	DisplayModePtr Modes = NULL, Mode;
 	drmModePropertyPtr props;
 	xf86MonPtr ddc_mon = NULL;
+
+	if (!koutput)
+		return NULL;
 
 	/* look for an EDID property */
 	for (i = 0; i < koutput->count_props; i++) {
@@ -887,6 +932,9 @@ drmmode_output_get_property(xf86OutputPtr output, Atom property)
 		drmmode_output->mode_output =
 			drmModeGetConnector(drmmode->fd, drmmode_output->output_id);
 	}
+
+	if (!drmmode_output->mode_output)
+		return FALSE;
 
 	for (i = 0; i < drmmode_output->num_props; i++) {
 		drmmode_prop_ptr p = &drmmode_output->props[i];
@@ -1398,6 +1446,7 @@ drmmode_uevent_fini(ScrnInfoPtr scrn)
 	if (drmmode->uevent_monitor) {
 		struct udev *u = udev_monitor_get_udev(drmmode->uevent_monitor);
 
+		RemoveGeneralSocket(udev_monitor_get_fd(drmmode->uevent_monitor));
 		udev_monitor_unref(drmmode->uevent_monitor);
 		udev_unref(u);
 	}
@@ -1485,6 +1534,12 @@ void
 drmmode_screen_fini(ScreenPtr pScreen)
 {
 	ScrnInfoPtr scrn = xf86ScreenToScrn(pScreen);
+	drmmode_ptr drmmode = drmmode_from_scrn(scrn);
 
 	drmmode_uevent_fini(scrn);
+
+	/* Register a wakeup handler to get informed on DRM events */
+	RemoveBlockAndWakeupHandlers((BlockHandlerProcPtr)NoopDDA,
+				     drmmode_wakeup_handler, scrn);
+	RemoveGeneralSocket(drmmode->fd);
 }

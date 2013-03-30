@@ -6,6 +6,7 @@ xserver-xorg-video-nouveau (1:1.0.7-1) UNRELEASED; urgency=low
   [ Sven Joachim ]
   * Remove patch 03-fix-shaders-on-big-endian-machines.diff, applied
     upstream.
+  * Drop get-orig-source target from debian/rules.
 
  -- Maarten Lankhorst <maarten.lankhorst@ubuntu.com>  Wed, 27 Mar 2013 13:37:09 +0100
 

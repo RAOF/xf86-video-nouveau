@@ -1,3 +1,13 @@
+xserver-xorg-video-nouveau (1:1.0.8-0ubuntu1) saucy; urgency=low
+
+  * Sync to unreleased debian experimental git.
+  * Remaining differences:
+    - Try to enable vblank if available (LP: #1019131)
+      - 100-vblank-on.diff
+  * Add support for displayless cards. (LP: #1142733)
+
+ -- Maarten Lankhorst <maarten.lankhorst@ubuntu.com>  Wed, 12 Jun 2013 11:24:18 +0200
+
 xserver-xorg-video-nouveau (1:1.0.8-1) UNRELEASED; urgency=low
 
   * New upstream release.

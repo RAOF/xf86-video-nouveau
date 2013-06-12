@@ -4,16 +4,10 @@
 #include "colormapst.h"
 #include "xf86Cursor.h"
 #include "exa.h"
-#ifdef XF86DRI
-#define _XF86DRI_SERVER_
 #include "xf86drm.h"
-#include "dri.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include "xf86Crtc.h"
-#else
-#error "This driver requires a DRI-enabled X server"
-#endif
 
 #if XF86_CRTC_VERSION >= 5
 #define NOUVEAU_PIXMAP_SHARING 1
@@ -31,6 +25,11 @@
 
 /* NV50 */
 typedef struct _NVRec *NVPtr;
+
+typedef struct {
+	int fd;
+} NVEntRec, *NVEntPtr;
+
 typedef struct _NVRec {
     uint32_t              Architecture;
     EntityInfoPtr       pEnt;
@@ -69,8 +68,6 @@ typedef struct _NVRec {
 
     CARD32              currentRop;
 
-    drmVersionPtr       pLibDRMVersion;
-
 	void *drmmode; /* for KMS */
 
 	/* DRM interface */
@@ -103,6 +100,7 @@ typedef struct _NVRec {
 	struct nouveau_object *Nv2D;
 	struct nouveau_object *Nv3D;
 	struct nouveau_object *NvSW;
+	struct nouveau_object *NvCOPY;
 	struct nouveau_bo *scratch;
 
 	Bool ce_enabled;

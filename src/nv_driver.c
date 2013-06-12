@@ -60,7 +60,7 @@ static Bool	NVUnmapMem(ScrnInfoPtr pScrn);
 
 #define NOUVEAU_PCI_DEVICE(_vendor_id, _device_id)                             \
 	{ (_vendor_id), (_device_id), PCI_MATCH_ANY, PCI_MATCH_ANY,            \
-	  0x00030000, 0x00ffffff, 0 }
+	  0x00030000, 0x00ff0000, 0 }
 
 static const struct pci_id_match nouveau_device_match[] = {
 	NOUVEAU_PCI_DEVICE(0x12d2, PCI_MATCH_ANY),
@@ -79,6 +79,13 @@ static Bool NVPlatformProbe(DriverPtr driver,
 				struct xf86_platform_device *dev,
 				intptr_t dev_match_data);
 #endif
+
+_X_EXPORT int NVEntityIndex = -1;
+
+static int getNVEntityIndex(void)
+{
+	return NVEntityIndex;
+}
 
 /*
  * This contains the functions needed by the server after loading the
@@ -228,6 +235,8 @@ NVDriverFunc(ScrnInfoPtr scrn, xorgDriverFuncOp op, void *data)
 static void
 NVInitScrn(ScrnInfoPtr pScrn, int entity_num)
 {
+	DevUnion *pPriv;
+
 	pScrn->driverVersion    = NV_VERSION;
 	pScrn->driverName       = NV_DRIVER_NAME;
 	pScrn->name             = NV_NAME;
@@ -242,6 +251,15 @@ NVInitScrn(ScrnInfoPtr pScrn, int entity_num)
 	pScrn->FreeScreen       = NVFreeScreen;
 
 	xf86SetEntitySharable(entity_num);
+	if (NVEntityIndex == -1)
+	    NVEntityIndex = xf86AllocateEntityPrivateIndex();
+
+	pPriv = xf86GetEntityPrivate(entity_num,
+				     NVEntityIndex);
+	if (!pPriv->ptr) {
+		pPriv->ptr = xnfcalloc(sizeof(NVEntRec), 1);
+	}
+
 	xf86SetEntityInstanceForScreen(pScrn, entity_num,
 					xf86GetNumEntityInstances(entity_num) - 1);
 }
@@ -254,11 +272,13 @@ NVHasKMS(struct pci_device *pci_dev)
 	char *busid;
 	int chipset, ret;
 
-	if (!xf86LoaderCheckSymbol("DRICreatePCIBusID")) {
-		xf86DrvMsg(-1, X_ERROR, "[drm] No DRICreatePCIBusID symbol\n");
-		return FALSE;
-	}
-	busid = DRICreatePCIBusID(pci_dev);
+#if XORG_VERSION_CURRENT >= XORG_VERSION_NUMERIC(1,9,99,901,0)
+	XNFasprintf(&busid, "pci:%04x:%02x:%02x.%d",
+		    pci_dev->domain, pci_dev->bus, pci_dev->dev, pci_dev->func);
+#else
+	busid = XNFprintf("pci:%04x:%02x:%02x.%d",
+			  pci_dev->domain, pci_dev->bus, pci_dev->dev, pci_dev->func);
+#endif
 
 	ret = drmCheckModesettingSupported(busid);
 	if (ret) {
@@ -303,6 +323,7 @@ NVHasKMS(struct pci_device *pci_dev)
 	case 0xc0:
 	case 0xd0:
 	case 0xe0:
+	case 0xf0:
 		break;
 	default:
 		xf86DrvMsg(-1, X_ERROR, "Unknown chipset: NV%02x\n", chipset);
@@ -407,7 +428,7 @@ NVEnterVT(VT_FUNC_ARGS_DECL)
 	if (ret)
 		ErrorF("Unable to get master: %s\n", strerror(errno));
 
-	if (!xf86SetDesiredModes(pScrn))
+	if (XF86_CRTC_CONFIG_PTR(pScrn)->num_crtc && !xf86SetDesiredModes(pScrn))
 		return FALSE;
 
 	if (pNv->overlayAdaptor && pNv->Architecture != NV_ARCH_04)
@@ -540,7 +561,8 @@ NVCloseScreen(CLOSE_SCREEN_ARGS_DECL)
 	ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
 	NVPtr pNv = NVPTR(pScrn);
 
-	drmmode_screen_fini(pScreen);
+	if (XF86_CRTC_CONFIG_PTR(pScrn)->num_crtc)
+		drmmode_screen_fini(pScreen);
 
 	if (!pNv->NoAccel)
 		nouveau_dri2_fini(pScreen);
@@ -629,45 +651,12 @@ NVCloseDRM(ScrnInfoPtr pScrn)
 	nouveau_device_del(&pNv->dev);
 }
 
-static Bool
-NVDRIGetVersion(ScrnInfoPtr pScrn)
-{
-	NVPtr pNv = NVPTR(pScrn);
-	int errmaj, errmin;
-	pointer ret;
-
-	ret = LoadSubModule(pScrn->module, "dri", NULL, NULL, NULL,
-			    NULL, &errmaj, &errmin);
-	if (!ret) {
-		xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-				"error %d\n", errmaj);
-		LoaderErrorMsg(pScrn->name, "dri", errmaj, errmin);
-	}
-
-	if (!ret && errmaj != LDR_ONCEONLY)
-		return FALSE;
-
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Loaded DRI module\n");
-
-	/* Check the lib version */
-	if (xf86LoaderCheckSymbol("drmGetLibVersion"))
-		pNv->pLibDRMVersion = drmGetLibVersion(0);
-	if (pNv->pLibDRMVersion == NULL) {
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		"NVDRIGetVersion failed because libDRM is really "
-		"way to old to even get a version number out of it.\n"
-		"[dri] Disabling DRI.\n");
-		return FALSE;
-	}
-
-	return TRUE;
-}
-
 static void
 nouveau_setup_capabilities(ScrnInfoPtr pScrn)
 {
 #ifdef NOUVEAU_PIXMAP_SHARING
 	NVPtr pNv = NVPTR(pScrn);
+	xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
 	uint64_t value;
 	int ret;
 
@@ -676,20 +665,45 @@ nouveau_setup_capabilities(ScrnInfoPtr pScrn)
 	if (ret == 0) {
 		if (value & DRM_PRIME_CAP_EXPORT)
 			pScrn->capabilities |= RR_Capability_SourceOutput;
-		if (value & DRM_PRIME_CAP_IMPORT)
-			pScrn->capabilities |= RR_Capability_SourceOffload | RR_Capability_SinkOutput;
+		if (value & DRM_PRIME_CAP_IMPORT) {
+			pScrn->capabilities |= RR_Capability_SourceOffload;
+			if (xf86_config->num_crtc)
+				pScrn->capabilities |= RR_Capability_SinkOutput;
+		}
 	}
 #endif
+}
+
+NVEntPtr NVEntPriv(ScrnInfoPtr pScrn)
+{
+	DevUnion     *pPriv;
+	NVPtr  pNv   = NVPTR(pScrn);
+	pPriv = xf86GetEntityPrivate(pNv->pEnt->index,
+				     getNVEntityIndex());
+	return pPriv->ptr;
 }
 
 static Bool NVOpenDRMMaster(ScrnInfoPtr pScrn)
 {
 	NVPtr pNv = NVPTR(pScrn);
+	NVEntPtr pNVEnt = NVEntPriv(pScrn);
 	struct pci_device *dev = pNv->PciInfo;
 	char *busid;
 	drmSetVersion sv;
 	int err;
 	int ret;
+
+	if (pNVEnt->fd) {
+		xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+			   " reusing fd for second head\n");
+		ret = nouveau_device_wrap(pNVEnt->fd, 0, &pNv->dev);
+		if (ret) {
+			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+				"[drm] error creating device\n");
+			return FALSE;
+		}
+		return TRUE;
+	}
 
 #if XORG_VERSION_CURRENT >= XORG_VERSION_NUMERIC(1,9,99,901,0)
 	XNFasprintf(&busid, "pci:%04x:%02x:%02x.%d",
@@ -720,6 +734,7 @@ static Bool NVOpenDRMMaster(ScrnInfoPtr pScrn)
 		nouveau_device_del(&pNv->dev);
 		return FALSE;
 	}
+	pNVEnt->fd = pNv->dev->fd;
 	return TRUE;
 }
 
@@ -729,7 +744,7 @@ NVPreInitDRM(ScrnInfoPtr pScrn)
 	NVPtr pNv = NVPTR(pScrn);
 	int ret;
 
-	if (!NVDRIGetVersion(pScrn))
+	if (!xf86LoadSubModule(pScrn, "dri2"))
 		return FALSE;
 
 	/* Load the kernel module, and open the DRM */
@@ -820,8 +835,6 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 		NVPreInitFail("\n");
 	dev = pNv->dev;
 
-	nouveau_setup_capabilities(pScrn);
-
 	pScrn->chipset = malloc(sizeof(char) * 25);
 	sprintf(pScrn->chipset, "NVIDIA NV%02x", dev->chipset);
 	xf86DrvMsg(pScrn->scrnIndex, X_PROBED, "Chipset: \"%s\"\n", pScrn->chipset);
@@ -854,6 +867,7 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 		pNv->Architecture = NV_ARCH_C0;
 		break;
 	case 0xe0:
+	case 0xf0:
 		pNv->Architecture = NV_ARCH_E0;
 		break;
 	default:
@@ -1059,9 +1073,35 @@ NVPreInit(ScrnInfoPtr pScrn, int flags)
 	if (!xf86SetGamma(pScrn, gammazeros))
 		NVPreInitFail("\n");
 
-	/* No usable mode */
+#ifdef NOUVEAU_PIXMAP_SHARING
+	/*
+	 * The driver will not work as gpu screen without acceleration enabled.
+	 * To support this usecase modesetting ddx can be used instead.
+	 */
+	if (pNv->NoAccel || pNv->ShadowFB) {
+		/*
+		 * Optimus mode requires acceleration enabled.
+		 * So if no mode is found, or the screen is created
+		 * as a gpu screen the pre init should fail.
+		 */
+		if (pScrn->is_gpu || !pScrn->modes)
+			return FALSE;
+	}
+
+#else
+	/* No usable mode, no optimus config possible */
 	if (!pScrn->modes)
 		return FALSE;
+#endif
+
+	nouveau_setup_capabilities(pScrn);
+
+	if (!pScrn->modes) {
+		pScrn->modes = xf86ModesAdd(pScrn->modes,
+			xf86CVTMode(pScrn->display->virtualX,
+				    pScrn->display->virtualY,
+				    60, 0, 0));
+	}
 
 	/* Set the current mode to the first in the list */
 	pScrn->currentMode = pScrn->modes;
@@ -1346,7 +1386,7 @@ NVScreenInit(SCREEN_INIT_ARGS_DECL)
 	 * Initialize HW cursor layer. 
 	 * Must follow software cursor initialization.
 	 */
-	if (pNv->HWCursor) { 
+	if (xf86_config->num_crtc && pNv->HWCursor) {
 		ret = drmmode_cursor_init(pScreen);
 		if (ret != TRUE) {
 			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
@@ -1401,7 +1441,8 @@ NVScreenInit(SCREEN_INIT_ARGS_DECL)
 	 * Initialize colormap layer.
 	 * Must follow initialization of the default colormap 
 	 */
-	if (!xf86HandleColormaps(pScreen, 256, 8, NVLoadPalette,
+	if (xf86_config->num_crtc &&
+	    !xf86HandleColormaps(pScreen, 256, 8, NVLoadPalette,
 				 NULL, CMAP_PALETTED_TRUECOLOR))
 		return FALSE;
 
@@ -1409,7 +1450,10 @@ NVScreenInit(SCREEN_INIT_ARGS_DECL)
 	if (serverGeneration == 1)
 		xf86ShowUnusedOptions(pScrn->scrnIndex, pScrn->options);
 
-	drmmode_screen_init(pScreen);
+	if (xf86_config->num_crtc)
+		drmmode_screen_init(pScreen);
+	else
+		pNv->glx_vblank = FALSE;
 	return TRUE;
 }
 

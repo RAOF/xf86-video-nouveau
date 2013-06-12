@@ -7,9 +7,10 @@
 #include "nv_include.h"
 #ifdef DRI2
 #include "dri2.h"
+#else
+#error "This driver requires a DRI2-enabled X server"
 #endif
 
-#if defined(DRI2) && DRI2INFOREC_VERSION >= 3
 struct nouveau_dri2_buffer {
 	DRI2BufferRec base;
 	PixmapPtr ppix;
@@ -265,6 +266,9 @@ can_exchange(DrawablePtr draw, PixmapPtr dst_pix, PixmapPtr src_pix)
 	xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(scrn);
 	NVPtr pNv = NVPTR(scrn);
 	int i;
+
+	if (!xf86_config->num_crtc)
+		return FALSE;
 
 	for (i = 0; i < xf86_config->num_crtc; i++) {
 		xf86CrtcPtr crtc = xf86_config->crtc[i];
@@ -814,16 +818,3 @@ nouveau_dri2_fini(ScreenPtr pScreen)
 {
 	DRI2CloseScreen(pScreen);
 }
-#else
-Bool
-nouveau_dri2_init(ScreenPtr pScreen)
-{
-	return TRUE;
-}
-
-void
-nouveau_dri2_fini(ScreenPtr pScreen)
-{
-}
-#endif
-

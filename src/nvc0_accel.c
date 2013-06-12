@@ -22,8 +22,32 @@
 
 #include "nv_include.h"
 #include "nvc0_accel.h"
-#include "nvc0_shader.h"
-#include "nve0_shader.h"
+
+#include "shader/xfrm2nvc0.vp"
+#include "shader/videonvc0.fp"
+
+#include "shader/exascnvc0.fp"
+#include "shader/exacmnvc0.fp"
+#include "shader/exacanvc0.fp"
+#include "shader/exasanvc0.fp"
+#include "shader/exas8nvc0.fp"
+#include "shader/exac8nvc0.fp"
+
+#include "shader/xfrm2nve0.vp"
+#include "shader/videonve0.fp"
+
+#include "shader/exascnve0.fp"
+#include "shader/exacmnve0.fp"
+#include "shader/exacanve0.fp"
+#include "shader/exasanve0.fp"
+#include "shader/exas8nve0.fp"
+#include "shader/exac8nve0.fp"
+
+#define NVC0PushProgram(pNv,addr,code) do {                                    \
+	const unsigned size = sizeof(code) / sizeof(code[0]);                  \
+	PUSH_DATAu((pNv)->pushbuf, (pNv)->scratch, (addr), size);              \
+	PUSH_DATAp((pNv)->pushbuf, (code), size);                              \
+} while(0)
 
 void
 NVC0SyncToVBlank(PixmapPtr ppix, BoxPtr box)
@@ -121,8 +145,23 @@ NVAccelInitP2MF_NVE0(ScrnInfoPtr pScrn)
 
 	BEGIN_NVC0(push, NV01_SUBC(P2MF, OBJECT), 1);
 	PUSH_DATA (push, pNv->NvMemFormat->handle);
+	return TRUE;
+}
+
+Bool
+NVAccelInitCOPY_NVE0(ScrnInfoPtr pScrn)
+{
+	NVPtr pNv = NVPTR(pScrn);
+	struct nouveau_pushbuf *push = pNv->pushbuf;
+	int ret;
+
+	ret = nouveau_object_new(pNv->channel, 0x0000a0b5, 0xa0b5,
+				 NULL, 0, &pNv->NvCOPY);
+	if (ret)
+		return FALSE;
+
 	BEGIN_NVC0(push, NV01_SUBC(COPY, OBJECT), 1);
-	PUSH_DATA (push, 0x0000a0b5);
+	PUSH_DATA (push, pNv->NvCOPY->handle);
 	return TRUE;
 }
 

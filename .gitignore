@@ -19,3 +19,5 @@ libtool
 ltmain.sh
 missing
 stamp-h1
+ChangeLog
+INSTALL

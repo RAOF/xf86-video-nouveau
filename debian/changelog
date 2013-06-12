@@ -1,6 +1,8 @@
 xserver-xorg-video-nouveau (1:1.0.8-1) UNRELEASED; urgency=low
 
   * New upstream release.
+  * Replace dependency on x11proto-xf86dri-dev with x11proto-dri2-dev.
+    - Upstream removed dri1 dependency.
 
  -- Maarten Lankhorst <maarten.lankhorst@ubuntu.com>  Wed, 12 Jun 2013 10:58:45 +0200
 

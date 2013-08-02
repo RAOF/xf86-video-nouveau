@@ -1,0 +1,406 @@
+commit 4515628ff78e07aea0d661ff3fd999c29cc55259
+Author: Christopher James Halse Rogers <raof@ubuntu.com>
+Date:   Mon Jul 22 17:46:58 2013 +1000
+
+    Support running nested in a Mir compositor
+    
+    Signed-off-by: Christopher James Halse Rogers <raof@ubuntu.com>
+
+Index: xf86-video-nouveau/src/nouveau_dri2.c
+===================================================================
+--- xf86-video-nouveau.orig/src/nouveau_dri2.c	2013-08-01 20:57:06.744921258 +1000
++++ xf86-video-nouveau/src/nouveau_dri2.c	2013-08-01 20:57:06.740921258 +1000
+@@ -267,7 +267,7 @@
+ 	NVPtr pNv = NVPTR(scrn);
+ 	int i;
+ 
+-	if (!xf86_config->num_crtc)
++	if (xorgMir || !xf86_config->num_crtc)
+ 		return FALSE;
+ 
+ 	for (i = 0; i < xf86_config->num_crtc; i++) {
+@@ -290,7 +290,7 @@
+ 	ScrnInfoPtr scrn = xf86ScreenToScrn(draw->pScreen);
+ 	NVPtr pNv = NVPTR(scrn);
+ 
+-	return pNv->glx_vblank &&
++	return pNv->glx_vblank && !xorgMir &&
+ 		nv_window_belongs_to_crtc(scrn, draw->x, draw->y,
+ 					  draw->width, draw->height);
+ }
+@@ -766,6 +766,19 @@
+ 	free(flip);
+ }
+ 
++#if DRI2INFOREC_VERSION >= 8 && defined(XMIR)
++static int nouveau_dri2_auth_magic(ScreenPtr pScreen, uint32_t magic)
++{
++    ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
++    NVPtr pNv = NVPTR(pScrn);
++
++    if (xorgMir)
++	return xmir_auth_drm_magic(pNv->xmir, magic);
++    else
++	return drmAuthMagic(pNv->dev->fd, magic);
++}
++#endif
++
+ Bool
+ nouveau_dri2_init(ScreenPtr pScreen)
+ {
+@@ -804,6 +817,11 @@
+ 	dri2.GetParam = NULL;
+ #endif
+ 
++#if DRI2INFOREC_VERSION >= 8 && defined(XMIR)
++	dri2.version = 8;
++	dri2.AuthMagic2 = nouveau_dri2_auth_magic;
++#endif
++
+ #if DRI2INFOREC_VERSION >= 9
+ 	dri2.version = 9;
+ 	dri2.CreateBuffer2 = nouveau_dri2_create_buffer2;
+Index: xf86-video-nouveau/src/nv_driver.c
+===================================================================
+--- xf86-video-nouveau.orig/src/nv_driver.c	2013-08-01 20:57:06.744921258 +1000
++++ xf86-video-nouveau/src/nv_driver.c	2013-08-01 20:57:40.208921211 +1000
+@@ -226,6 +226,8 @@
+ 	case GET_REQUIRED_HW_INTERFACES:
+ 	    flag = (CARD32 *)data;
+ 	    (*flag) = 0;
++	    if (xorgMir)
++		*flag |= HW_SKIP_CONSOLE;
+ 	    return TRUE;
+ 	default:
+ 	    return FALSE;
+@@ -333,6 +335,23 @@
+ }
+ 
+ static Bool
++NVHasMirSupport(struct pci_device *pci_dev)
++{
++	char *busid;
++
++	busid = XNFprintf("pci:%04x:%02x:%02x.%d",
++			  pci_dev->domain, pci_dev->bus, pci_dev->dev, pci_dev->func);
++
++	if (xmir_get_drm_fd(busid) < 0) {
++		xf86DrvMsg(-1, X_ERROR, "[XMir] GPU %s not handled by Mir\n", busid);
++		free(busid);
++		return FALSE;
++	}
++	free(busid);
++	return TRUE;
++}
++
++static Bool
+ NVPciProbe(DriverPtr drv, int entity_num, struct pci_device *pci_dev,
+ 	   intptr_t match_data)
+ {
+@@ -343,6 +362,9 @@
+ 	};
+ 	ScrnInfoPtr pScrn = NULL;
+ 
++	if (xorgMir && !NVHasMirSupport(pci_dev))
++		return FALSE;
++
+ 	if (!NVHasKMS(pci_dev))
+ 		return FALSE;
+ 
+@@ -367,6 +389,9 @@
+ 	if (!dev->pdev)
+ 		return FALSE;
+ 
++	if (xorgMir && !NVHasMirSupport(dev->pdev))
++		return FALSE;
++
+ 	if (!NVHasKMS(dev->pdev))
+ 		return FALSE;
+ 
+@@ -424,9 +449,11 @@
+ 
+ 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "NVEnterVT is called.\n");
+ 
+-	ret = drmSetMaster(pNv->dev->fd);
+-	if (ret)
+-		ErrorF("Unable to get master: %s\n", strerror(errno));
++	if (!xorgMir) {
++		ret = drmSetMaster(pNv->dev->fd);
++		if (ret)
++			ErrorF("Unable to get master: %s\n", strerror(errno));
++	}
+ 
+ 	if (XF86_CRTC_CONFIG_PTR(pScrn)->num_crtc && !xf86SetDesiredModes(pScrn))
+ 		return FALSE;
+@@ -452,6 +479,9 @@
+ 
+ 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "NVLeaveVT is called.\n");
+ 
++	if (xorgMir)
++		return;
++
+ 	ret = drmDropMaster(pNv->dev->fd);
+ 	if (ret && errno != EIO && errno != ENODEV)
+ 		ErrorF("Error dropping master: %i(%m)\n", -errno);
+@@ -501,6 +531,86 @@
+ }
+ #endif
+ 
++#ifdef XMIR
++static void
++nouveau_xmir_copy_pixmap_to_mir(PixmapPtr src, int fd)
++{
++	ScreenPtr pScreen = src->drawable.pScreen;
++	ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
++	NVPtr pNv = NVPTR(pScrn);
++	ExaDriverPtr exa = pNv->EXADriverPtr;
++
++	PixmapPtr dst = NULL;
++	int ret;
++	struct nouveau_bo *bo_dst = NULL;
++
++	ret = nouveau_bo_prime_handle_ref(pNv->dev, fd, &bo_dst);
++	ErrorF("ret = %i for buffer %i\n", ret, fd);
++	assert(!ret);
++
++	dst = pScreen->CreatePixmap(pScreen, 0, 0, pScrn->depth, 0);
++	if (dst == NullPixmap)
++		goto cleanup_bo;
++
++	pScreen->ModifyPixmapHeader(dst, pScrn->virtualX, pScrn->virtualY, pScrn->depth, pScrn->depth,
++				    pScrn->virtualX, NULL);
++	nouveau_bo_ref(bo_dst, &nouveau_pixmap(dst)->bo);
++
++	ret = exa->PrepareCopy (src, dst, 0, 0, GXcopy, FB_ALLONES);
++	if (ret) {
++		exa->Copy (dst, 0, 0, 0, 0, pScrn->virtualX, pScrn->virtualY);
++		exa->DoneCopy (dst);
++		PUSH_KICK(pNv->pushbuf);
++	}
++
++cleanup_bo:
++	nouveau_bo_ref(NULL, &bo_dst);
++}
++
++static void
++nouveau_xmir_buffer_available(WindowPtr win)
++{
++    int fd;
++    PixmapPtr window_pixmap;
++    ScreenPtr screen = win->drawable.pScreen;
++
++    if (!xmir_window_is_dirty(win))
++        return;
++
++    fd = xmir_prime_fd_for_window(win);
++
++    window_pixmap = (*win->drawable.pScreen->GetWindowPixmap)(win);
++
++    assert(window_pixmap == screen->GetScreenPixmap(screen));
++
++    nouveau_xmir_copy_pixmap_to_mir(window_pixmap, fd);
++
++    xmir_submit_rendering_for_window(win, NULL);
++}
++
++static void
++nouveau_submit_dirty_window(WindowPtr win)
++{
++	PixmapPtr window_pixmap;
++	int fd;
++
++	if (!xmir_window_has_free_buffer(win))
++		return;
++
++	fd = xmir_prime_fd_for_window(win);
++
++	window_pixmap = (*win->drawable.pScreen->GetWindowPixmap)(win);
++	nouveau_xmir_copy_pixmap_to_mir(window_pixmap, fd);
++
++	xmir_submit_rendering_for_window(win, NULL);
++}
++
++static xmir_driver xmir_nouveau_driver = {
++    XMIR_DRIVER_VERSION,
++    nouveau_xmir_buffer_available
++};
++#endif
++
+ static void 
+ NVBlockHandler (BLOCKHANDLER_ARGS_DECL)
+ {
+@@ -516,6 +626,11 @@
+ 	nouveau_dirty_update(pScreen);
+ #endif
+ 
++#ifdef XMIR
++	if (pNv->xmir)
++		xmir_screen_for_each_damaged_window(pNv->xmir, nouveau_submit_dirty_window);
++#endif
++
+ 	if (pScrn->vtSema && !pNv->NoAccel)
+ 		nouveau_pushbuf_kick(pNv->pushbuf, pNv->pushbuf->channel);
+ 
+@@ -535,7 +650,10 @@
+ 		return FALSE;
+ 	pScreen->CreateScreenResources = NVCreateScreenResources;
+ 
+-	drmmode_fbcon_copy(pScreen);
++	if (!xorgMir)
++		drmmode_fbcon_copy(pScreen);
++	else if (!xf86SetDesiredModes(pScrn))
++		return FALSE;
+ 	if (!NVEnterVT(VT_FUNC_ARGS(0)))
+ 		return FALSE;
+ 
+@@ -561,7 +679,7 @@
+ 	ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
+ 	NVPtr pNv = NVPTR(pScrn);
+ 
+-	if (XF86_CRTC_CONFIG_PTR(pScrn)->num_crtc)
++	if (!xorgMir && XF86_CRTC_CONFIG_PTR(pScrn)->num_crtc)
+ 		drmmode_screen_fini(pScreen);
+ 
+ 	if (!pNv->NoAccel)
+@@ -688,7 +806,7 @@
+ 	NVPtr pNv = NVPTR(pScrn);
+ 	NVEntPtr pNVEnt = NVEntPriv(pScrn);
+ 	struct pci_device *dev = pNv->PciInfo;
+-	char *busid;
++	char *busid = NULL;
+ 	drmSetVersion sv;
+ 	int err;
+ 	int ret;
+@@ -712,8 +830,11 @@
+ 	busid = XNFprintf("pci:%04x:%02x:%02x.%d",
+ 			  dev->domain, dev->bus, dev->dev, dev->func);
+ #endif
++	if (!xorgMir)
++		ret = nouveau_device_open(busid, &pNv->dev);
++	else
++		ret = nouveau_device_wrap(xmir_get_drm_fd(busid), 0, &pNv->dev);
+ 
+-	ret = nouveau_device_open(busid, &pNv->dev);
+ 	if (ret) {
+ 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+ 			   "[drm] Failed to open DRM device for %s: %d\n",
+@@ -723,6 +844,9 @@
+ 	}
+ 	free(busid);
+ 
++	if (xorgMir)
++		return TRUE;
++
+ 	sv.drm_di_major = 1;
+ 	sv.drm_di_minor = 1;
+ 	sv.drm_dd_major = -1;
+@@ -818,6 +942,14 @@
+ 		)
+ 		return FALSE;
+ 
++#ifdef XMIR
++	if (xorgMir) {
++		pNv->xmir = xmir_screen_create(pScrn);
++		if (pNv->xmir == NULL)
++			NVPreInitFail("Mir failed to initialize\n");
++	}
++#endif
++
+ 	if (xf86IsEntityShared(pScrn->entityList[0])) {
+ 		if(!xf86IsPrimInitDone(pScrn->entityList[0])) {
+ 			pNv->Primary = TRUE;
+@@ -965,6 +1097,8 @@
+ 		from = X_CONFIG;
+ 		pNv->HWCursor = FALSE;
+ 	}
++	if (xorgMir)
++		pNv->HWCursor = FALSE;
+ 	xf86DrvMsg(pScrn->scrnIndex, from, "Using %s cursor\n",
+ 		pNv->HWCursor ? "HW" : "SW");
+ 
+@@ -1062,7 +1196,11 @@
+ 	xf86DrvMsg(pScrn->scrnIndex, from, "Swap limit set to %d [Max allowed %d]%s\n",
+ 		   pNv->swap_limit, pNv->max_swap_limit, reason);
+ 
+-	ret = drmmode_pre_init(pScrn, pNv->dev->fd, pScrn->bitsPerPixel >> 3);
++	if (xorgMir) {
++		xmir_screen_pre_init(pScrn, pNv->xmir, &xmir_nouveau_driver);
++		ret = TRUE;
++	} else
++		ret = drmmode_pre_init(pScrn, pNv->dev->fd, pScrn->bitsPerPixel >> 3);
+ 	if (ret == FALSE)
+ 		NVPreInitFail("Kernel modesetting failed to initialize\n");
+ 
+@@ -1170,7 +1308,8 @@
+ {
+ 	NVPtr pNv = NVPTR(pScrn);
+ 
+-	drmmode_remove_fb(pScrn);
++	if (!xorgMir)
++		drmmode_remove_fb(pScrn);
+ 
+ 	nouveau_bo_ref(NULL, &pNv->transfer);
+ 	nouveau_bo_ref(NULL, &pNv->scanout);
+@@ -1370,6 +1509,11 @@
+ 	else
+ 		fbPictureInit (pScreen, 0, 0);
+ 
++#ifdef XMIR
++	if (pNv->xmir)
++		xmir_screen_init(pScreen, pNv->xmir);
++#endif
++
+ 	xf86SetBlackWhitePixels(pScreen);
+ 
+ 	if (!pNv->NoAccel && !nouveau_exa_init(pScreen))
+@@ -1443,19 +1587,19 @@
+ 	 * Initialize colormap layer.
+ 	 * Must follow initialization of the default colormap 
+ 	 */
+-	if (xf86_config->num_crtc &&
++	if (!xorgMir && xf86_config->num_crtc &&
+ 	    !xf86HandleColormaps(pScreen, 256, 8, NVLoadPalette,
+ 				 NULL, CMAP_PALETTED_TRUECOLOR))
+-		return FALSE;
+ 
+ 	/* Report any unused options (only for the first generation) */
+ 	if (serverGeneration == 1)
+ 		xf86ShowUnusedOptions(pScrn->scrnIndex, pScrn->options);
+ 
+-	if (xf86_config->num_crtc)
++	if (!xorgMir && xf86_config->num_crtc)
+ 		drmmode_screen_init(pScreen);
+ 	else
+ 		pNv->glx_vblank = FALSE;
++
+ 	return TRUE;
+ }
+ 
+Index: xf86-video-nouveau/src/nv_type.h
+===================================================================
+--- xf86-video-nouveau.orig/src/nv_type.h	2013-08-01 20:57:06.744921258 +1000
++++ xf86-video-nouveau/src/nv_type.h	2013-08-01 20:57:06.740921258 +1000
+@@ -9,6 +9,14 @@
+ #include <stdint.h>
+ #include "xf86Crtc.h"
+ 
++#ifdef XMIR
++#include "xmir.h"
++#include "xf86Priv.h"
++#else
++typedef struct xmir_screen xmir_screen;
++#define xorgMir 0
++#endif
++
+ #if XF86_CRTC_VERSION >= 5
+ #define NOUVEAU_PIXMAP_SHARING 1
+ #endif
+@@ -112,6 +120,8 @@
+ 	PixmapPtr pspix, pmpix, pdpix;
+ 	PicturePtr pspict, pmpict;
+ 	Pixel fg_colour;
++
++	xmir_screen *xmir;
+ } NVRec;
+ 
+ #define NVPTR(p) ((NVPtr)((p)->driverPrivate))

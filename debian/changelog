@@ -1,3 +1,9 @@
+xserver-xorg-video-nouveau (1:1.0.8-0ubuntu2) saucy; urgency=low
+
+  * Add XMir support
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 01 Aug 2013 20:58:29 +1000
+
 xserver-xorg-video-nouveau (1:1.0.8-0ubuntu1) saucy; urgency=low
 
   * Sync to unreleased debian experimental git.

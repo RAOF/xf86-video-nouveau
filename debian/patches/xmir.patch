@@ -8,8 +8,8 @@ Date:   Mon Jul 22 17:46:58 2013 +1000
 
 Index: xf86-video-nouveau/src/nouveau_dri2.c
 ===================================================================
---- xf86-video-nouveau.orig/src/nouveau_dri2.c	2013-08-01 20:57:06.744921258 +1000
-+++ xf86-video-nouveau/src/nouveau_dri2.c	2013-08-01 20:57:06.740921258 +1000
+--- xf86-video-nouveau.orig/src/nouveau_dri2.c	2013-08-06 12:40:27.802943906 +1000
++++ xf86-video-nouveau/src/nouveau_dri2.c	2013-08-06 12:40:27.798943906 +1000
 @@ -267,7 +267,7 @@
  	NVPtr pNv = NVPTR(scrn);
  	int i;
@@ -62,8 +62,8 @@ Index: xf86-video-nouveau/src/nouveau_dri2.c
  	dri2.CreateBuffer2 = nouveau_dri2_create_buffer2;
 Index: xf86-video-nouveau/src/nv_driver.c
 ===================================================================
---- xf86-video-nouveau.orig/src/nv_driver.c	2013-08-01 20:57:06.744921258 +1000
-+++ xf86-video-nouveau/src/nv_driver.c	2013-08-01 20:57:40.208921211 +1000
+--- xf86-video-nouveau.orig/src/nv_driver.c	2013-08-06 12:40:27.802943906 +1000
++++ xf86-video-nouveau/src/nv_driver.c	2013-08-06 12:44:47.126932579 +1000
 @@ -226,6 +226,8 @@
  	case GET_REQUIRED_HW_INTERFACES:
  	    flag = (CARD32 *)data;
@@ -318,20 +318,22 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	xf86DrvMsg(pScrn->scrnIndex, from, "Using %s cursor\n",
  		pNv->HWCursor ? "HW" : "SW");
  
-@@ -1062,7 +1196,11 @@
+@@ -1062,7 +1196,13 @@
  	xf86DrvMsg(pScrn->scrnIndex, from, "Swap limit set to %d [Max allowed %d]%s\n",
  		   pNv->swap_limit, pNv->max_swap_limit, reason);
  
 -	ret = drmmode_pre_init(pScrn, pNv->dev->fd, pScrn->bitsPerPixel >> 3);
++#ifdef XMIR
 +	if (xorgMir) {
 +		xmir_screen_pre_init(pScrn, pNv->xmir, &xmir_nouveau_driver);
 +		ret = TRUE;
 +	} else
++#endif
 +		ret = drmmode_pre_init(pScrn, pNv->dev->fd, pScrn->bitsPerPixel >> 3);
  	if (ret == FALSE)
  		NVPreInitFail("Kernel modesetting failed to initialize\n");
  
-@@ -1170,7 +1308,8 @@
+@@ -1170,7 +1310,8 @@
  {
  	NVPtr pNv = NVPTR(pScrn);
  
@@ -341,7 +343,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  
  	nouveau_bo_ref(NULL, &pNv->transfer);
  	nouveau_bo_ref(NULL, &pNv->scanout);
-@@ -1370,6 +1509,11 @@
+@@ -1370,6 +1511,11 @@
  	else
  		fbPictureInit (pScreen, 0, 0);
  
@@ -353,7 +355,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	xf86SetBlackWhitePixels(pScreen);
  
  	if (!pNv->NoAccel && !nouveau_exa_init(pScreen))
-@@ -1443,19 +1587,19 @@
+@@ -1443,19 +1589,19 @@
  	 * Initialize colormap layer.
  	 * Must follow initialization of the default colormap 
  	 */
@@ -378,8 +380,8 @@ Index: xf86-video-nouveau/src/nv_driver.c
  
 Index: xf86-video-nouveau/src/nv_type.h
 ===================================================================
---- xf86-video-nouveau.orig/src/nv_type.h	2013-08-01 20:57:06.744921258 +1000
-+++ xf86-video-nouveau/src/nv_type.h	2013-08-01 20:57:06.740921258 +1000
+--- xf86-video-nouveau.orig/src/nv_type.h	2013-08-06 12:40:27.802943906 +1000
++++ xf86-video-nouveau/src/nv_type.h	2013-08-06 12:40:27.798943906 +1000
 @@ -9,6 +9,14 @@
  #include <stdint.h>
  #include "xf86Crtc.h"

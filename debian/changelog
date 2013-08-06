@@ -1,3 +1,9 @@
+xserver-xorg-video-nouveau (1:1.0.8-0ubuntu3) saucy; urgency=low
+
+  * Fix build against servers without XMir support
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 06 Aug 2013 12:47:46 +1000
+
 xserver-xorg-video-nouveau (1:1.0.8-0ubuntu2) saucy; urgency=low
 
   * Add XMir support

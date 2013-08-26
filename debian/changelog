@@ -1,3 +1,21 @@
+xserver-xorg-video-nouveau (1:1.0.8-0ubuntu3+xmirMM3) saucy; urgency=low
+
+  * Update for new new XMir API
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Sun, 25 Aug 2013 21:21:15 +1000
+
+xserver-xorg-video-nouveau (1:1.0.8-0ubuntu3+xmirMM2) saucy; urgency=low
+
+  * Drop unnecessary debug spew; fix the build
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 22 Aug 2013 16:58:00 +1000
+
+xserver-xorg-video-nouveau (1:1.0.8-0ubuntu3+xmirMM1) saucy; urgency=low
+
+  * Update for new XMir API
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Thu, 22 Aug 2013 14:42:58 +1000
+
 xserver-xorg-video-nouveau (1:1.0.8-0ubuntu3) saucy; urgency=low
 
   * Fix build against servers without XMir support

@@ -8,8 +8,8 @@ Date:   Mon Jul 22 17:46:58 2013 +1000
 
 Index: xf86-video-nouveau/src/nouveau_dri2.c
 ===================================================================
---- xf86-video-nouveau.orig/src/nouveau_dri2.c	2013-08-06 12:40:27.802943906 +1000
-+++ xf86-video-nouveau/src/nouveau_dri2.c	2013-08-06 12:40:27.798943906 +1000
+--- xf86-video-nouveau.orig/src/nouveau_dri2.c	2013-08-25 21:17:47.596258262 +1000
++++ xf86-video-nouveau/src/nouveau_dri2.c	2013-08-25 21:17:47.592258262 +1000
 @@ -267,7 +267,7 @@
  	NVPtr pNv = NVPTR(scrn);
  	int i;
@@ -62,8 +62,8 @@ Index: xf86-video-nouveau/src/nouveau_dri2.c
  	dri2.CreateBuffer2 = nouveau_dri2_create_buffer2;
 Index: xf86-video-nouveau/src/nv_driver.c
 ===================================================================
---- xf86-video-nouveau.orig/src/nv_driver.c	2013-08-06 12:40:27.802943906 +1000
-+++ xf86-video-nouveau/src/nv_driver.c	2013-08-06 12:44:47.126932579 +1000
+--- xf86-video-nouveau.orig/src/nv_driver.c	2013-08-25 21:17:47.596258262 +1000
++++ xf86-video-nouveau/src/nv_driver.c	2013-08-25 21:20:34.416259757 +1000
 @@ -226,6 +226,8 @@
  	case GET_REQUIRED_HW_INTERFACES:
  	    flag = (CARD32 *)data;
@@ -142,38 +142,43 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	ret = drmDropMaster(pNv->dev->fd);
  	if (ret && errno != EIO && errno != ENODEV)
  		ErrorF("Error dropping master: %i(%m)\n", -errno);
-@@ -501,6 +531,86 @@
+@@ -501,6 +531,53 @@
  }
  #endif
  
 +#ifdef XMIR
 +static void
-+nouveau_xmir_copy_pixmap_to_mir(PixmapPtr src, int fd)
++nouveau_xmir_copy_to_mir(xmir_window *xmir_win, RegionPtr region)
 +{
++	WindowPtr win = xmir_window_to_windowptr(xmir_win);
++	PixmapPtr src = (*win->drawable.pScreen->GetWindowPixmap)(win);
 +	ScreenPtr pScreen = src->drawable.pScreen;
 +	ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
 +	NVPtr pNv = NVPTR(pScrn);
 +	ExaDriverPtr exa = pNv->EXADriverPtr;
++	BoxPtr dst_box = xmir_window_get_drawable_region(xmir_win);
 +
 +	PixmapPtr dst = NULL;
 +	int ret;
 +	struct nouveau_bo *bo_dst = NULL;
 +
-+	ret = nouveau_bo_prime_handle_ref(pNv->dev, fd, &bo_dst);
-+	ErrorF("ret = %i for buffer %i\n", ret, fd);
++	ret = nouveau_bo_prime_handle_ref(pNv->dev, xmir_window_get_fd(xmir_win), &bo_dst);
 +	assert(!ret);
 +
 +	dst = pScreen->CreatePixmap(pScreen, 0, 0, pScrn->depth, 0);
 +	if (dst == NullPixmap)
 +		goto cleanup_bo;
 +
-+	pScreen->ModifyPixmapHeader(dst, pScrn->virtualX, pScrn->virtualY, pScrn->depth, pScrn->depth,
++	pScreen->ModifyPixmapHeader(dst, dst_box->x2 - dst_box->x1, 
++								dst_box->y2 - dst_box->y1, pScrn->depth, pScrn->depth,
 +				    pScrn->virtualX, NULL);
 +	nouveau_bo_ref(bo_dst, &nouveau_pixmap(dst)->bo);
 +
 +	ret = exa->PrepareCopy (src, dst, 0, 0, GXcopy, FB_ALLONES);
 +	if (ret) {
-+		exa->Copy (dst, 0, 0, 0, 0, pScrn->virtualX, pScrn->virtualY);
++		exa->Copy (dst, dst_box->x1, dst_box->y1, 0, 0, 
++				   dst_box->x2 - dst_box->x1,
++				   dst_box->y1 - dst_box->y1);
 +		exa->DoneCopy (dst);
 +		PUSH_KICK(pNv->pushbuf);
 +	}
@@ -182,66 +187,28 @@ Index: xf86-video-nouveau/src/nv_driver.c
 +	nouveau_bo_ref(NULL, &bo_dst);
 +}
 +
-+static void
-+nouveau_xmir_buffer_available(WindowPtr win)
-+{
-+    int fd;
-+    PixmapPtr window_pixmap;
-+    ScreenPtr screen = win->drawable.pScreen;
-+
-+    if (!xmir_window_is_dirty(win))
-+        return;
-+
-+    fd = xmir_prime_fd_for_window(win);
-+
-+    window_pixmap = (*win->drawable.pScreen->GetWindowPixmap)(win);
-+
-+    assert(window_pixmap == screen->GetScreenPixmap(screen));
-+
-+    nouveau_xmir_copy_pixmap_to_mir(window_pixmap, fd);
-+
-+    xmir_submit_rendering_for_window(win, NULL);
-+}
-+
-+static void
-+nouveau_submit_dirty_window(WindowPtr win)
-+{
-+	PixmapPtr window_pixmap;
-+	int fd;
-+
-+	if (!xmir_window_has_free_buffer(win))
-+		return;
-+
-+	fd = xmir_prime_fd_for_window(win);
-+
-+	window_pixmap = (*win->drawable.pScreen->GetWindowPixmap)(win);
-+	nouveau_xmir_copy_pixmap_to_mir(window_pixmap, fd);
-+
-+	xmir_submit_rendering_for_window(win, NULL);
-+}
-+
 +static xmir_driver xmir_nouveau_driver = {
 +    XMIR_DRIVER_VERSION,
-+    nouveau_xmir_buffer_available
++    nouveau_xmir_copy_to_mir
 +};
 +#endif
 +
  static void 
  NVBlockHandler (BLOCKHANDLER_ARGS_DECL)
  {
-@@ -516,6 +626,11 @@
+@@ -516,6 +593,11 @@
  	nouveau_dirty_update(pScreen);
  #endif
  
 +#ifdef XMIR
 +	if (pNv->xmir)
-+		xmir_screen_for_each_damaged_window(pNv->xmir, nouveau_submit_dirty_window);
++		xmir_screen_for_each_damaged_window(pNv->xmir, nouveau_xmir_copy_to_mir);
 +#endif
 +
  	if (pScrn->vtSema && !pNv->NoAccel)
  		nouveau_pushbuf_kick(pNv->pushbuf, pNv->pushbuf->channel);
  
-@@ -535,7 +650,10 @@
+@@ -535,7 +617,10 @@
  		return FALSE;
  	pScreen->CreateScreenResources = NVCreateScreenResources;
  
@@ -253,7 +220,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	if (!NVEnterVT(VT_FUNC_ARGS(0)))
  		return FALSE;
  
-@@ -561,7 +679,7 @@
+@@ -561,7 +646,7 @@
  	ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
  	NVPtr pNv = NVPTR(pScrn);
  
@@ -262,7 +229,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  		drmmode_screen_fini(pScreen);
  
  	if (!pNv->NoAccel)
-@@ -688,7 +806,7 @@
+@@ -688,7 +773,7 @@
  	NVPtr pNv = NVPTR(pScrn);
  	NVEntPtr pNVEnt = NVEntPriv(pScrn);
  	struct pci_device *dev = pNv->PciInfo;
@@ -271,7 +238,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	drmSetVersion sv;
  	int err;
  	int ret;
-@@ -712,8 +830,11 @@
+@@ -712,8 +797,11 @@
  	busid = XNFprintf("pci:%04x:%02x:%02x.%d",
  			  dev->domain, dev->bus, dev->dev, dev->func);
  #endif
@@ -284,7 +251,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	if (ret) {
  		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
  			   "[drm] Failed to open DRM device for %s: %d\n",
-@@ -723,6 +844,9 @@
+@@ -723,6 +811,9 @@
  	}
  	free(busid);
  
@@ -294,7 +261,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	sv.drm_di_major = 1;
  	sv.drm_di_minor = 1;
  	sv.drm_dd_major = -1;
-@@ -818,6 +942,14 @@
+@@ -818,6 +909,14 @@
  		)
  		return FALSE;
  
@@ -309,7 +276,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	if (xf86IsEntityShared(pScrn->entityList[0])) {
  		if(!xf86IsPrimInitDone(pScrn->entityList[0])) {
  			pNv->Primary = TRUE;
-@@ -965,6 +1097,8 @@
+@@ -965,6 +1064,8 @@
  		from = X_CONFIG;
  		pNv->HWCursor = FALSE;
  	}
@@ -318,7 +285,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	xf86DrvMsg(pScrn->scrnIndex, from, "Using %s cursor\n",
  		pNv->HWCursor ? "HW" : "SW");
  
-@@ -1062,7 +1196,13 @@
+@@ -1062,7 +1163,13 @@
  	xf86DrvMsg(pScrn->scrnIndex, from, "Swap limit set to %d [Max allowed %d]%s\n",
  		   pNv->swap_limit, pNv->max_swap_limit, reason);
  
@@ -333,7 +300,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	if (ret == FALSE)
  		NVPreInitFail("Kernel modesetting failed to initialize\n");
  
-@@ -1170,7 +1310,8 @@
+@@ -1170,7 +1277,8 @@
  {
  	NVPtr pNv = NVPTR(pScrn);
  
@@ -343,19 +310,19 @@ Index: xf86-video-nouveau/src/nv_driver.c
  
  	nouveau_bo_ref(NULL, &pNv->transfer);
  	nouveau_bo_ref(NULL, &pNv->scanout);
-@@ -1370,6 +1511,11 @@
- 	else
- 		fbPictureInit (pScreen, 0, 0);
+@@ -1384,6 +1492,11 @@
+ 	 */
+ 	miDCInitialize(pScreen, xf86GetPointerScreenFuncs());
  
 +#ifdef XMIR
 +	if (pNv->xmir)
 +		xmir_screen_init(pScreen, pNv->xmir);
 +#endif
 +
- 	xf86SetBlackWhitePixels(pScreen);
- 
- 	if (!pNv->NoAccel && !nouveau_exa_init(pScreen))
-@@ -1443,19 +1589,19 @@
+ 	/*
+ 	 * Initialize HW cursor layer. 
+ 	 * Must follow software cursor initialization.
+@@ -1443,19 +1556,19 @@
  	 * Initialize colormap layer.
  	 * Must follow initialization of the default colormap 
  	 */
@@ -380,8 +347,8 @@ Index: xf86-video-nouveau/src/nv_driver.c
  
 Index: xf86-video-nouveau/src/nv_type.h
 ===================================================================
---- xf86-video-nouveau.orig/src/nv_type.h	2013-08-06 12:40:27.802943906 +1000
-+++ xf86-video-nouveau/src/nv_type.h	2013-08-06 12:40:27.798943906 +1000
+--- xf86-video-nouveau.orig/src/nv_type.h	2013-08-25 21:17:47.596258262 +1000
++++ xf86-video-nouveau/src/nv_type.h	2013-08-25 21:17:47.592258262 +1000
 @@ -9,6 +9,14 @@
  #include <stdint.h>
  #include "xf86Crtc.h"

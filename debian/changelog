@@ -1,3 +1,10 @@
+xserver-xorg-video-nouveau (1:1.0.8-0ubuntu3+xmirMM5) saucy; urgency=low
+
+  * Fix copy-to-mir rendering to respect dirty region and output offset.
+    Should fix multi-monitor layouts.
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Tue, 27 Aug 2013 21:29:15 +1000
+
 xserver-xorg-video-nouveau (1:1.0.8-0ubuntu3+xmirMM4) saucy; urgency=low
 
   * Fix blank screen by actually submitting rendering.

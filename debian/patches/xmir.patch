@@ -8,8 +8,8 @@ Date:   Mon Jul 22 17:46:58 2013 +1000
 
 Index: xf86-video-nouveau/src/nouveau_dri2.c
 ===================================================================
---- xf86-video-nouveau.orig/src/nouveau_dri2.c	2013-08-27 21:25:27.777887798 +1000
-+++ xf86-video-nouveau/src/nouveau_dri2.c	2013-08-27 21:25:27.769887798 +1000
+--- xf86-video-nouveau.orig/src/nouveau_dri2.c	2013-08-28 17:26:27.509927472 +1000
++++ xf86-video-nouveau/src/nouveau_dri2.c	2013-08-28 17:26:27.497927472 +1000
 @@ -267,7 +267,7 @@
  	NVPtr pNv = NVPTR(scrn);
  	int i;
@@ -62,8 +62,8 @@ Index: xf86-video-nouveau/src/nouveau_dri2.c
  	dri2.CreateBuffer2 = nouveau_dri2_create_buffer2;
 Index: xf86-video-nouveau/src/nv_driver.c
 ===================================================================
---- xf86-video-nouveau.orig/src/nv_driver.c	2013-08-27 21:25:27.777887798 +1000
-+++ xf86-video-nouveau/src/nv_driver.c	2013-08-27 21:26:02.977889008 +1000
+--- xf86-video-nouveau.orig/src/nv_driver.c	2013-08-28 17:26:27.509927472 +1000
++++ xf86-video-nouveau/src/nv_driver.c	2013-08-28 17:26:35.465927746 +1000
 @@ -226,6 +226,8 @@
  	case GET_REQUIRED_HW_INTERFACES:
  	    flag = (CARD32 *)data;
@@ -117,7 +117,17 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	if (!NVHasKMS(dev->pdev))
  		return FALSE;
  
-@@ -424,9 +449,11 @@
+@@ -406,7 +431,8 @@
+ NVAdjustFrame(ADJUST_FRAME_ARGS_DECL)
+ {
+ 	SCRN_INFO_PTR(arg);
+-	drmmode_adjust_frame(pScrn, x, y);
++	if (!xorgMir)
++		drmmode_adjust_frame(pScrn, x, y);
+ }
+ 
+ /*
+@@ -424,9 +450,11 @@
  
  	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "NVEnterVT is called.\n");
  
@@ -132,7 +142,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  
  	if (XF86_CRTC_CONFIG_PTR(pScrn)->num_crtc && !xf86SetDesiredModes(pScrn))
  		return FALSE;
-@@ -452,6 +479,9 @@
+@@ -452,6 +480,9 @@
  
  	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "NVLeaveVT is called.\n");
  
@@ -142,7 +152,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	ret = drmDropMaster(pNv->dev->fd);
  	if (ret && errno != EIO && errno != ENODEV)
  		ErrorF("Error dropping master: %i(%m)\n", -errno);
-@@ -501,6 +531,50 @@
+@@ -501,6 +532,50 @@
  }
  #endif
  
@@ -193,7 +203,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  static void 
  NVBlockHandler (BLOCKHANDLER_ARGS_DECL)
  {
-@@ -516,6 +590,11 @@
+@@ -516,6 +591,11 @@
  	nouveau_dirty_update(pScreen);
  #endif
  
@@ -205,7 +215,25 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	if (pScrn->vtSema && !pNv->NoAccel)
  		nouveau_pushbuf_kick(pNv->pushbuf, pNv->pushbuf->channel);
  
-@@ -535,7 +614,10 @@
+@@ -523,6 +603,17 @@
+ 		(*pNv->VideoTimerCallback)(pScrn, currentTime.milliseconds);
+ }
+ 
++static void
++NVSetScreenPixmap(PixmapPtr ppix)
++{
++	ScrnInfoPtr pScrn = xf86ScreenToScrn(ppix->drawable.pScreen);	
++	NVPtr pNv = NVPTR(pScrn);
++
++	if (!pNv->NoAccel)
++		nouveau_bo_ref(nouveau_pixmap(ppix)->bo, &pNv->scanout);
++	ppix->drawable.pScreen->devPrivate = ppix;
++}
++
+ static Bool
+ NVCreateScreenResources(ScreenPtr pScreen)
+ {
+@@ -535,7 +626,10 @@
  		return FALSE;
  	pScreen->CreateScreenResources = NVCreateScreenResources;
  
@@ -217,7 +245,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	if (!NVEnterVT(VT_FUNC_ARGS(0)))
  		return FALSE;
  
-@@ -561,7 +643,7 @@
+@@ -561,7 +655,7 @@
  	ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
  	NVPtr pNv = NVPTR(pScrn);
  
@@ -226,7 +254,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  		drmmode_screen_fini(pScreen);
  
  	if (!pNv->NoAccel)
-@@ -688,7 +770,7 @@
+@@ -688,7 +782,7 @@
  	NVPtr pNv = NVPTR(pScrn);
  	NVEntPtr pNVEnt = NVEntPriv(pScrn);
  	struct pci_device *dev = pNv->PciInfo;
@@ -235,7 +263,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	drmSetVersion sv;
  	int err;
  	int ret;
-@@ -712,8 +794,11 @@
+@@ -712,8 +806,11 @@
  	busid = XNFprintf("pci:%04x:%02x:%02x.%d",
  			  dev->domain, dev->bus, dev->dev, dev->func);
  #endif
@@ -248,7 +276,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	if (ret) {
  		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
  			   "[drm] Failed to open DRM device for %s: %d\n",
-@@ -723,6 +808,9 @@
+@@ -723,6 +820,9 @@
  	}
  	free(busid);
  
@@ -258,7 +286,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	sv.drm_di_major = 1;
  	sv.drm_di_minor = 1;
  	sv.drm_dd_major = -1;
-@@ -818,6 +906,14 @@
+@@ -818,6 +918,14 @@
  		)
  		return FALSE;
  
@@ -273,7 +301,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	if (xf86IsEntityShared(pScrn->entityList[0])) {
  		if(!xf86IsPrimInitDone(pScrn->entityList[0])) {
  			pNv->Primary = TRUE;
-@@ -965,6 +1061,8 @@
+@@ -965,6 +1073,8 @@
  		from = X_CONFIG;
  		pNv->HWCursor = FALSE;
  	}
@@ -282,7 +310,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	xf86DrvMsg(pScrn->scrnIndex, from, "Using %s cursor\n",
  		pNv->HWCursor ? "HW" : "SW");
  
-@@ -997,7 +1095,7 @@
+@@ -997,7 +1107,7 @@
  				      &pNv->glx_vblank))
  			from = X_CONFIG;
  		else
@@ -291,7 +319,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  
  		xf86DrvMsg(pScrn->scrnIndex, from, "GLX sync to VBlank %s.\n",
  			   pNv->glx_vblank ? "enabled" : "disabled");
-@@ -1062,7 +1160,13 @@
+@@ -1062,7 +1172,13 @@
  	xf86DrvMsg(pScrn->scrnIndex, from, "Swap limit set to %d [Max allowed %d]%s\n",
  		   pNv->swap_limit, pNv->max_swap_limit, reason);
  
@@ -306,7 +334,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	if (ret == FALSE)
  		NVPreInitFail("Kernel modesetting failed to initialize\n");
  
-@@ -1170,7 +1274,8 @@
+@@ -1170,7 +1286,8 @@
  {
  	NVPtr pNv = NVPTR(pScrn);
  
@@ -316,7 +344,7 @@ Index: xf86-video-nouveau/src/nv_driver.c
  
  	nouveau_bo_ref(NULL, &pNv->transfer);
  	nouveau_bo_ref(NULL, &pNv->scanout);
-@@ -1384,6 +1489,11 @@
+@@ -1384,6 +1501,11 @@
  	 */
  	miDCInitialize(pScreen, xf86GetPointerScreenFuncs());
  
@@ -328,7 +356,16 @@ Index: xf86-video-nouveau/src/nv_driver.c
  	/*
  	 * Initialize HW cursor layer. 
  	 * Must follow software cursor initialization.
-@@ -1443,19 +1553,19 @@
+@@ -1427,6 +1549,8 @@
+ 	pNv->CreateScreenResources = pScreen->CreateScreenResources;
+ 	pScreen->CreateScreenResources = NVCreateScreenResources;
+ 
++	pScreen->SetScreenPixmap = NVSetScreenPixmap;
++
+ #ifdef NOUVEAU_PIXMAP_SHARING
+ 	pScreen->StartPixmapTracking = PixmapStartDirtyTracking;
+ 	pScreen->StopPixmapTracking = PixmapStopDirtyTracking;
+@@ -1443,19 +1567,19 @@
  	 * Initialize colormap layer.
  	 * Must follow initialization of the default colormap 
  	 */
@@ -353,8 +390,8 @@ Index: xf86-video-nouveau/src/nv_driver.c
  
 Index: xf86-video-nouveau/src/nv_type.h
 ===================================================================
---- xf86-video-nouveau.orig/src/nv_type.h	2013-08-27 21:25:27.777887798 +1000
-+++ xf86-video-nouveau/src/nv_type.h	2013-08-27 21:25:27.769887798 +1000
+--- xf86-video-nouveau.orig/src/nv_type.h	2013-08-28 17:26:27.509927472 +1000
++++ xf86-video-nouveau/src/nv_type.h	2013-08-28 17:26:27.501927472 +1000
 @@ -9,6 +9,14 @@
  #include <stdint.h>
  #include "xf86Crtc.h"

@@ -1,3 +1,9 @@
+xserver-xorg-video-nouveau (1:1.0.8-0ubuntu3+xmirMM6) saucy; urgency=low
+
+  * Update pNv->scanout on SetScreenPixmap
+
+ -- Christopher James Halse Rogers <raof@ubuntu.com>  Wed, 28 Aug 2013 17:08:49 +1000
+
 xserver-xorg-video-nouveau (1:1.0.8-0ubuntu3+xmirMM5) saucy; urgency=low
 
   * Fix copy-to-mir rendering to respect dirty region and output offset.
